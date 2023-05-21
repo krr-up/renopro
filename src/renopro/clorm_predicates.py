@@ -1,6 +1,5 @@
-# Definitions of AST elements as clorm predicates
-# Note that the full input language of gringo is not represented.
-from typing import Union
+"""Definitions of AST elements as clorm predicates."""
+from typing import Union, Iterable
 
 from clorm import IntegerField, Predicate, StringField, combine_fields
 
@@ -73,3 +72,5 @@ AST_Predicate = Union[
     Literal_Tuple,
     Rule,
 ]
+
+AST_Facts = Iterable[AST_Predicate]
