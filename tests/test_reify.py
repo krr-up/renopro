@@ -17,13 +17,6 @@ class TestReifiedAST(TestCase):
         rast.add_ast_facts(ast_facts)
         self.assertEqual(rast.factbase, FactBase(ast_facts))
 
-    def assertReifiedFactsEqual(self, prog_str: str, facts:
-                                Iterable[preds.AST_Predicate]):
-        """Assert that factbase contained in reified AST equals
-        factbase constructed from list of AST Predicates."""
-        rast = ReifiedAST.from_str(prog_str)
-        self.assertEqual(rast.factbase, FactBase(facts))
-
     def assertConversionsEqual(self, prog_str: str,
                                ast_facts: Iterable[preds.AST_Predicate]):
         """Assert that reification of prog_str results in ast_facts,

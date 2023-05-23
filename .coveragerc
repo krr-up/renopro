@@ -1,5 +1,6 @@
 [run]
 source = renopro
+       tests
 omit = */renopro/__main__.py
 [report]
 exclude_lines =
