@@ -1,11 +1,17 @@
 # renopro
 
-This project template is configured to ease collaboration. Linters, formatters,
-and actions are already configured and ready to use.
+`renopro` is package implementing reification and reflection of non-ground programs in
+Answer Set Programming (ASP) using the `clingo` ASP system's API.
 
-To use the project template, run the `init.py` script to give the project a
-name and some metadata. The script can then be removed afterward and the
-`setup.cfg` file adjusted.
+Reification of non-ground programs is achieved by encoding the
+abstract syntax tree (AST) of an input non-ground program string into
+a set of ASP facts. These facts can then be used in various downstream
+applications where reasoning about ASP programs is required.
+
+Reflection is the reverse operation of reification, i.e. transforming
+a set of facts encoding an asp program into it's string
+representation.  This operation can be used to derive new programs
+which may then e.g. be passed along to an ASP solver.
 
 ## Installation
 
