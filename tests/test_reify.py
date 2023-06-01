@@ -1,11 +1,16 @@
 """Test cases for reification functionality."""
 from unittest import TestCase
 from typing import Iterable
+from pathlib import Path
+
 
 from clorm import FactBase
 
 from renopro.reify import ReifiedAST
 import renopro.clorm_predicates as preds
+
+EXAMPLES = Path("src", "renopro", "asp", "examples")
+TRANSFORM = EXAMPLES / "transform"
 
 
 class TestReifiedAST(TestCase):
@@ -14,20 +19,22 @@ class TestReifiedAST(TestCase):
     def test_add_ast_facts(self):
         rast = ReifiedAST()
         ast_facts = [preds.Variable("X")]
-        rast.add_ast_facts(ast_facts)
+        rast.add_reified_facts(ast_facts)
         self.assertEqual(rast.factbase, FactBase(ast_facts))
 
     def assertConversionsEqual(self, prog_str: str,
-                               ast_facts: Iterable[preds.AST_Predicate]):
+                               ast_preds: Iterable[preds.AST_Predicate]):
         """Assert that reification of prog_str results in ast_facts,
         and that reflection of ast_facts result in prog_str."""
         for operation in ["reification", "reflection"]:
             with self.subTest(operation=operation):
                 if operation == "reification":
-                    rast = ReifiedAST.from_str(prog_str)
-                    self.assertEqual(rast.factbase, FactBase(ast_facts))
+                    rast = ReifiedAST()
+                    rast.reify_program(prog_str)
+                    self.assertEqual(rast.factbase, FactBase(ast_preds))
                 elif operation == "reflection":
-                    rast = ReifiedAST.from_facts(ast_facts)
+                    rast = ReifiedAST()
+                    rast.add_reified_facts(ast_preds)
                     self.assertEqual(rast.reflect(), prog_str)
 
     def test_reify_program_prop_fact(self):
@@ -44,7 +51,9 @@ class TestReifiedAST(TestCase):
         ]
         ast_fact_str = "rule(literal(0,function(\"a\",term_tuple(0))),literal_tuple(0)).\n"
         self.assertConversionsEqual(prog_str, ast_facts)
-        self.assertEqual(str(ReifiedAST.from_str(prog_str)), ast_fact_str)
+        rast = ReifiedAST()
+        rast.add_reified_facts(ast_facts)
+        self.assertEqual(str(rast), ast_fact_str)
 
     def test_reify_program_prop_normal_rule(self):
         """
@@ -74,12 +83,12 @@ class TestReifiedAST(TestCase):
         expected_facts = [
             preds.Rule(head=preds.Literal(sign_=0, atom=rel21),
                        body=preds.Literal_Tuple_Id(identifier=0)),
-            preds.Term_Tuple(identifier=0, position=0, element=preds.Integer(2)),
-            preds.Term_Tuple(identifier=0, position=1, element=preds.Integer(1)),
+            preds.Term_Tuple(identifier=0, position=0, element=preds.Number(2)),
+            preds.Term_Tuple(identifier=0, position=1, element=preds.Number(1)),
             preds.Literal_Tuple(identifier=0, position=0,
                                 element=preds.Literal(sign_=0, atom=rel12)),
-            preds.Term_Tuple(identifier=1, position=0, element=preds.Integer(1)),
-            preds.Term_Tuple(identifier=1, position=1, element=preds.Integer(2))
+            preds.Term_Tuple(identifier=1, position=0, element=preds.Number(1)),
+            preds.Term_Tuple(identifier=1, position=1, element=preds.Number(2))
         ]
         self.assertConversionsEqual(prog_str, expected_facts)
 
@@ -129,3 +138,45 @@ class TestReifiedAST(TestCase):
             preds.Term_Tuple(identifier=0, position=0, element=human)
         ]
         self.assertConversionsEqual(prog_str, expected_facts)
+
+    def test_reify_program_binary_operator(self):
+        prog_str = "equal((1+1),2)."
+        equal = preds.Function(name="equal", arguments=preds.Term_Tuple_Id(0))
+        plus = preds.Binary_Operation(
+            operator=preds.BinaryOperator("+"),
+            left=preds.Number(1), right=preds.Number(1))
+        expected_facts = [
+            preds.Rule(head=preds.Literal(sign_=0, atom=equal),
+                       body=preds.Literal_Tuple_Id(identifier=0)),
+            preds.Term_Tuple(identifier=0, position=0, element=plus),
+            preds.Term_Tuple(identifier=0, position=1,
+                             element=preds.Number(2))
+        ]
+        self.assertConversionsEqual(prog_str, expected_facts)
+
+    def test_transform_add_literal(self):
+        """Test adding an additional literal to the body of rules.
+
+        Desired outcome: for something to be good, we want to require
+        that it's not bad.
+
+        """
+        rast = ReifiedAST()
+        rast.reify_files([TRANSFORM / "good_input.lp"])
+        rast.transform(meta_files=[TRANSFORM / "good_transform.lp"])
+        transformed_str = rast.reflect()
+        with (TRANSFORM / "good_output.lp").open("r") as good_output:
+            good_output_str = good_output.read().strip()
+        self.assertEqual(transformed_str.strip(),
+                         good_output_str)
+
+    def test_transform_add_time(self):
+        """"""
+        rast = ReifiedAST()
+        rast.reify_files([TRANSFORM / "robot_input.lp"])
+        rast.transform(meta_files=[TRANSFORM / "robot_transform.lp"])
+        transformed_str = rast.reflect()
+        with (TRANSFORM / "robot_output.lp").open("r") as robot_output:
+            robot_output_str = robot_output.read().strip()
+        self.assertEqual(transformed_str.strip(),
+                         robot_output_str)

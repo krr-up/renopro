@@ -13,6 +13,15 @@ a set of facts encoding an asp program into it's string
 representation.  This operation can be used to derive new programs
 which may then e.g. be passed along to an ASP solver.
 
+An application `renopro` implements which makes use of both
+reification and reflection is syntactic transformation of input
+programs using ASP itself.  First the input program is reified into a
+set of facts.  Then, these facts are combined with a user-provided
+meta-program which encodes the desired transformations, and passed
+along to `clingo`.  Finally, the derived facts representing the
+transformed program are reflected back into a program string and
+returned to the user.
+
 ## Installation
 
 ```shell
