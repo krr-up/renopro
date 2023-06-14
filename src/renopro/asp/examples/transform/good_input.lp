@@ -1,1 +1,0 @@
-good(X) :- person(X).

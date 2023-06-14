@@ -1,182 +1,130 @@
 """Test cases for reification functionality."""
 from unittest import TestCase
-from typing import Iterable
 from pathlib import Path
+from itertools import count
 
-
-from clorm import FactBase
+from clorm import FactBase, parse_fact_files
 
 from renopro.reify import ReifiedAST
 import renopro.clorm_predicates as preds
 
-EXAMPLES = Path("src", "renopro", "asp", "examples")
-TRANSFORM = EXAMPLES / "transform"
+
+test_reify_files = Path("src", "renopro", "asp", "tests", "reify")
 
 
-class TestReifiedAST(TestCase):
-    """Test cases for ReifiedAST class."""
+class TestReifyReflect(TestCase):
+    """Base class for tests for reification and reflection of
+    non-ground programs."""
 
-    def test_add_ast_facts(self):
-        rast = ReifiedAST()
-        ast_facts = [preds.Variable("X")]
-        rast.add_reified_facts(ast_facts)
-        self.assertEqual(rast.factbase, FactBase(ast_facts))
+    default_ast_facts = []
+    base_str = ""
 
-    def assertConversionsEqual(self, prog_str: str,
-                               ast_preds: Iterable[preds.AST_Predicate]):
+    def assertReifyReflectEqual(self,
+                                prog_str: str,
+                                ast_facts: FactBase):
         """Assert that reification of prog_str results in ast_facts,
         and that reflection of ast_facts result in prog_str."""
+        ast_facts.add(self.default_ast_facts)
+        # reset id generator counter so reification generates expected integers
+        preds.id_count = count()
         for operation in ["reification", "reflection"]:
             with self.subTest(operation=operation):
                 if operation == "reification":
                     rast = ReifiedAST()
                     rast.reify_program(prog_str)
-                    self.assertEqual(rast.factbase, FactBase(ast_preds))
+                    self.assertSetEqual(rast._reified, ast_facts)
                 elif operation == "reflection":
                     rast = ReifiedAST()
-                    rast.add_reified_facts(ast_preds)
-                    self.assertEqual(rast.reflect(), prog_str)
+                    rast.add_reified_facts(ast_facts)
+                    rast.reflect()
+                    expected_string = self.base_str + prog_str
+                    self.assertEqual(rast.program_string, expected_string)
+
+
+class TestReifyReflectSingleNormalRule(TestReifyReflect):
+    """Test cases for programs containing only a single normal rule."""
+
+    base_str = "#program base.\n"
+
+    def setUp(self):
+        # reset id counter between test cases
+        preds.id_count = count()
+
+    def test_add_ast_facts(self):
+        rast = ReifiedAST()
+        ast_facts = [preds.Variable(id=0, name="X")]
+        rast.add_reified_facts(ast_facts)
+        self.assertEqual(rast._reified, FactBase(ast_facts))
 
     def test_reify_program_prop_fact(self):
-
-        """Test reification of a propositional fact, and the string
-        representation of the associated clorm predicate.
-
-        """
+        """Test reification of a propositional fact."""
         prog_str = "a."
-        atom_a = preds.Function(name="a", arguments=preds.Term_Tuple_Id(0))
-        ast_facts = [
-            preds.Rule(head=preds.Literal(sign_=0, atom=atom_a),
-                       body=preds.Literal_Tuple_Id(identifier=0))
-        ]
-        ast_fact_str = "rule(literal(0,function(\"a\",term_tuple(0))),literal_tuple(0)).\n"
-        self.assertConversionsEqual(prog_str, ast_facts)
-        rast = ReifiedAST()
-        rast.add_reified_facts(ast_facts)
-        self.assertEqual(str(rast), ast_fact_str)
+        facts = parse_fact_files(
+            [str(test_reify_files / "prop_fact.lp")],
+            unifier=preds.AST_Facts)
+        self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_prop_normal_rule(self):
         """
         Test reification of a normal rule containing only propositional atoms.
         """
         prog_str = "a :- b; not c."
-        atom_a = preds.Function(name="a", arguments=preds.Term_Tuple_Id(0))
-        atom_b = preds.Function(name="b", arguments=preds.Term_Tuple_Id(1))
-        atom_c = preds.Function(name="c", arguments=preds.Term_Tuple_Id(2))
-        expected_facts = [
-            preds.Rule(head=preds.Literal(sign_=0, atom=atom_a),
-                       body=preds.Literal_Tuple_Id(identifier=0)),
-            preds.Literal_Tuple(identifier=0, position=0,
-                                element=preds.Literal(sign_=0, atom=atom_b)),
-            preds.Literal_Tuple(identifier=0, position=1,
-                                element=preds.Literal(sign_=1, atom=atom_c))
-        ]
-        self.assertConversionsEqual(prog_str, expected_facts)
+        facts = parse_fact_files(
+            [str(test_reify_files / "prop_normal_rule.lp")],
+            unifier=preds.AST_Facts)
+        self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_function(self):
         """
         Test reification of a variable-free normal rule with function symbols.
         """
         prog_str = "rel(2,1) :- rel(1,2)."
-        rel21 = preds.Function(name="rel", arguments=preds.Term_Tuple_Id(0))
-        rel12 = preds.Function(name="rel", arguments=preds.Term_Tuple_Id(1))
-        expected_facts = [
-            preds.Rule(head=preds.Literal(sign_=0, atom=rel21),
-                       body=preds.Literal_Tuple_Id(identifier=0)),
-            preds.Term_Tuple(identifier=0, position=0, element=preds.Number(2)),
-            preds.Term_Tuple(identifier=0, position=1, element=preds.Number(1)),
-            preds.Literal_Tuple(identifier=0, position=0,
-                                element=preds.Literal(sign_=0, atom=rel12)),
-            preds.Term_Tuple(identifier=1, position=0, element=preds.Number(1)),
-            preds.Term_Tuple(identifier=1, position=1, element=preds.Number(2))
-        ]
-        self.assertConversionsEqual(prog_str, expected_facts)
+        facts = parse_fact_files(
+            [str(test_reify_files / "function.lp")],
+            unifier=preds.AST_Facts)
+        self.assertReifyReflectEqual(prog_str, facts)
+
+    def test_reify_program_nested_function(self):
+        prog_str = "next(move(a))."
+        facts = parse_fact_files(
+            [str(test_reify_files / "nested_function.lp")],
+            unifier=preds.AST_Facts)
+        self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_variable(self):
         """
         Test reification of normal rule with variables.
         """
         prog_str = "rel(Y,X) :- rel(X,Y)."
-        relyx = preds.Function(name="rel", arguments=preds.Term_Tuple_Id(0))
-        relxy = preds.Function(name="rel", arguments=preds.Term_Tuple_Id(1))
-        expected_facts = [
-            preds.Rule(head=preds.Literal(sign_=0, atom=relyx),
-                       body=preds.Literal_Tuple_Id(identifier=0)),
-            preds.Term_Tuple(identifier=0, position=0, element=preds.Variable("Y")),
-            preds.Term_Tuple(identifier=0, position=1, element=preds.Variable("X")),
-            preds.Literal_Tuple(identifier=0, position=0,
-                                element=preds.Literal(sign_=0, atom=relxy)),
-            preds.Term_Tuple(identifier=1, position=0, element=preds.Variable("X")),
-            preds.Term_Tuple(identifier=1, position=1, element=preds.Variable("Y"))
-        ]
-        self.assertConversionsEqual(prog_str, expected_facts)
+        facts = parse_fact_files(
+            [str(test_reify_files / "variable.lp")],
+            unifier=preds.AST_Facts)
+        self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_string(self):
         """
         Test reification of normal rule with string.
         """
-        prog_str = "yummy(\"carrot\")."
-        yummy = preds.Function(name="yummy", arguments=preds.Term_Tuple_Id(0))
-        expected_facts = [
-            preds.Rule(head=preds.Literal(sign_=0, atom=yummy),
-                       body=preds.Literal_Tuple_Id(identifier=0)),
-            preds.Term_Tuple(identifier=0, position=0,
-                             element=preds.String("carrot"))
-        ]
-        self.assertConversionsEqual(prog_str, expected_facts)
+        prog_str = 'yummy("carrot").'
+        facts = parse_fact_files(
+            [str(test_reify_files / "string.lp")],
+            unifier=preds.AST_Facts)
+        self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_constant_term(self):
         """
         Test reification of normal rule with constant term.
         """
         prog_str = "good(human)."
-        good = preds.Function(name="good", arguments=preds.Term_Tuple_Id(0))
-        human = preds.Function(name="human", arguments=preds.Term_Tuple_Id(1))
-        expected_facts = [
-            preds.Rule(head=preds.Literal(sign_=0, atom=good),
-                       body=preds.Literal_Tuple_Id(identifier=0)),
-            preds.Term_Tuple(identifier=0, position=0, element=human)
-        ]
-        self.assertConversionsEqual(prog_str, expected_facts)
+        facts = parse_fact_files(
+            [str(test_reify_files / "constant.lp")],
+            unifier=preds.AST_Facts)
+        self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_binary_operator(self):
         prog_str = "equal((1+1),2)."
-        equal = preds.Function(name="equal", arguments=preds.Term_Tuple_Id(0))
-        plus = preds.Binary_Operation(
-            operator=preds.BinaryOperator("+"),
-            left=preds.Number(1), right=preds.Number(1))
-        expected_facts = [
-            preds.Rule(head=preds.Literal(sign_=0, atom=equal),
-                       body=preds.Literal_Tuple_Id(identifier=0)),
-            preds.Term_Tuple(identifier=0, position=0, element=plus),
-            preds.Term_Tuple(identifier=0, position=1,
-                             element=preds.Number(2))
-        ]
-        self.assertConversionsEqual(prog_str, expected_facts)
+        facts = parse_fact_files(
+            [str(test_reify_files / "binary_operation.lp")],
+            unifier=preds.AST_Facts)
+        self.assertReifyReflectEqual(prog_str, facts)
 
-    def test_transform_add_literal(self):
-        """Test adding an additional literal to the body of rules.
-
-        Desired outcome: for something to be good, we want to require
-        that it's not bad.
-
-        """
-        rast = ReifiedAST()
-        rast.reify_files([TRANSFORM / "good_input.lp"])
-        rast.transform(meta_files=[TRANSFORM / "good_transform.lp"])
-        transformed_str = rast.reflect()
-        with (TRANSFORM / "good_output.lp").open("r") as good_output:
-            good_output_str = good_output.read().strip()
-        self.assertEqual(transformed_str.strip(),
-                         good_output_str)
-
-    def test_transform_add_time(self):
-        """"""
-        rast = ReifiedAST()
-        rast.reify_files([TRANSFORM / "robot_input.lp"])
-        rast.transform(meta_files=[TRANSFORM / "robot_transform.lp"])
-        transformed_str = rast.reflect()
-        with (TRANSFORM / "robot_output.lp").open("r") as robot_output:
-            robot_output_str = robot_output.read().strip()
-        self.assertEqual(transformed_str.strip(),
-                         robot_output_str)
