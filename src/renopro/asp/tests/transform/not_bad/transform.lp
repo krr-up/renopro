@@ -18,19 +18,10 @@ max_index(I,N) :- N = #max{ P : literal_tuple(I,P,_); -1 }, literal_tuple(I,_,_)
 
 
 % the transformation itself
-add_not_bad(LitTuple,N+1,Fargs)
-:- rule(_,literal(Lit),literal_tuple(LitTuple)),
-	 literal(Lit,"pos",function(Func)),
-	 function(Func,good,Fargs),
-	 max_index(LitTuple,N).
-
-
-% effect of add_not_bad
-add(literal_tuple(LitTuple,Pos,literal(new_id(LitTuple,0))))
-:- add_not_bad(LitTuple,Pos,Fargs).
-
-add(literal(new_id(LitTuple,0),"not",function(new_id(LitTuple,1))))
-:- add_not_bad(LitTuple,Pos,Fargs).
-
-add(function(new_id(LitTuple,1),bad,Fargs))
-:- add_not_bad(LitTuple,Pos,Fargs).
+add((literal_tuple(LT,N+1,literal(new_id(LT,0))));
+		literal(new_id(LT,0),"not",function(new_id(LT,1)));
+		function(new_id(LT,1),bad,Fargs))
+:- rule(_,literal(L),literal_tuple(LT)),
+	 literal(L,"pos",function(F)),
+	 function(F,good,Fargs),
+	 max_index(LT,N).

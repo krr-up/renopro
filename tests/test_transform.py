@@ -11,6 +11,8 @@ test_transform_dir = tests_dir / "transform"
 class TestTransform(TestCase):
     """Tests for ast transformations defined via a meta-encodings."""
 
+    base_str = "#program base.\n"
+
     def test_transform_add_literal(self):
         """Test adding an additional literal to the body of rules.
 
@@ -22,18 +24,22 @@ class TestTransform(TestCase):
         rast.reify_files([files_dir / "input.lp"])
         rast.transform(meta_files=[files_dir / "transform.lp"])
         rast.reflect()
-        transformed_str = rast.program_string
-        with (files_dir / "output.lp").open("r") as good_output:
-            good_output_str = good_output.read().strip()
-        self.assertEqual(transformed_str.strip(), good_output_str)
+        transformed_str = rast.program_string.strip()
+        with (files_dir / "output.lp").open("r") as output:
+            expected_str = self.base_str + output.read().strip()
+        self.assertEqual(transformed_str, expected_str)
 
     def test_transform_add_time(self):
         """Test transforming a temporal logic program with the
         previous operator into a program with explicit time points."""
-        rast = ReifiedAST()
-        rast.reify_files([test_transform_files / "robot_input.lp"])
-        rast.transform(meta_files=[test_transform_files / "robot_transform.lp"])
-        transformed_str = rast.reflect()
-        with (test_transform_files / "robot_output.lp").open("r") as robot_output:
-            robot_output_str = robot_output.read().strip()
-        self.assertEqual(transformed_str.strip(), robot_output_str)
+        for testname in ["sad", "very_sad", "constant"]:
+            with self.subTest(testname=testname):
+                rast = ReifiedAST()
+                files_dir = test_transform_dir / "prev_to_timepoints"
+                rast.reify_files([files_dir / (testname + "_input.lp")])
+                rast.transform(meta_files=[files_dir / "transform.lp"])
+                rast.reflect()
+                transformed_str = rast.program_string.strip()
+                with (files_dir / (testname + "_output.lp")).open("r") as output:
+                    expected_str = self.base_str + output.read().strip()
+                self.assertEqual(transformed_str, expected_str)
