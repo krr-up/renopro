@@ -257,14 +257,14 @@ class ReifiedAST:
         return binop1
 
     @_reify_ast.register(SymbolType.Number)
-    def _reify_number(self, symb):
+    def _reify_symbol_number(self, symb):
         number1 = preds.Number1()
         self._reified.add(preds.Number(id=number1.id,
                                        value=symb.number))
         return number1
 
     @_reify_ast.register(SymbolType.Function)
-    def _reify_constant(self, symb):
+    def _reify_symbol_function(self, symb):
         """Reify constant term.
 
         Note that clingo represents constant terms as a
@@ -276,7 +276,7 @@ class ReifiedAST:
         return const1
 
     @_reify_ast.register(SymbolType.String)
-    def _reify_string(self, symb):
+    def _reify_symbol_string(self, symb):
         string1 = preds.String1()
         self._reified.add(preds.String(id=string1.id,
                                        value=symb.string))
