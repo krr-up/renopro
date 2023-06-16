@@ -192,6 +192,22 @@ class ReifiedAST:
 
     @_reify_ast.register(ASTType.Function)
     def _reify_function(self, node):
+        """Reify an ast node with node.ast_type of ASTType.Function.
+
+        Note that clingo's ast also represents propositional constants
+        as nodes with node.type of ASTType.Function and an empty
+        node.arguments list; thus some additional care must be taken
+        to create the correct clorm predicate.
+
+        """
+        if len(node.arguments) == 0:
+            constant1 = preds.Constant1()
+            constant = preds.Constant(
+                id=constant1.id,
+                name=node.name
+            )
+            self._reified.add(constant)
+            return constant1
         function1 = preds.Function1()
         function = preds.Function(
             id=function1.id,

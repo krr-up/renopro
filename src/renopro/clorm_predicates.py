@@ -164,6 +164,9 @@ Binary_Operation1 = make_id_predicate(Binary_Operation)
 
 Term.fields.append(Binary_Operation1.Field)
 
+# an atom may be a predicate (Function) or propositional constant (Constant)
+Atom = combine_fields([Function1.Field, Constant1.Field], name="Atom")
+
 
 class Sign(str, enum.Enum):
     DoubleNegation = "not not"
@@ -189,7 +192,7 @@ class Literal(Predicate):
     sig = define_enum_field(parent_field=StringField,
                             enum_class=Sign,
                             name="SignField")
-    atom = Function1.Field
+    atom = Atom
 
 
 Literal1 = make_id_predicate(Literal)
