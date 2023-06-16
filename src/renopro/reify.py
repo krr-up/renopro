@@ -15,6 +15,15 @@ from clorm import (FactBase, control_add_facts,
                    SymbolPredicateUnifier, parse_fact_string,
                    UnifierNoMatchError, parse_fact_files)
 
+
+class ChildQueryError(Exception):
+    pass
+
+
+class ChildrenQueryError(Exception):
+    pass
+
+
 import renopro.clorm_predicates as preds
 
 logger = logging.getLogger(__name__)
@@ -282,22 +291,30 @@ class ReifiedAST:
                                        value=symb.string))
         return string1
 
-    def _reflect_child_pred(self, id_predicate):
+    def _reflect_child_pred(self, parent_pred, child_id_pred):
         """Utility function that takes a unary ast predicate
         containing only an identifier pointing to a child predicate,
-        returns the child node obtained by reflecting the child
-        predicate.
+        queries reified factbase for child predicate, and returns the
+        child node obtained by reflecting the child predicate.
 
         """
-        identifier = id_predicate.id
+        identifier = child_id_pred.id
         nonunary_pred = getattr(preds,
-                                type(id_predicate).__name__.rstrip("1"))
-        pred = self._reified.query(nonunary_pred)\
-                           .where(nonunary_pred.id == identifier)\
-                           .singleton()
-        return self._reflect_predicate(pred)
+                                type(child_id_pred).__name__.rstrip("1"))
+        query = self._reified.query(nonunary_pred)\
+                             .where(nonunary_pred.id == identifier)
+        child_preds = list(query.all())
+        if len(child_preds) == 0:
+            msg = f"Error finding child fact of predicate {parent_pred}:\nExpected single child fact for identifier {child_id_pred}, found none."
+            raise ChildQueryError(msg)
+        elif len(child_preds) > 1:
+            msg = f"Error finding child fact of predicate {parent_pred}:\nExpected single child fact for identifier {child_id_pred}, found multiple:\n" + "\n".join(child_preds)
+            raise ChildQueryError(msg)
+        else:
+            child_pred = child_preds[0]
+        return self._reflect_predicate(child_pred)
 
-    def _reflect_child_preds(self, id_predicate):
+    def _reflect_child_preds(self, parent_pred, id_predicate):
         """Utility function that takes a unary ast predicate
         containing only an identifier pointing to a tuple of child
         predicates, and returns a list of the child nodes obtained by
@@ -307,13 +324,18 @@ class ReifiedAST:
         identifier = id_predicate.id
         nonunary_pred = getattr(preds,
                                 type(id_predicate).__name__.rstrip("1"))
-        tuples = self._reified.query(nonunary_pred)\
+        query = self._reified.query(nonunary_pred)\
                              .where(nonunary_pred.id == identifier)\
-                             .order_by(nonunary_pred.position)\
-                             .all()
-        elements = [tup.element for tup in tuples]
-        nodes = list(map(self._reflect_child_pred, elements))
-        return nodes
+                             .order_by(nonunary_pred.position)
+        tuples = list(query.all())
+        child_nodes = list()
+        for tup in tuples:
+            try:
+                child_nodes.append(self._reflect_child_pred(tup, tup.element))
+            except ChildQueryError as e:
+                msg = f"Error finding tuple of child facts of predicate {parent_pred}:\n"
+                raise ChildrenQueryError(msg + str(e))
+        return child_nodes
 
     @singledispatchmethod
     def _reflect_predicate(self, pred: preds.AST_Predicate):  # nocoverage
@@ -329,29 +351,29 @@ class ReifiedAST:
     @_reflect_predicate.register
     def _reflect_program(self, program: preds.Program) -> Sequence[AST]:
         subprogram = list()
-        parameter_nodes = self._reflect_child_preds(program.parameters)
+        parameter_nodes = self._reflect_child_preds(program, program.parameters)
         subprogram.append(ast.Program(location=DUMMY_LOC,
                                       name=program.name,
                                       parameters=parameter_nodes))
-        statement_nodes = self._reflect_child_preds(program.statements)
+        statement_nodes = self._reflect_child_preds(program, program.statements)
         subprogram.extend(statement_nodes)
         return subprogram
 
     @_reflect_predicate.register
     def _reflect_rule(self, rule: preds.Rule) -> AST:
-        head_node = self._reflect_child_pred(rule.head)
-        body_nodes = self._reflect_child_preds(rule.body)
+        head_node = self._reflect_child_pred(rule, rule.head)
+        body_nodes = self._reflect_child_preds(rule, rule.body)
         return ast.Rule(location=DUMMY_LOC, head=head_node, body=body_nodes)
 
     @_reflect_predicate.register
     def _reflect_literal(self, lit: preds.Literal) -> AST:
         sign = preds.sign_cl2ast[lit.sig]
-        atom_node = self._reflect_child_pred(lit.atom)
+        atom_node = self._reflect_child_pred(lit, lit.atom)
         return ast.Literal(location=DUMMY_LOC, sign=sign, atom=atom_node)
 
     @_reflect_predicate.register
     def _reflect_function(self, func: preds.Function) -> AST:
-        arg_nodes = self._reflect_child_preds(func.arguments)
+        arg_nodes = self._reflect_child_preds(func, func.arguments)
         return ast.Function(
             location=DUMMY_LOC, name=func.name, arguments=arg_nodes, external=0
         )
@@ -385,8 +407,8 @@ class ReifiedAST:
         ast_operator = preds.binary_operator_cl2ast[operation.operator]
         return ast.BinaryOperation(
             location=DUMMY_LOC, operator_type=ast_operator,
-            left=self._reflect_child_pred(operation.left),
-            right=self._reflect_child_pred(operation.right)
+            left=self._reflect_child_pred(operation, operation.left),
+            right=self._reflect_child_pred(operation, operation.right)
         )
 
     def reflect(self):
