@@ -336,4 +336,4 @@ AST_Facts = [
 
 
 class Final(Predicate):
-    ast = RawField
+    ast = combine_fields([fact.Field for fact in AST_Facts])

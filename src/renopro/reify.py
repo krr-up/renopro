@@ -441,38 +441,16 @@ class ReifiedAST:
             for meta_file in meta_files:
                 with meta_file.open() as f:
                     meta_prog += f.read()
-        ctl = clingo.Control()
-        control_add_facts(ctl, self._reified)
+
+        ctl = Control(unifier=[preds.Final])
+        ctl.add_facts(self._reified)
         ctl.add(meta_prog)
         ctl.load("./src/renopro/asp/encodings/transform.lp")
         ctl.ground()
         with ctl.solve(yield_=True) as handle:
             model = next(iter(handle))
-            ast_str = "".join([str(final.arguments[0]) + "."
-                               for final in model.symbols(shown=True)])
-            self._reified = parse_fact_string(ast_str, unifier=preds.AST_Facts)
-
-        # TODO: do this with clorm like below.
-        # could not get the unfication with preds.Final to work.
-        # 
-        # ctl = Control()
-        # ctl.add_facts(self.factbase)
-        # ctl.add(meta_prog)
-        # ctl.load("./src/renopro/asp/encodings/transform.lp")
-        # ctl.ground()
-        # with ctl.solve(yield_=True) as handle:
-        #     model = next(iter(handle))
-        #     facts = model.facts(unifier=SymbolPredicateUnifier)
-        #     logger.warn(facts)
-
-        # def model_callback(fb: FactBase, model: Model):
-        #     facts = model.facts(unifier=[preds.Final])
-        #     logger.warn(facts)
-        #     fb.add(facts)
-        #     return False
-
-        # ctl.solve(on_model=partial(model_callback, model_facts))
-        # self.factbase = model_facts
+            final_facts = model.facts(shown=True)
+            self._reified = FactBase([final.ast for final in final_facts])
 
 
 if __name__ == "__main__":  # nocoverage
