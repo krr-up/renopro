@@ -305,10 +305,15 @@ class ReifiedAST:
                              .where(nonunary_pred.id == identifier)
         child_preds = list(query.all())
         if len(child_preds) == 0:
-            msg = f"Error finding child fact of predicate {parent_pred}:\nExpected single child fact for identifier {child_id_pred}, found none."
+            msg = (f"Error finding child fact of predicate:\n{parent_pred}:\n"
+                   f"Expected single child fact for identifier {child_id_pred}"
+                   ", found none.")
             raise ChildQueryError(msg)
         elif len(child_preds) > 1:
-            msg = f"Error finding child fact of predicate {parent_pred}:\nExpected single child fact for identifier {child_id_pred}, found multiple:\n" + "\n".join(child_preds)
+            child_pred_strings = [str(pred) for pred in child_preds]
+            msg = (f"Error finding child fact of predicate:\n{parent_pred}:\n"
+                   f"Expected single child fact for identifier {child_id_pred}"
+                   ", found multiple:\n" + "\n".join(child_pred_strings))
             raise ChildQueryError(msg)
         else:
             child_pred = child_preds[0]
@@ -330,11 +335,7 @@ class ReifiedAST:
         tuples = list(query.all())
         child_nodes = list()
         for tup in tuples:
-            try:
-                child_nodes.append(self._reflect_child_pred(tup, tup.element))
-            except ChildQueryError as e:
-                msg = f"Error finding tuple of child facts of predicate {parent_pred}:\n"
-                raise ChildrenQueryError(msg + str(e))
+            child_nodes.append(self._reflect_child_pred(tup, tup.element))
         return child_nodes
 
     @singledispatchmethod
