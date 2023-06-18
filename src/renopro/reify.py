@@ -47,20 +47,22 @@ class ReifiedAST:
     def add_reified_facts(self, reified_facts:
                           Iterable[preds.AST_Predicate]) -> None:
         """Add factbase containing reified facts into internal factbase."""
-        self._reified.add(reified_facts)
+        self._reified.update(reified_facts)
 
-    def add_reified_program(self, reified_program: str) -> None:
+    def add_reified_string(self, reified_string: str) -> None:
         """Add string of reified facts into internal factbase."""
-        facts = parse_fact_string(reified_program, unifier=[preds.AST_Facts])
-        self._reified.add(facts)
+        facts = parse_fact_string(reified_string, unifier=preds.AST_Facts,
+                                  raise_nomatch=True, raise_nonfact=True)
+        self._reified.update(facts)
 
     def add_reified_files(self, reified_files: Sequence[Path]) -> None:
         """Add files containing reified facts into internal factbase."""
         reified_files = [str(f) for f in reified_files]
-        facts = parse_fact_files(reified_files, unifier=[preds.AST_Facts])
-        self._reified.add(facts)
+        facts = parse_fact_files(reified_files, unifier=preds.AST_Facts,
+                                 raise_nomatch=True, raise_nonfact=True)
+        self._reified.update(facts)
 
-    def reify_program(self, prog_str: str) -> None:
+    def reify_string(self, prog_str: str) -> None:
         """Reify input program string, adding reified facts to the
         internal factbase."""
         parse_string(prog_str, self._reify_ast)

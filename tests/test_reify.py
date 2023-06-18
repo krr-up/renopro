@@ -31,7 +31,7 @@ class TestReifyReflect(TestCase):
             with self.subTest(operation=operation):
                 if operation == "reification":
                     rast = ReifiedAST()
-                    rast.reify_program(prog_str)
+                    rast.reify_string(prog_str)
                     self.assertSetEqual(rast._reified, ast_facts)
                 elif operation == "reflection":
                     rast = ReifiedAST()
