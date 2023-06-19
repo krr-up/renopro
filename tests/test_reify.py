@@ -19,6 +19,13 @@ class TestReifyReflect(TestCase):
     default_ast_facts = []
     base_str = ""
 
+    def get_test_facts(self, fact_file_str: str):
+        """Parse fact file from test directory."""
+        facts = parse_fact_files(
+            [str(test_reify_files / fact_file_str)],
+            unifier=preds.AST_Facts)
+        return facts
+
     def assertReifyReflectEqual(self,
                                 prog_str: str,
                                 ast_facts: FactBase):
@@ -41,8 +48,9 @@ class TestReifyReflect(TestCase):
                     self.assertEqual(rast.program_string, expected_string)
 
 
-class TestReifyReflectSingleNormalRule(TestReifyReflect):
-    """Test cases for programs containing only a single normal rule."""
+class TestReifyReflectSimplePrograms(TestReifyReflect):
+    """Test cases for simple programs containing only a couple
+    statements."""
 
     base_str = "#program base.\n"
 
@@ -59,9 +67,7 @@ class TestReifyReflectSingleNormalRule(TestReifyReflect):
     def test_reify_program_prop_fact(self):
         """Test reification of a propositional fact."""
         prog_str = "a."
-        facts = parse_fact_files(
-            [str(test_reify_files / "prop_fact.lp")],
-            unifier=preds.AST_Facts)
+        facts = self.get_test_facts("prop_fact.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_prop_normal_rule(self):
@@ -69,9 +75,7 @@ class TestReifyReflectSingleNormalRule(TestReifyReflect):
         Test reification of a normal rule containing only propositional atoms.
         """
         prog_str = "a :- b; not c."
-        facts = parse_fact_files(
-            [str(test_reify_files / "prop_normal_rule.lp")],
-            unifier=preds.AST_Facts)
+        facts = self.get_test_facts("prop_normal_rule.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_function(self):
@@ -79,16 +83,12 @@ class TestReifyReflectSingleNormalRule(TestReifyReflect):
         Test reification of a variable-free normal rule with function symbols.
         """
         prog_str = "rel(2,1) :- rel(1,2)."
-        facts = parse_fact_files(
-            [str(test_reify_files / "function.lp")],
-            unifier=preds.AST_Facts)
+        facts = self.get_test_facts("function.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_nested_function(self):
         prog_str = "next(move(a))."
-        facts = parse_fact_files(
-            [str(test_reify_files / "nested_function.lp")],
-            unifier=preds.AST_Facts)
+        facts = self.get_test_facts("nested_function.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_variable(self):
@@ -96,9 +96,7 @@ class TestReifyReflectSingleNormalRule(TestReifyReflect):
         Test reification of normal rule with variables.
         """
         prog_str = "rel(Y,X) :- rel(X,Y)."
-        facts = parse_fact_files(
-            [str(test_reify_files / "variable.lp")],
-            unifier=preds.AST_Facts)
+        facts = self.get_test_facts("variable.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_string(self):
@@ -106,9 +104,7 @@ class TestReifyReflectSingleNormalRule(TestReifyReflect):
         Test reification of normal rule with string.
         """
         prog_str = 'yummy("carrot").'
-        facts = parse_fact_files(
-            [str(test_reify_files / "string.lp")],
-            unifier=preds.AST_Facts)
+        facts = self.get_test_facts("string.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_constant_term(self):
@@ -116,15 +112,11 @@ class TestReifyReflectSingleNormalRule(TestReifyReflect):
         Test reification of normal rule with constant term.
         """
         prog_str = "good(human)."
-        facts = parse_fact_files(
-            [str(test_reify_files / "constant.lp")],
-            unifier=preds.AST_Facts)
+        facts = self.get_test_facts("constant.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_binary_operator(self):
         prog_str = "equal((1+1),2)."
-        facts = parse_fact_files(
-            [str(test_reify_files / "binary_operation.lp")],
-            unifier=preds.AST_Facts)
+        facts = self.get_test_facts("binary_operation.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
