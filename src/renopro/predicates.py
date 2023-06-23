@@ -47,10 +47,8 @@ def combine_fields_lazily(fields: Sequence[Type[BaseField]], *, name:
 
     # Must combine at least two fields otherwise it doesn't make sense
     for f in fields:
-        if not inspect.isclass(f) or not issubclass(f, BaseField):  # nocoverage
-            raise TypeError("{} is not BaseField or a sub-class".format(f))
-    if len(fields) < 2:  # nocoverage
-        raise TypeError("Must specify at least two fields to combine")
+        if not inspect.isclass(f) or not issubclass(f, BaseField):
+            raise TypeError("{f} is not BaseField or a sub-class.")
 
     fields = list(fields)
 
@@ -60,7 +58,7 @@ def combine_fields_lazily(fields: Sequence[Type[BaseField]], *, name:
                 return f.pytocl(v)
             except (TypeError, ValueError, AttributeError):
                 pass
-        raise TypeError("No combined pytocl() match for value {}".format(v))
+        raise TypeError(f"No combined pytocl() match for value {v}.")
 
     def _cltopy(r):
         for f in fields:
@@ -68,12 +66,12 @@ def combine_fields_lazily(fields: Sequence[Type[BaseField]], *, name:
                 return f.cltopy(r)
             except (TypeError, ValueError):
                 pass
-        raise TypeError(
-            "Object '{}' ({}) failed to unify with {}".format(r, type(r), subclass_name)
-        )
+        raise TypeError((f"Object '{r}' ({type(r)}) failed to unify "
+                         f"with {subclass_name}."))
 
     return type(subclass_name, (BaseField,), {"fields": fields,
-                                              "pytocl": _pytocl, "cltopy": _cltopy})
+                                              "pytocl": _pytocl,
+                                              "cltopy": _cltopy})
 
 
 class String(Predicate):
