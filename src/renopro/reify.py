@@ -40,10 +40,6 @@ class ReifiedAST:
         self._program_statements = list()
         self._id_counter = -1
 
-    def _new_id(self) -> int:
-        self._id_counter += 1
-        return self._id_counter
-
     def add_reified_facts(self, reified_facts:
                           Iterable[preds.AST_Predicate]) -> None:
         """Add factbase containing reified facts into internal factbase."""
