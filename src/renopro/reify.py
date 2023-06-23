@@ -319,10 +319,9 @@ class ReifiedAST:
 
         """
         identifier = child_id_pred.id
-        nonunary_pred = getattr(preds,
-                                type(child_id_pred).__name__.rstrip("1"))
-        query = self._reified.query(nonunary_pred)\
-                             .where(nonunary_pred.id == identifier)
+        child_ast_pred = preds.id_pred2ast_pred[type(child_id_pred)]
+        query = self._reified.query(child_ast_pred)\
+                             .where(child_ast_pred.id == identifier)
         child_preds = list(query.all())
         if len(child_preds) == 0:
             msg = (f"Error finding child fact of predicate:\n{parent_pred}:\n"
