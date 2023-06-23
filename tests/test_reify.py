@@ -112,7 +112,7 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         Test reification of normal rule with constant term.
         """
         prog_str = "good(human)."
-        facts = self.get_test_facts("constant.lp")
+        facts = self.get_test_facts("constant_term.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
     def test_reify_program_binary_operator(self):
@@ -120,3 +120,7 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         facts = self.get_test_facts("binary_operation.lp")
         self.assertReifyReflectEqual(prog_str, facts)
 
+    def test_reify_external_false(self):
+        prog_str = "#external a(X) : c(X); d(e(X)). [false]"
+        facts = self.get_test_facts("external.lp")
+        self.assertReifyReflectEqual(prog_str, facts)

@@ -6,6 +6,7 @@ ast(constant(Id,Name)) :- constant(Id, Name).
 ast(function(Id,Name,Args)) :- function(Id,Name,Args).
 ast(term_tuple(Id,Pos,Element)) :- term_tuple(Id,Pos,Element).
 ast(binary_operation(Id,Operator,Left,Right)) :- binary_operation(Id,Operator,Left,Right).
+ast(atom(Id,Symbol)) :- atom(Id,Symbol).
 ast(literal(Id,Sign,Function)) :- literal(Id,Sign,Function).
 ast(literal_tuple(Id,Pos,Element)) :- literal_tuple(Id,Pos,Element).
 ast(rule(Id,Head,Body)) :- rule(Id,Head,Body).

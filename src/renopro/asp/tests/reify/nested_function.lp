@@ -4,11 +4,12 @@
 
 program("base",constant_tuple(0),statement_tuple(1)).
 statement_tuple(1,0,rule(2)).
-rule(2,literal(3),literal_tuple(9)).
+rule(2,literal(3),literal_tuple(11)).
 % facts representing head literal rel(2,1).
-literal(3,"pos",function(4)).
-function(4,next,term_tuple(5)).
-term_tuple(5,0,function(6)).
-function(6,move,term_tuple(7)).
-term_tuple(7,0,constant(8)).
-constant(8,a).
+literal(3,"pos",atom(4)).
+atom(4,function(5)).
+function(5,next,term_tuple(6)).
+term_tuple(6,0,function(7)).
+function(7,move,term_tuple(8)).
+term_tuple(8,0,function(9)).
+function(9,a,term_tuple(10)).

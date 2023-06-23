@@ -6,7 +6,7 @@ from itertools import count
 
 from clorm import (IntegerField, Predicate, StringField, RawField,
                    BaseField, combine_fields, define_enum_field,
-                   ConstantField)
+                   refine_field, ConstantField)
 from clingo import ast
 
 id_count = count()
@@ -100,16 +100,8 @@ class Variable(Predicate):
 Variable1 = make_id_predicate(Variable)
 
 
-class Constant(Predicate):
-    id = Identifier
-    name = ConstantField
-
-
-Constant1 = make_id_predicate(Constant)
-
-
 Term = combine_fields_lazily([String1.Field, Number1.Field,
-                              Variable1.Field, Constant1.Field], name="Term")
+                              Variable1.Field], name="Term")
 
 
 class Term_Tuple(Predicate):
@@ -122,6 +114,8 @@ Term_Tuple1 = make_id_predicate(Term_Tuple)
 
 
 class Function(Predicate):
+    """Note: we represent constants as a Function with an empty term
+    tuple (i.e. no term_tuple fact with a matching identifier"""
     id = Identifier
     name = ConstantField
     arguments = Term_Tuple1.Field
@@ -164,8 +158,13 @@ Binary_Operation1 = make_id_predicate(Binary_Operation)
 
 Term.fields.append(Binary_Operation1.Field)
 
-# an atom may be a predicate (Function) or propositional constant (Constant)
-Atom = combine_fields([Function1.Field, Constant1.Field], name="Atom")
+
+class Atom(Predicate):
+    id = Identifier
+    symbol = Function1.Field
+
+
+Atom1 = make_id_predicate(Atom)
 
 
 class Sign(str, enum.Enum):
@@ -192,7 +191,7 @@ class Literal(Predicate):
     sig = define_enum_field(parent_field=StringField,
                             enum_class=Sign,
                             name="SignField")
-    atom = Atom
+    atom = Atom1.Field
 
 
 Literal1 = make_id_predicate(Literal)
@@ -215,8 +214,25 @@ class Rule(Predicate):
 
 Rule1 = make_id_predicate(Rule)
 
-# will be changed to combine_fileds once more statements are implemented
-Statement = Rule1.Field
+
+# note that clingo's parser actually allows arbitrary constant as the external_type
+# argument of External, but any other value than true or false results in the external
+# statement having no effect
+ExternalTypeField = refine_field(ConstantField, ["true", "false"],
+                                 name="ExternalTypeField")
+
+
+class External(Predicate):
+    id = Identifier
+    atom = Atom1.Field
+    body = Literal_Tuple1.Field
+    external_type = ExternalTypeField
+
+
+External1 = make_id_predicate(External)
+
+
+Statement = combine_fields([Rule1.Field, External1.Field])
 
 
 class Statement_Tuple(Predicate):
@@ -231,7 +247,7 @@ Statement_Tuple1 = make_id_predicate(Statement_Tuple)
 class Constant_Tuple(Predicate):
     id = Identifier
     position = IntegerField
-    element = Constant1.Field
+    element = Function1.Field
 
 
 Constant_Tuple1 = make_id_predicate(Constant_Tuple)
@@ -251,20 +267,22 @@ AST_Predicate = Union[
     Number1,
     Variable,
     Variable1,
-    Constant,
-    Constant1,
     Term_Tuple,
     Term_Tuple1,
     Function,
     Function1,
     Binary_Operation,
     Binary_Operation1,
+    Atom,
+    Atom1,
     Literal,
     Literal1,
     Literal_Tuple,
     Literal_Tuple1,
     Rule,
     Rule1,
+    External,
+    External1,
     Statement_Tuple,
     Statement_Tuple1,
     Constant_Tuple,
@@ -279,20 +297,22 @@ AST_Predicates = [
     Number1,
     Variable,
     Variable1,
-    Constant,
-    Constant1,
     Term_Tuple,
     Term_Tuple1,
     Function,
     Function1,
     Binary_Operation,
     Binary_Operation1,
+    Atom,
+    Atom1,
     Literal,
     Literal1,
     Literal_Tuple,
     Literal_Tuple1,
     Rule,
     Rule1,
+    External,
+    External1,
     Statement_Tuple,
     Statement_Tuple1,
     Constant_Tuple,
@@ -304,13 +324,14 @@ AST_Fact = Union[
     String,
     Number,
     Variable,
-    Constant,
     Function,
     Term_Tuple,
     Binary_Operation,
+    Atom,
     Literal,
     Literal_Tuple,
     Rule,
+    External,
     Statement_Tuple,
     Constant_Tuple,
     Program
@@ -320,13 +341,14 @@ AST_Facts = [
     String,
     Number,
     Variable,
-    Constant,
     Function,
     Term_Tuple,
     Binary_Operation,
+    Atom,
     Literal,
     Literal_Tuple,
     Rule,
+    External,
     Statement_Tuple,
     Constant_Tuple,
     Program

@@ -1,6 +1,6 @@
 """Module implementing reification and de-reification of non-ground programs"""
 import sys
-from functools import singledispatchmethod, partial
+from functools import singledispatchmethod
 import logging
 from typing import Iterable, Sequence, Union, Optional
 from pathlib import Path
@@ -10,10 +10,12 @@ from clingo import ast, symbol
 from clingo.ast import (AST, ASTType, Location, Position,
                         parse_string, parse_files, BinaryOperator)
 from clingo.symbol import Symbol, SymbolType
-from clorm.clingo import Control, Model
+from clorm.clingo import Control
 from clorm import (FactBase, control_add_facts,
                    SymbolPredicateUnifier, parse_fact_string,
                    UnifierNoMatchError, parse_fact_files)
+
+import renopro.clorm_predicates as preds
 
 
 class ChildQueryError(Exception):
@@ -23,8 +25,6 @@ class ChildQueryError(Exception):
 class ChildrenQueryError(Exception):
     pass
 
-
-import renopro.clorm_predicates as preds
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +162,32 @@ class ReifiedAST:
                 element=param.id))
         return
 
+    @_reify_ast.register(ASTType.External)
+    def _reify_external(self, node):
+        self._program_statements.append(node)
+        ext_type = node.external_type.symbol.name
+        external1 = preds.External1()
+        external = preds.External(
+            id=external1.id,
+            atom=self._reify_ast(node.atom),
+            body=preds.Literal_Tuple1(),
+            external_type=ext_type
+        )
+        self._reified.add(external)
+        statement_tup = preds.Statement_Tuple(
+            id=self._statement_tup_id,
+            position=self._statement_pos,
+            element=external1
+        )
+        self._reified.add(statement_tup)
+        self._statement_pos += 1
+        for pos, element in enumerate(node.body, start=0):
+            self._reified.add(preds.Literal_Tuple(
+                    id=external.body.id,
+                    position=pos,
+                    element=self._reify_ast(element)))
+        return
+
     @_reify_ast.register(ASTType.Rule)
     def _reify_rule(self, node):
         self._program_statements.append(node)
@@ -199,7 +225,10 @@ class ReifiedAST:
 
     @_reify_ast.register(ASTType.SymbolicAtom)
     def _reify_symbolic_atom(self, node):
-        return self._reify_ast(node.symbol)
+        atom1 = preds.Atom1()
+        atom = preds.Atom(id=atom1.id, symbol=self._reify_ast(node.symbol))
+        self._reified.add(atom)
+        return atom1
 
     @_reify_ast.register(ASTType.Function)
     def _reify_function(self, node):
@@ -211,14 +240,6 @@ class ReifiedAST:
         to create the correct clorm predicate.
 
         """
-        if len(node.arguments) == 0:
-            constant1 = preds.Constant1()
-            constant = preds.Constant(
-                id=constant1.id,
-                name=node.name
-            )
-            self._reified.add(constant)
-            return constant1
         function1 = preds.Function1()
         function = preds.Function(
             id=function1.id,
@@ -282,9 +303,10 @@ class ReifiedAST:
         clingo.Symbol.Function with empty argument list.
 
         """
-        const1 = preds.Constant1()
-        self._reified.add(preds.Constant(id=const1.id, name=symb.name))
-        return const1
+        func1 = preds.Function1()
+        self._reified.add(preds.Function(id=func1.id, name=symb.name,
+                                         arguments=preds.Term_Tuple1()))
+        return func1
 
     @_reify_ast.register(SymbolType.String)
     def _reify_symbol_string(self, symb):
@@ -363,6 +385,16 @@ class ReifiedAST:
         return subprogram
 
     @_reflect_predicate.register
+    def _reflect_external(self, external: preds.External) -> AST:
+        atom_node = self._reflect_child_pred(external, external.atom)
+        body_nodes = self._reflect_child_preds(external, external.body)
+        ext_type = ast.SymbolicTerm(
+            location=DUMMY_LOC,
+            symbol=symbol.Function(name=external.external_type, arguments=[]))
+        return ast.External(location=DUMMY_LOC, atom=atom_node,
+                            body=body_nodes, external_type=ext_type)
+
+    @_reflect_predicate.register
     def _reflect_rule(self, rule: preds.Rule) -> AST:
         head_node = self._reflect_child_pred(rule, rule.head)
         body_nodes = self._reflect_child_preds(rule, rule.body)
@@ -375,10 +407,19 @@ class ReifiedAST:
         return ast.Literal(location=DUMMY_LOC, sign=sign, atom=atom_node)
 
     @_reflect_predicate.register
-    def _reflect_function(self, func: preds.Function) -> AST:
+    def _reflect_atom(self, atom: preds.Atom) -> AST:
+        return ast.SymbolicAtom(symbol=self._reflect_child_pred(atom,
+                                                                atom.symbol))
+
+    @_reflect_predicate.register
+    def _reflect_function(
+            self, func: preds.Function) -> Union[AST, Symbol]:
+        """Reflect function, which may represent a propositional
+        constant, predicate, function symbol, or constant term"""
         arg_nodes = self._reflect_child_preds(func, func.arguments)
         return ast.Function(
-            location=DUMMY_LOC, name=func.name, arguments=arg_nodes, external=0
+            location=DUMMY_LOC, name=func.name, arguments=arg_nodes,
+            external=0
         )
 
     @_reflect_predicate.register
@@ -395,13 +436,6 @@ class ReifiedAST:
     def _reflect_string(self, string: preds.String) -> Symbol:
         return ast.SymbolicTerm(
             location=DUMMY_LOC, symbol=symbol.String(string=string.value)
-        )
-
-    @_reflect_predicate.register
-    def _reflect_constant(self, constant: preds.Constant) -> Symbol:
-        return ast.SymbolicTerm(
-            location=DUMMY_LOC,
-            symbol=symbol.Function(name=constant.name, arguments=[])
         )
 
     @_reflect_predicate.register
@@ -423,6 +457,7 @@ class ReifiedAST:
         for prog in self._reified.query(preds.Program).all():
             subprogram = self._reflect_predicate(prog)
             self._program_statements.extend(subprogram)
+        logger.info(f"Reflected program string:\n{self.program_string}")
         return
 
     def transform(self, meta_str: Optional[str] = None,
