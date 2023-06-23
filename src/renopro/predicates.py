@@ -47,9 +47,9 @@ def combine_fields_lazily(fields: Sequence[Type[BaseField]], *, name:
 
     # Must combine at least two fields otherwise it doesn't make sense
     for f in fields:
-        if not inspect.isclass(f) or not issubclass(f, BaseField):
+        if not inspect.isclass(f) or not issubclass(f, BaseField):  # nocoverage
             raise TypeError("{} is not BaseField or a sub-class".format(f))
-    if len(fields) < 2:
+    if len(fields) < 2:  # nocoverage
         raise TypeError("Must specify at least two fields to combine")
 
     fields = list(fields)

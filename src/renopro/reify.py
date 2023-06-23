@@ -15,7 +15,7 @@ from clorm import (FactBase, control_add_facts,
                    SymbolPredicateUnifier, parse_fact_string,
                    UnifierNoMatchError, parse_fact_files)
 
-import renopro.clorm_predicates as preds
+import renopro.predicates as preds
 
 
 class ChildQueryError(Exception):

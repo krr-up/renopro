@@ -6,7 +6,7 @@ from itertools import count
 from clorm import FactBase, parse_fact_files
 
 from renopro.reify import ReifiedAST
-import renopro.clorm_predicates as preds
+import renopro.predicates as preds
 
 
 test_reify_files = Path("src", "renopro", "asp", "tests", "reify")
