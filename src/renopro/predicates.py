@@ -14,7 +14,7 @@ next_id = lambda: next(id_count)
 
 # by default we use integer identifiers, but allow arbitrary symbols as well
 # for flexibility when these are user generated
-Identifier = combine_fields([IntegerField, RawField])
+Identifier_Field = combine_fields([IntegerField, RawField])
 
 id_pred2ast_pred = dict()
 
@@ -26,7 +26,7 @@ def make_id_predicate(ast_pred):
     """
     id_pred_name = ast_pred.__name__ + "1"
     id_pred = type(id_pred_name, (Predicate,),
-                   {"id": Identifier(default=next_id),
+                   {"id": Identifier_Field(default=next_id),
                     "Meta": type("Meta", tuple(), {"name": ast_pred.meta.name})})
     id_pred2ast_pred.update({id_pred: ast_pred})
     return id_pred
@@ -75,7 +75,7 @@ def combine_fields_lazily(fields: Sequence[Type[BaseField]], *, name:
 
 
 class String(Predicate):
-    id = Identifier
+    id = Identifier_Field
     value = StringField
 
 
@@ -83,7 +83,7 @@ String1 = make_id_predicate(String)
 
 
 class Number(Predicate):
-    id = Identifier
+    id = Identifier_Field
     value = IntegerField
 
 
@@ -91,21 +91,21 @@ Number1 = make_id_predicate(Number)
 
 
 class Variable(Predicate):
-    id = Identifier
+    id = Identifier_Field
     name = StringField
 
 
 Variable1 = make_id_predicate(Variable)
 
 
-Term = combine_fields_lazily([String1.Field, Number1.Field,
-                              Variable1.Field], name="Term")
+Term_Field = combine_fields_lazily([String1.Field, Number1.Field,
+                                    Variable1.Field], name="Term")
 
 
 class Term_Tuple(Predicate):
-    id = Identifier  # identifier of collection
+    id = Identifier_Field  # identifier of collection
     position = IntegerField  # 0 indexed position of element in collection
-    element = Term
+    element = Term_Field
 
 
 Term_Tuple1 = make_id_predicate(Term_Tuple)
@@ -114,7 +114,7 @@ Term_Tuple1 = make_id_predicate(Term_Tuple)
 class Function(Predicate):
     """Note: we represent constants as a Function with an empty term
     tuple (i.e. no term_tuple fact with a matching identifier"""
-    id = Identifier
+    id = Identifier_Field
     name = ConstantField
     arguments = Term_Tuple1.Field
 
@@ -122,7 +122,7 @@ class Function(Predicate):
 Function1 = make_id_predicate(Function)
 
 
-Term.fields.append(Function1.Field)
+Term_Field.fields.append(Function1.Field)
 
 
 class BinaryOperator(str, enum.Enum):
@@ -143,22 +143,22 @@ binary_operator_ast2cl = {v: k for k, v in binary_operator_cl2ast.items()}
 
 
 class Binary_Operation(Predicate):
-    id = Identifier
+    id = Identifier_Field
     operator = define_enum_field(parent_field=StringField,
                                  enum_class=BinaryOperator,
                                  name="OperatorField")
-    left = Term
-    right = Term
+    left = Term_Field
+    right = Term_Field
 
 
 Binary_Operation1 = make_id_predicate(Binary_Operation)
 
 
-Term.fields.append(Binary_Operation1.Field)
+Term_Field.fields.append(Binary_Operation1.Field)
 
 
 class Atom(Predicate):
-    id = Identifier
+    id = Identifier_Field
     symbol = Function1.Field
 
 
@@ -185,7 +185,7 @@ sign_ast2cl = {v: k for k, v in sign_cl2ast.items()}
 
 
 class Literal(Predicate):
-    id = Identifier
+    id = Identifier_Field
     sig = define_enum_field(parent_field=StringField,
                             enum_class=Sign,
                             name="SignField")
@@ -196,7 +196,7 @@ Literal1 = make_id_predicate(Literal)
 
 
 class Literal_Tuple(Predicate):
-    id = Identifier
+    id = Identifier_Field
     position = IntegerField  # should we keep track of position?
     element = Literal1.Field
 
@@ -205,7 +205,7 @@ Literal_Tuple1 = make_id_predicate(Literal_Tuple)
 
 
 class Rule(Predicate):
-    id = Identifier
+    id = Identifier_Field
     head = Literal1.Field
     body = Literal_Tuple1.Field
 
@@ -221,7 +221,7 @@ ExternalTypeField = refine_field(ConstantField, ["true", "false"],
 
 
 class External(Predicate):
-    id = Identifier
+    id = Identifier_Field
     atom = Atom1.Field
     body = Literal_Tuple1.Field
     external_type = ExternalTypeField
@@ -234,7 +234,7 @@ Statement = combine_fields([Rule1.Field, External1.Field])
 
 
 class Statement_Tuple(Predicate):
-    id = Identifier
+    id = Identifier_Field
     position = IntegerField
     element = Statement
 
@@ -243,7 +243,7 @@ Statement_Tuple1 = make_id_predicate(Statement_Tuple)
 
 
 class Constant_Tuple(Predicate):
-    id = Identifier
+    id = Identifier_Field
     position = IntegerField
     element = Function1.Field
 
