@@ -1,13 +1,22 @@
 """Definitions of AST elements as clorm predicates."""
-from typing import Union, Sequence, Type
 import enum
 import inspect
 from itertools import count
+from typing import Sequence, Type, Union
 
-from clorm import (IntegerField, Predicate, StringField, RawField,
-                   BaseField, combine_fields, define_enum_field,
-                   refine_field, ConstantField)
 from clingo import ast
+from clorm import (
+    BaseField,
+    ConstantField,
+    IntegerField,
+    Predicate,
+    RawField,
+    StringField,
+    Unifier,
+    combine_fields,
+    define_enum_field,
+    refine_field,
+)
 
 id_count = count()
 next_id = lambda: next(id_count)
@@ -25,15 +34,21 @@ def make_id_predicate(ast_pred):
 
     """
     id_pred_name = ast_pred.__name__ + "1"
-    id_pred = type(id_pred_name, (Predicate,),
-                   {"id": Identifier_Field(default=next_id),
-                    "Meta": type("Meta", tuple(), {"name": ast_pred.meta.name})})
+    id_pred = type(
+        id_pred_name,
+        (Predicate,),
+        {
+            "id": Identifier_Field(default=next_id),
+            "Meta": type("Meta", tuple(), {"name": ast_pred.meta.name}),
+        },
+    )
     id_pred2ast_pred.update({id_pred: ast_pred})
     return id_pred
 
 
-def combine_fields_lazily(fields: Sequence[Type[BaseField]], *, name:
-                          str = "") -> Type[BaseField]:
+def combine_fields_lazily(
+    fields: Sequence[Type[BaseField]], *, name: str = ""
+) -> Type[BaseField]:
     """Factory function that returns a field sub-class that combines
     other fields lazily.
 
@@ -66,12 +81,15 @@ def combine_fields_lazily(fields: Sequence[Type[BaseField]], *, name:
                 return f.cltopy(r)
             except (TypeError, ValueError):
                 pass
-        raise TypeError((f"Object '{r}' ({type(r)}) failed to unify "
-                         f"with {subclass_name}."))
+        raise TypeError(
+            (f"Object '{r}' ({type(r)}) failed to unify " f"with {subclass_name}.")
+        )
 
-    return type(subclass_name, (BaseField,), {"fields": fields,
-                                              "pytocl": _pytocl,
-                                              "cltopy": _cltopy})
+    return type(
+        subclass_name,
+        (BaseField,),
+        {"fields": fields, "pytocl": _pytocl, "cltopy": _cltopy},
+    )
 
 
 class String(Predicate):
@@ -98,8 +116,9 @@ class Variable(Predicate):
 Variable1 = make_id_predicate(Variable)
 
 
-Term_Field = combine_fields_lazily([String1.Field, Number1.Field,
-                                    Variable1.Field], name="Term")
+Term_Field = combine_fields_lazily(
+    [String1.Field, Number1.Field, Variable1.Field], name="Term"
+)
 
 
 class Term_Tuple(Predicate):
@@ -114,6 +133,7 @@ Term_Tuple1 = make_id_predicate(Term_Tuple)
 class Function(Predicate):
     """Note: we represent constants as a Function with an empty term
     tuple (i.e. no term_tuple fact with a matching identifier"""
+
     id = Identifier_Field
     name = ConstantField
     arguments = Term_Tuple1.Field
@@ -137,16 +157,17 @@ class BinaryOperator(str, enum.Enum):
     XOr = "^"  # bitwise exclusive or
 
 
-binary_operator_cl2ast = {BinaryOperator[op.name]: ast.BinaryOperator[op.name]
-                          for op in ast.BinaryOperator}
+binary_operator_cl2ast = {
+    BinaryOperator[op.name]: ast.BinaryOperator[op.name] for op in ast.BinaryOperator
+}
 binary_operator_ast2cl = {v: k for k, v in binary_operator_cl2ast.items()}
 
 
 class Binary_Operation(Predicate):
     id = Identifier_Field
-    operator = define_enum_field(parent_field=StringField,
-                                 enum_class=BinaryOperator,
-                                 name="OperatorField")
+    operator = define_enum_field(
+        parent_field=StringField, enum_class=BinaryOperator, name="OperatorField"
+    )
     left = Term_Field
     right = Term_Field
 
@@ -186,9 +207,7 @@ sign_ast2cl = {v: k for k, v in sign_cl2ast.items()}
 
 class Literal(Predicate):
     id = Identifier_Field
-    sig = define_enum_field(parent_field=StringField,
-                            enum_class=Sign,
-                            name="SignField")
+    sig = define_enum_field(parent_field=StringField, enum_class=Sign, name="SignField")
     atom = Atom1.Field
 
 
@@ -216,8 +235,9 @@ Rule1 = make_id_predicate(Rule)
 # note that clingo's parser actually allows arbitrary constant as the external_type
 # argument of External, but any other value than true or false results in the external
 # statement having no effect
-ExternalTypeField = refine_field(ConstantField, ["true", "false"],
-                                 name="ExternalTypeField")
+ExternalTypeField = refine_field(
+    ConstantField, ["true", "false"], name="ExternalTypeField"
+)
 
 
 class External(Predicate):
@@ -285,7 +305,7 @@ AST_Predicate = Union[
     Statement_Tuple1,
     Constant_Tuple,
     Constant_Tuple1,
-    Program
+    Program,
 ]
 
 AST_Predicates = [
@@ -315,7 +335,7 @@ AST_Predicates = [
     Statement_Tuple1,
     Constant_Tuple,
     Constant_Tuple1,
-    Program
+    Program,
 ]
 
 AST_Fact = Union[
@@ -332,7 +352,7 @@ AST_Fact = Union[
     External,
     Statement_Tuple,
     Constant_Tuple,
-    Program
+    Program,
 ]
 
 AST_Facts = [
@@ -349,7 +369,7 @@ AST_Facts = [
     External,
     Statement_Tuple,
     Constant_Tuple,
-    Program
+    Program,
 ]
 
 # Predicates for AST transformation

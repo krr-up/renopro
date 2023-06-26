@@ -1,13 +1,12 @@
 """Test cases for reification functionality."""
-from unittest import TestCase
-from pathlib import Path
 from itertools import count
+from pathlib import Path
+from unittest import TestCase
 
 from clorm import FactBase, parse_fact_files
 
-from renopro.reify import ReifiedAST
 import renopro.predicates as preds
-
+from renopro.reify import ReifiedAST
 
 test_reify_files = Path("src", "renopro", "asp", "tests", "reify")
 
@@ -22,13 +21,11 @@ class TestReifyReflect(TestCase):
     def get_test_facts(self, fact_file_str: str):
         """Parse fact file from test directory."""
         facts = parse_fact_files(
-            [str(test_reify_files / fact_file_str)],
-            unifier=preds.AST_Facts)
+            [str(test_reify_files / fact_file_str)], unifier=preds.AST_Facts
+        )
         return facts
 
-    def assertReifyReflectEqual(self,
-                                prog_str: str,
-                                ast_facts: FactBase):
+    def assertReifyReflectEqual(self, prog_str: str, ast_facts: FactBase):
         """Assert that reification of prog_str results in ast_facts,
         and that reflection of ast_facts result in prog_str."""
         ast_facts.add(self.default_ast_facts)

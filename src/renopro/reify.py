@@ -1,19 +1,23 @@
 """Module implementing reification and de-reification of non-ground programs"""
+import logging
+import re
 import sys
 from functools import singledispatchmethod
-import logging
-from typing import Iterable, Sequence, Union, Optional
 from pathlib import Path
+from typing import Iterable, Optional, Sequence, Union
 
-import clingo
-from clingo import ast, symbol
-from clingo.ast import (AST, ASTType, Location, Position,
-                        parse_string, parse_files, BinaryOperator)
+from clingo import Control, ast, symbol
+from clingo.ast import AST, ASTType, Location, Position, parse_files, parse_string
 from clingo.symbol import Symbol, SymbolType
-from clorm.clingo import Control
-from clorm import (FactBase, control_add_facts,
-                   SymbolPredicateUnifier, parse_fact_string,
-                   UnifierNoMatchError, parse_fact_files)
+from clorm import (
+    FactBase,
+    Unifier,
+    UnifierNoMatchError,
+    control_add_facts,
+    parse_fact_files,
+    parse_fact_string,
+)
+from thefuzz import process
 
 import renopro.predicates as preds
 
@@ -24,6 +28,50 @@ class ChildQueryError(Exception):
 
 class ChildrenQueryError(Exception):
     pass
+
+
+def raise_unmatched_ast_fact(error: UnifierNoMatchError):
+    """Enhance UnifierNoMatchError with some more useful error
+    messages to help debug the reason unification failed."""
+    unmatched = error.symbol
+    name2arity2pred = {
+        pred.meta.name: {pred.meta.arity: pred} for pred in preds.AST_Facts
+    }
+    candidate = name2arity2pred.get(unmatched.name, dict()).get(
+        len(unmatched.arguments)
+    )
+    if candidate is None:
+        fuzzy_name = process.extractOne(unmatched.name, name2arity2pred.keys())[0]
+        signatures = [f"{fuzzy_name}/{arity}." for arity in name2arity2pred[fuzzy_name]]
+        raise UnifierNoMatchError(
+            (
+                "No AST fact of matching signature found for symbol\n"
+                f"'{unmatched}'.\nSimilar AST fact signatures are:\n"
+                + "\n".join(signatures)
+            ),
+            unmatched,
+            error.predicates,
+        ) from None
+    else:
+        for idx, arg in enumerate(unmatched.arguments):
+            arg_field = candidate[idx]._field
+            arg_field_str = re.sub("\(.*?\)", "", str(arg_field))
+            try:
+                arg_field.cltopy(arg)
+            except (TypeError, ValueError):
+                msg = (
+                    f"\nCannot unify symbol\n'{unmatched}'\nto only "
+                    "candidate AST fact of matching signature "
+                    f"{candidate.meta.name}/{candidate.meta.arity}\n"
+                    f"due to failure to unify symbol's argument '{arg}' "
+                    f"against the corresponding field '{arg_field_str}'."
+                )
+                raise UnifierNoMatchError(
+                    msg,
+                    unmatched,
+                    (candidate,),
+                ) from None
+        raise RuntimeError("Code should be unreachable")  # nocoverage
 
 
 logger = logging.getLogger(__name__)
@@ -40,22 +88,33 @@ class ReifiedAST:
         self._program_statements = list()
         self._id_counter = -1
 
-    def add_reified_facts(self, reified_facts:
-                          Iterable[preds.AST_Predicate]) -> None:
+    def add_reified_facts(self, reified_facts: Iterable[preds.AST_Predicate]) -> None:
         """Add factbase containing reified facts into internal factbase."""
         self._reified.update(reified_facts)
 
     def add_reified_string(self, reified_string: str) -> None:
         """Add string of reified facts into internal factbase."""
-        facts = parse_fact_string(reified_string, unifier=preds.AST_Facts,
-                                  raise_nomatch=True, raise_nonfact=True)
+        unifier = preds.AST_Facts
+        try:
+            facts = parse_fact_string(
+                reified_string, unifier=unifier, raise_nomatch=True, raise_nonfact=True
+            )
+        except UnifierNoMatchError as e:
+            raise_unmatched_ast_fact(e)
         self._reified.update(facts)
 
     def add_reified_files(self, reified_files: Sequence[Path]) -> None:
         """Add files containing reified facts into internal factbase."""
         reified_files = [str(f) for f in reified_files]
-        facts = parse_fact_files(reified_files, unifier=preds.AST_Facts,
-                                 raise_nomatch=True, raise_nonfact=True)
+        try:
+            facts = parse_fact_files(
+                reified_files,
+                unifier=preds.AST_Facts,
+                raise_nomatch=True,
+                raise_nonfact=True,
+            )
+        except UnifierNoMatchError as e:
+            raise_unmatched_ast_fact(e)
         self._reified.update(facts)
 
     def reify_string(self, prog_str: str) -> None:
@@ -75,8 +134,7 @@ class ReifiedAST:
 
     @property
     def program_string(self) -> str:
-        return '\n'.join([str(statement) for statement
-                          in self._program_statements])
+        return "\n".join([str(statement) for statement in self._program_statements])
 
     @property
     def program_ast(self) -> str:
@@ -96,7 +154,7 @@ class ReifiedAST:
 
     @staticmethod
     def dispatch_on_node_type(meth):
-        """"Dispatch on node.ast_type if node is of type AST or
+        """ "Dispatch on node.ast_type if node is of type AST or
         node.type if node is of type Symbol.
 
         """
@@ -120,8 +178,10 @@ class ReifiedAST:
                 return dispatch(node.ast_type)(self, node, *args, **kw)
             elif isinstance(node, Symbol):
                 return dispatch(node.type)(self, node, *args, **kw)
-            else:
-                raise RuntimeError(f"Nodes should be of type AST or Symbol, got: {type(node)}")
+            else:  # nocoverage
+                raise RuntimeError(
+                    ("Nodes should be of type AST or Symbol, " f"got: {type(node)}")
+                )
 
         wrapper.register = register
         wrapper.dispatch = dispatch
@@ -135,9 +195,22 @@ class ReifiedAST:
         representation to the internal fact base.
 
         """
-        raise NotImplementedError(
-            f"Reification not implemented for nodes of type: {node.ast_type.name}."
-        )
+        if hasattr(node, "ast_type"):
+            raise NotImplementedError(
+                (
+                    "Reification not implemented for AST nodes of type: "
+                    "f{node.ast_type.name}."
+                )
+            )
+        elif hasattr(node, "type"):
+            raise NotImplementedError(
+                (
+                    "Reification not implemented for symbol of type: "
+                    "f{node.typle.name}."
+                )
+            )
+        else:  # nocoverage
+            raise RuntimeError("Code block should be unreachable.")
 
     @_reify_ast.register(ASTType.Program)
     def _reify_program(self, node):
@@ -145,17 +218,20 @@ class ReifiedAST:
         program = preds.Program(
             name=node.name,
             parameters=preds.Constant_Tuple1(),
-            statements=preds.Statement_Tuple1()
+            statements=preds.Statement_Tuple1(),
         )
         self._reified.add(program)
         self._statement_tup_id = program.statements.id
         self._statement_pos = 0
         for pos, param in enumerate(node.parameters):
-            self._reified.add(preds.Constant_Tuple(
-                id=program.parameters.id,
-                position=pos,
-                # note: this id refers to the clingo.ast.Id.id attribute
-                element=param.id))
+            self._reified.add(
+                preds.Constant_Tuple(
+                    id=program.parameters.id,
+                    position=pos,
+                    # note: this id refers to the clingo.ast.Id.id attribute
+                    element=param.id,
+                )
+            )
         return
 
     @_reify_ast.register(ASTType.External)
@@ -167,21 +243,20 @@ class ReifiedAST:
             id=external1.id,
             atom=self._reify_ast(node.atom),
             body=preds.Literal_Tuple1(),
-            external_type=ext_type
+            external_type=ext_type,
         )
         self._reified.add(external)
         statement_tup = preds.Statement_Tuple(
-            id=self._statement_tup_id,
-            position=self._statement_pos,
-            element=external1
+            id=self._statement_tup_id, position=self._statement_pos, element=external1
         )
         self._reified.add(statement_tup)
         self._statement_pos += 1
         for pos, element in enumerate(node.body, start=0):
-            self._reified.add(preds.Literal_Tuple(
-                    id=external.body.id,
-                    position=pos,
-                    element=self._reify_ast(element)))
+            self._reified.add(
+                preds.Literal_Tuple(
+                    id=external.body.id, position=pos, element=self._reify_ast(element)
+                )
+            )
         return
 
     @_reify_ast.register(ASTType.Rule)
@@ -191,22 +266,19 @@ class ReifiedAST:
 
         # assumption: head can only be a Literal
         head = self._reify_ast(node.head)
-        rule = preds.Rule(id=rule1.id,
-                          head=head,
-                          body=preds.Literal_Tuple1())
+        rule = preds.Rule(id=rule1.id, head=head, body=preds.Literal_Tuple1())
         self._reified.add(rule)
         statement_tup = preds.Statement_Tuple(
-            id=self._statement_tup_id,
-            position=self._statement_pos,
-            element=rule1
+            id=self._statement_tup_id, position=self._statement_pos, element=rule1
         )
         self._reified.add(statement_tup)
         self._statement_pos += 1
         for pos, element in enumerate(node.body, start=0):
-            self._reified.add(preds.Literal_Tuple(
-                    id=rule.body.id,
-                    position=pos,
-                    element=self._reify_ast(element)))
+            self._reified.add(
+                preds.Literal_Tuple(
+                    id=rule.body.id, position=pos, element=self._reify_ast(element)
+                )
+            )
         return
 
     @_reify_ast.register(ASTType.Literal)
@@ -214,8 +286,7 @@ class ReifiedAST:
         # assumption: all literals contain only symbolic atoms
         lit1 = preds.Literal1()
         clorm_sign = preds.sign_ast2cl[node.sign]
-        lit = preds.Literal(id=lit1.id, sig=clorm_sign,
-                            atom=self._reify_ast(node.atom))
+        lit = preds.Literal(id=lit1.id, sig=clorm_sign, atom=self._reify_ast(node.atom))
         self._reified.add(lit)
         return lit1
 
@@ -256,8 +327,7 @@ class ReifiedAST:
     @_reify_ast.register(ASTType.Variable)
     def _reify_variable(self, node):
         variable1 = preds.Variable1()
-        self._reified.add(preds.Variable(id=variable1.id,
-                                         name=node.name))
+        self._reified.add(preds.Variable(id=variable1.id, name=node.name))
         return variable1
 
     @_reify_ast.register(ASTType.SymbolicTerm)
@@ -279,7 +349,7 @@ class ReifiedAST:
             id=binop1.id,
             operator=clorm_operator,
             left=self._reify_ast(node.left),
-            right=self._reify_ast(node.right)
+            right=self._reify_ast(node.right),
         )
         self._reified.add(binop)
         return binop1
@@ -287,8 +357,7 @@ class ReifiedAST:
     @_reify_ast.register(SymbolType.Number)
     def _reify_symbol_number(self, symb):
         number1 = preds.Number1()
-        self._reified.add(preds.Number(id=number1.id,
-                                       value=symb.number))
+        self._reified.add(preds.Number(id=number1.id, value=symb.number))
         return number1
 
     @_reify_ast.register(SymbolType.Function)
@@ -300,15 +369,15 @@ class ReifiedAST:
 
         """
         func1 = preds.Function1()
-        self._reified.add(preds.Function(id=func1.id, name=symb.name,
-                                         arguments=preds.Term_Tuple1()))
+        self._reified.add(
+            preds.Function(id=func1.id, name=symb.name, arguments=preds.Term_Tuple1())
+        )
         return func1
 
     @_reify_ast.register(SymbolType.String)
     def _reify_symbol_string(self, symb):
         string1 = preds.String1()
-        self._reified.add(preds.String(id=string1.id,
-                                       value=symb.string))
+        self._reified.add(preds.String(id=string1.id, value=symb.string))
         return string1
 
     def _reflect_child_pred(self, parent_pred, child_id_pred):
@@ -320,19 +389,24 @@ class ReifiedAST:
         """
         identifier = child_id_pred.id
         child_ast_pred = preds.id_pred2ast_pred[type(child_id_pred)]
-        query = self._reified.query(child_ast_pred)\
-                             .where(child_ast_pred.id == identifier)
+        query = self._reified.query(child_ast_pred).where(
+            child_ast_pred.id == identifier
+        )
         child_preds = list(query.all())
         if len(child_preds) == 0:
-            msg = (f"Error finding child fact of predicate:\n{parent_pred}:\n"
-                   f"Expected single child fact for identifier {child_id_pred}"
-                   ", found none.")
+            msg = (
+                f"Error finding child fact of predicate:\n{parent_pred}:\n"
+                f"Expected single child fact for identifier {child_id_pred}"
+                ", found none."
+            )
             raise ChildQueryError(msg)
         elif len(child_preds) > 1:
             child_pred_strings = [str(pred) for pred in child_preds]
-            msg = (f"Error finding child fact of predicate:\n{parent_pred}:\n"
-                   f"Expected single child fact for identifier {child_id_pred}"
-                   ", found multiple:\n" + "\n".join(child_pred_strings))
+            msg = (
+                f"Error finding child fact of predicate:\n{parent_pred}:\n"
+                f"Expected single child fact for identifier {child_id_pred}"
+                ", found multiple:\n" + "\n".join(child_pred_strings)
+            )
             raise ChildQueryError(msg)
         else:
             child_pred = child_preds[0]
@@ -346,11 +420,12 @@ class ReifiedAST:
 
         """
         identifier = id_predicate.id
-        nonunary_pred = getattr(preds,
-                                type(id_predicate).__name__.rstrip("1"))
-        query = self._reified.query(nonunary_pred)\
-                             .where(nonunary_pred.id == identifier)\
-                             .order_by(nonunary_pred.position)
+        ast_fact_pred = getattr(preds, type(id_predicate).__name__.rstrip("1"))
+        query = (
+            self._reified.query(ast_fact_pred)
+            .where(ast_fact_pred.id == identifier)
+            .order_by(ast_fact_pred.position)
+        )
         tuples = list(query.all())
         child_nodes = list()
         for tup in tuples:
@@ -372,9 +447,11 @@ class ReifiedAST:
     def _reflect_program(self, program: preds.Program) -> Sequence[AST]:
         subprogram = list()
         parameter_nodes = self._reflect_child_preds(program, program.parameters)
-        subprogram.append(ast.Program(location=DUMMY_LOC,
-                                      name=program.name,
-                                      parameters=parameter_nodes))
+        subprogram.append(
+            ast.Program(
+                location=DUMMY_LOC, name=program.name, parameters=parameter_nodes
+            )
+        )
         statement_nodes = self._reflect_child_preds(program, program.statements)
         subprogram.extend(statement_nodes)
         return subprogram
@@ -385,9 +462,11 @@ class ReifiedAST:
         body_nodes = self._reflect_child_preds(external, external.body)
         ext_type = ast.SymbolicTerm(
             location=DUMMY_LOC,
-            symbol=symbol.Function(name=external.external_type, arguments=[]))
-        return ast.External(location=DUMMY_LOC, atom=atom_node,
-                            body=body_nodes, external_type=ext_type)
+            symbol=symbol.Function(name=external.external_type, arguments=[]),
+        )
+        return ast.External(
+            location=DUMMY_LOC, atom=atom_node, body=body_nodes, external_type=ext_type
+        )
 
     @_reflect_predicate.register
     def _reflect_rule(self, rule: preds.Rule) -> AST:
@@ -403,18 +482,15 @@ class ReifiedAST:
 
     @_reflect_predicate.register
     def _reflect_atom(self, atom: preds.Atom) -> AST:
-        return ast.SymbolicAtom(symbol=self._reflect_child_pred(atom,
-                                                                atom.symbol))
+        return ast.SymbolicAtom(symbol=self._reflect_child_pred(atom, atom.symbol))
 
     @_reflect_predicate.register
-    def _reflect_function(
-            self, func: preds.Function) -> Union[AST, Symbol]:
+    def _reflect_function(self, func: preds.Function) -> Union[AST, Symbol]:
         """Reflect function, which may represent a propositional
         constant, predicate, function symbol, or constant term"""
         arg_nodes = self._reflect_child_preds(func, func.arguments)
         return ast.Function(
-            location=DUMMY_LOC, name=func.name, arguments=arg_nodes,
-            external=0
+            location=DUMMY_LOC, name=func.name, arguments=arg_nodes, external=0
         )
 
     @_reflect_predicate.register
@@ -434,13 +510,13 @@ class ReifiedAST:
         )
 
     @_reflect_predicate.register
-    def _reflect_binary_operation(
-            self, operation: preds.Binary_Operation) -> AST:
+    def _reflect_binary_operation(self, operation: preds.Binary_Operation) -> AST:
         ast_operator = preds.binary_operator_cl2ast[operation.operator]
         return ast.BinaryOperation(
-            location=DUMMY_LOC, operator_type=ast_operator,
+            location=DUMMY_LOC,
+            operator_type=ast_operator,
             left=self._reflect_child_pred(operation, operation.left),
-            right=self._reflect_child_pred(operation, operation.right)
+            right=self._reflect_child_pred(operation, operation.right),
         )
 
     def reflect(self):
@@ -455,8 +531,11 @@ class ReifiedAST:
         logger.info(f"Reflected program string:\n{self.program_string}")
         return
 
-    def transform(self, meta_str: Optional[str] = None,
-                  meta_files: Optional[Sequence[Path]] = None) -> None:
+    def transform(
+        self,
+        meta_str: Optional[str] = None,
+        meta_files: Optional[Sequence[Path]] = None,
+    ) -> None:
         """Transform the reified AST using meta encoding.
 
         Parameter meta_prog may be a string path to file containing
@@ -475,15 +554,20 @@ class ReifiedAST:
                 with meta_file.open() as f:
                     meta_prog += f.read()
 
-        ctl = Control(unifier=[preds.Final])
-        ctl.add_facts(self._reified)
+        ctl = Control()
+        control_add_facts(ctl, self._reified)
         ctl.add(meta_prog)
         ctl.load("./src/renopro/asp/encodings/transform.lp")
         ctl.ground()
         with ctl.solve(yield_=True) as handle:
             model = next(iter(handle))
-            final_facts = model.facts(shown=True)
-            self._reified = FactBase([final.ast for final in final_facts])
+            ast_symbols = [final.arguments[0] for final in model.symbols(shown=True)]
+            unifier = Unifier(preds.AST_Facts)
+            try:
+                ast_facts = unifier.iter_unify(ast_symbols, raise_nomatch=True)
+                self._reified = FactBase(ast_facts)
+            except UnifierNoMatchError as e:
+                raise_unmatched_ast_fact(e)
 
 
 if __name__ == "__main__":  # nocoverage
