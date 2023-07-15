@@ -15,8 +15,8 @@ ast(constant_tuple(Id,Pos,Element)) :- constant_tuple(Id,Pos,Element).
 ast(program(Name,Params,Statements)) :- program(Name,Params,Statements).
 
 
-final(A) :- ast(A), not delete(A), not replace(A,_).
-final(R) :- replace(_,R).
-final(N) :- add(N).
+final(A) :- ast(A), not ast_operation(delete(A)), not ast_operation(replace(A,_)).
+final(R) :- ast_operation(replace(_,R)).
+final(N) :- ast_operation(add(N)).
 
 #show final/1.

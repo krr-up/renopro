@@ -25,8 +25,9 @@ first_prev(A,F) :- prev_chain(A,F,O), not prev_chain(A,_,F).
 % when an atom is not prev.
 
 % add time point constant as additional argument
-add(term_tuple(T,N+1,function(new_id(T)));
-		 function(new_id(T),t,term_tuple(new_id(T))))
+ast_operation(
+		add(term_tuple(T,N+1,function(new_id(T)));
+				function(new_id(T),t,term_tuple(new_id(T)))))
 :- atom(A,function(F)), function(F,Name,term_tuple(T)),
 	 Name!=prev, max_arg_index(T,N).
 
@@ -34,14 +35,12 @@ add(term_tuple(T,N+1,function(new_id(T)));
 
 % replace function symbol of atom with final operand, appending
 % appropriate time point as additional argument.
-replace(function(F,N,T1),function(F,Name,term_tuple(T2)))
+ast_operation(
+		delete(function(F,N,T1));
+		add(function(F,Name,term_tuple(T2));
+				 term_tuple(T2,I+1,binary_operation(new_id(O)));
+				 binary_operation(new_id(O),"-",function(new_id(O)),number(new_id(O)));
+				 function(new_id(O),t,term_tuple(new_id(O)));
+				 number(new_id(O),Num)))
 :- first_prev(A,function(F)), function(F,N,T1), final_operand(A,function(O)),
-	 function(O,Name,term_tuple(T2)).
-
-add((term_tuple(T,I+1,binary_operation(new_id(O)));
-		binary_operation(new_id(O),"-",function(new_id(O)),number(new_id(O)));
-		function(new_id(O),t,term_tuple(new_id(O)));
-		number(new_id(O),N)))
-:- final_operand(A,function(O)), function(O,_,term_tuple(T)), max_arg_index(T,I),
-	 num_prevs(A,N).
-
+	 function(O,Name,term_tuple(T2)),  max_arg_index(T2,I), num_prevs(A,Num).

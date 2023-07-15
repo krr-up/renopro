@@ -42,3 +42,13 @@ class TestTransform(TestCase):
                 with (files_dir / (testname + "_output.lp")).open("r") as output:
                     expected_str = self.base_str + output.read().strip()
                 self.assertEqual(transformed_str, expected_str)
+
+    def test_transform_bad_input(self):
+        """Test transform behavior under bad input."""
+        rast = ReifiedAST()
+        # should log warning if rast has no facts before transformation
+        with self.assertLogs("renopro.reify", level="WARNING"):
+            rast.transform(meta_str="")
+        # should raise error if no meta program is provided
+        with self.assertRaises(ValueError):
+            rast.transform()

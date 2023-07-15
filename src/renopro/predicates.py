@@ -12,14 +12,12 @@ from clorm import (
     Predicate,
     RawField,
     StringField,
-    Unifier,
     combine_fields,
     define_enum_field,
     refine_field,
 )
 
 id_count = count()
-next_id = lambda: next(id_count)
 
 # by default we use integer identifiers, but allow arbitrary symbols as well
 # for flexibility when these are user generated
@@ -38,7 +36,7 @@ def make_id_predicate(ast_pred):
         id_pred_name,
         (Predicate,),
         {
-            "id": Identifier_Field(default=next_id),
+            "id": Identifier_Field(default=lambda: next(id_count)),
             "Meta": type("Meta", tuple(), {"name": ast_pred.meta.name}),
         },
     )

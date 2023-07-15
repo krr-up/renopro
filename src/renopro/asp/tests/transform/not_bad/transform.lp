@@ -19,10 +19,11 @@ max_lit_index(LT,Idx)
 
 
 % the transformation itself
+ast_operation(
 add((literal_tuple(LT,N+1,literal(new_id(LT,0)));
 		literal(new_id(LT,0),"not",atom(new_id(LT,1)));
 		atom(new_id(LT,1),function(new_id(LT,2)));
-		function(new_id(LT,2),bad,Fargs)))
+		function(new_id(LT,2),bad,Fargs))))
 :- rule(_,literal(L),literal_tuple(LT)),
 	 literal(L,"pos",atom(A)),
 	 atom(A,function(F)),
