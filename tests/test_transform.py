@@ -1,3 +1,4 @@
+"""Test cases for transformation of AST using a meta-encoding."""
 from pathlib import Path
 from unittest import TestCase
 
@@ -8,7 +9,7 @@ test_transform_dir = tests_dir / "transform"
 
 
 class TestTransform(TestCase):
-    """Tests for ast transformations defined via a meta-encodings."""
+    """Tests for AST transformations defined via a meta-encodings."""
 
     base_str = "#program base.\n"
 

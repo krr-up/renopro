@@ -2,11 +2,12 @@
 import enum
 import inspect
 from itertools import count
-from typing import Sequence, Type, Union
+from typing import List, Sequence, Type, Union
 
 from clingo import ast
 from clorm import (
     BaseField,
+    ComplexTerm,
     ConstantField,
     IntegerField,
     Predicate,
@@ -23,30 +24,23 @@ id_count = count()
 # for flexibility when these are user generated
 Identifier_Field = combine_fields([IntegerField, RawField])
 
-id_pred2ast_pred = dict()
 
+class LazilyCombinedField(BaseField):
+    "A field defined by lazily combining multiple existing field definitions."
+    fields: List[BaseField] = []
 
-def make_id_predicate(ast_pred):
-    """Utility function to make a Predicate subclass with single
-    identifier field.
+    @staticmethod
+    def cltopy(v):  # nocoverage
+        pass
 
-    """
-    id_pred_name = ast_pred.__name__ + "1"
-    id_pred = type(
-        id_pred_name,
-        (Predicate,),
-        {
-            "id": Identifier_Field(default=lambda: next(id_count)),
-            "Meta": type("Meta", tuple(), {"name": ast_pred.meta.name}),
-        },
-    )
-    id_pred2ast_pred.update({id_pred: ast_pred})
-    return id_pred
+    @staticmethod
+    def pytocl(v):  # nocoverage
+        pass
 
 
 def combine_fields_lazily(
     fields: Sequence[Type[BaseField]], *, name: str = ""
-) -> Type[BaseField]:
+) -> Type[LazilyCombinedField]:
     """Factory function that returns a field sub-class that combines
     other fields lazily.
 
@@ -91,27 +85,62 @@ def combine_fields_lazily(
 
 
 class String(Predicate):
-    id = Identifier_Field
+    """Predicate representing a string term.
+
+    id: Identifier of the string term.
+    value: Value of string term, a string term itself.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     value = StringField
 
 
-String1 = make_id_predicate(String)
+class String1(ComplexTerm):
+    "Term identifying a child string predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "string"
 
 
 class Number(Predicate):
-    id = Identifier_Field
+    """Predicate representing an integer term.
+
+    id: Identifier of the integer term.
+    value: Value of integer term, an integer term itself."""
+
+    id = Identifier_Field(default=lambda: next(id_count))
     value = IntegerField
 
 
-Number1 = make_id_predicate(Number)
+class Number1(ComplexTerm):
+    "Term identifying a child number predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "number"
 
 
 class Variable(Predicate):
-    id = Identifier_Field
+    """Predicate representing a variable term.
+
+    id: Identifier of variable term.
+    value: Value of variable term, a string term.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     name = StringField
 
 
-Variable1 = make_id_predicate(Variable)
+class Variable1(ComplexTerm):
+    "Term identifying a child variable predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "variable"
 
 
 Term_Field = combine_fields_lazily(
@@ -120,30 +149,59 @@ Term_Field = combine_fields_lazily(
 
 
 class Term_Tuple(Predicate):
-    id = Identifier_Field  # identifier of collection
-    position = IntegerField  # 0 indexed position of element in collection
+    """Predicate representing an element of a tuple of terms.
+
+    id: Identifier of the tuple.
+    position: Position of the element the tuple, given by < relation over integers.
+    element: Predicate identifying the element.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
     element = Term_Field
 
 
-Term_Tuple1 = make_id_predicate(Term_Tuple)
+class Term_Tuple1(ComplexTerm):
+    "Term identifying a child term tuple predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "term_tuple"
 
 
 class Function(Predicate):
-    """Note: we represent constants as a Function with an empty term
-    tuple (i.e. no term_tuple fact with a matching identifier"""
+    """Predicate representing a function symbol with term arguments.
+    Note that we represent function terms and constant terms as well as symbolic
+    atoms and propositional constants via this predicate.
 
-    id = Identifier_Field
+    id: Identifier of the function.
+    name: Symbolic name of the function, a constant term.
+    arguments: Term tuple predicate identifying the function's arguments.
+               If there are no elements of the term tuple with a matching
+               identifier, the function has no arguments and is thus a constant.
+
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     name = ConstantField
     arguments = Term_Tuple1.Field
 
 
-Function1 = make_id_predicate(Function)
+class Function1(ComplexTerm):
+    "Term identifying a child function predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "function"
 
 
 Term_Field.fields.append(Function1.Field)
 
 
 class BinaryOperator(str, enum.Enum):
+    "String enum of clingo's binary operators."
     And = "&"  # bitwise and
     Division = "/"  # arithmetic division
     Minus = "-"  # arithmetic subtraction
@@ -162,7 +220,15 @@ binary_operator_ast2cl = {v: k for k, v in binary_operator_cl2ast.items()}
 
 
 class Binary_Operation(Predicate):
-    id = Identifier_Field
+    """Predicate representing a binary operation term.
+
+    id: Identifier of the binary operation.
+    operator: A clingo binary operator, in string form.
+    left: Predicate identifying the term that is the left operand of the operation.
+    right: Predicate identifying the term that is the right operand of the operation.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     operator = define_enum_field(
         parent_field=StringField, enum_class=BinaryOperator, name="OperatorField"
     )
@@ -170,21 +236,41 @@ class Binary_Operation(Predicate):
     right = Term_Field
 
 
-Binary_Operation1 = make_id_predicate(Binary_Operation)
+class Binary_Operation1(ComplexTerm):
+    "Term identifying a child binary operation predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "binary_operation"
 
 
 Term_Field.fields.append(Binary_Operation1.Field)
 
 
 class Atom(Predicate):
-    id = Identifier_Field
+    """Predicate representing a symbolic atom.
+
+    id: Identifier of the atom.
+    symbol: The function symbol constituting the atom.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     symbol = Function1.Field
 
 
-Atom1 = make_id_predicate(Atom)
+class Atom1(ComplexTerm):
+    "Term identifying a child atom predicate"
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "atom"
 
 
 class Sign(str, enum.Enum):
+    """String enum of possible sign of a literal."""
+
     DoubleNegation = "not not"
     """
     For double negated literals (with prefix `not not`)
@@ -204,30 +290,70 @@ sign_ast2cl = {v: k for k, v in sign_cl2ast.items()}
 
 
 class Literal(Predicate):
-    id = Identifier_Field
+    """Predicate representing a literal.
+
+    id: Identifier of the literal.
+    sig: Sign of the literal, in string form. Possible values are
+         "pos" "not" and "not not".
+    atom: The atom constituting the literal.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     sig = define_enum_field(parent_field=StringField, enum_class=Sign, name="SignField")
     atom = Atom1.Field
 
 
-Literal1 = make_id_predicate(Literal)
+class Literal1(ComplexTerm):
+    "Term identifying a child literal predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "literal"
 
 
 class Literal_Tuple(Predicate):
-    id = Identifier_Field
+    """Predicate representing an element of a tuple of literals.
+
+    id: Identifier of the tuple.
+    position: Position of the element the tuple, given by < relation over integers.
+    element: Predicate identifying the element.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField  # should we keep track of position?
     element = Literal1.Field
 
 
-Literal_Tuple1 = make_id_predicate(Literal_Tuple)
+class Literal_Tuple1(ComplexTerm):
+    "Term identifying a child literal tuple."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "literal_tuple"
 
 
 class Rule(Predicate):
-    id = Identifier_Field
+    """Predicate representing a rule statement.
+
+    id: Identifier of the rule.
+    head: The head of the rule.
+    body: The body of the rule, a tuple of literals.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     head = Literal1.Field
     body = Literal_Tuple1.Field
 
 
-Rule1 = make_id_predicate(Rule)
+class Rule1(ComplexTerm):
+    "Term identifying a child rule predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "rule"
 
 
 # note that clingo's parser actually allows arbitrary constant as the external_type
@@ -239,44 +365,90 @@ ExternalTypeField = refine_field(
 
 
 class External(Predicate):
-    id = Identifier_Field
+    """Predicate representing an external statement.
+
+    id: Identifier of the external statement.
+    atom: The external atom.
+    body: The tuple of literals the external statement is conditioned on.
+    external_type: The default value of the external statement.
+                   May be the constant 'true' or 'false'.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     atom = Atom1.Field
     body = Literal_Tuple1.Field
     external_type = ExternalTypeField
 
 
-External1 = make_id_predicate(External)
+class External1(ComplexTerm):
+    "Term identifying a child external predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "external"
 
 
 Statement = combine_fields([Rule1.Field, External1.Field])
 
 
 class Statement_Tuple(Predicate):
-    id = Identifier_Field
+    """Predicate representing an element of a tuple of statements.
+
+    id: Identifier of the tuple.
+    position: Position of the element the tuple, given by < relation over integers.
+    element: Predicate identifying the element.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
     element = Statement
 
 
-Statement_Tuple1 = make_id_predicate(Statement_Tuple)
+class Statement_Tuple1(ComplexTerm):
+    "Term identifying a child statement tuple"
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "statement_tuple"
 
 
 class Constant_Tuple(Predicate):
-    id = Identifier_Field
+    """Predicate representing an element of a tuple of constant terms.
+
+    id: Identifier of the tuple.
+    position: Position of the element the tuple, given by < relation over integers.
+    element: Predicate identifying the element.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
     element = Function1.Field
 
 
-Constant_Tuple1 = make_id_predicate(Constant_Tuple)
+class Constant_Tuple1(ComplexTerm):
+    "Term identifying a child constant tuple."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "constant_tuple"
 
 
 class Program(Predicate):
+    """Predicate representing a subprogram statement.
+
+    name: The name of the subprogram, a string.
+    parameters: The parameters of the subprogram, a tuple of constants.
+    statements: The tuple of statements comprising the subprogram."""
+
     name = StringField
-    # restrict to tuple of strings as that's what clingo allows.
     parameters = Constant_Tuple1.Field
     statements = Statement_Tuple1.Field
 
 
-AST_Predicate = Union[
+AstPredicate = Union[
     String,
     String1,
     Number,
@@ -336,7 +508,7 @@ AST_Predicates = [
     Program,
 ]
 
-AST_Fact = Union[
+AstFact = Union[
     String,
     Number,
     Variable,
@@ -374,4 +546,6 @@ AST_Facts = [
 
 
 class Final(Predicate):
+    """Wrapper predicate to distinguish output AST facts of a transformation."""
+
     ast = combine_fields([fact.Field for fact in AST_Facts])

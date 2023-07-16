@@ -26,8 +26,8 @@ def get_parser() -> ArgumentParser:
         prog="renopro",
         description=dedent(
             """\
-            renopro
-            filldescription
+            renopro:
+            A tool for reification of non-ground clingo programs.
             """
         ),
     )
@@ -57,4 +57,18 @@ def get_parser() -> ArgumentParser:
     parser.add_argument(
         "--version", "-v", action="version", version=f"%(prog)s {VERSION}"
     )
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--reify",
+        "-r",
+        action="store_true",
+    )
+    group.add_argument("--reflect", "-R", action="store_true")
+    group.add_argument("--transform", "-t", action="store_true")
+
+    parser.add_argument("string", type=str)
+
+    parser.add_argument("--files", "-f", nargs="?")
+
     return parser

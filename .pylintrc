@@ -27,6 +27,7 @@ ignore-signatures=yes
 argument-rgx=^[a-z][a-z0-9]*((_[a-z0-9]+)*_?)?$
 variable-rgx=^[a-z][a-z0-9]*((_[a-z0-9]+)*_?)?$
 class-naming-style=any
+class-const-naming-style=PascalCase
 
 # Good variable names which should always be accepted, separated by a comma.
 good-names=_,M,N,B,A,Nn,Bn,An

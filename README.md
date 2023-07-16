@@ -10,8 +10,8 @@ applications where reasoning about ASP programs is required.
 
 Reflection is the reverse operation of reification, i.e. transforming
 a set of facts encoding an asp program into it's string
-representation.  This operation can be used to derive new programs
-which may then e.g. be passed along to an ASP solver.
+representation.  This operation can be used to derive new program
+strings which may then e.g. be passed along to an ASP solver.
 
 An application `renopro` implements which makes use of both
 reification and reflection is syntactic transformation of input

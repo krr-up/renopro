@@ -16,6 +16,8 @@ malformed_reify_files = reify_files / "malformed_ast"
 
 
 class TestReifiedAST(TestCase):
+    """Common base class for tests involving the ReifiedAST class."""
+
     def setUp(self):
         # reset id generator between test cases so reification
         # auto-generates the expected integers
@@ -26,7 +28,7 @@ class TestReifiedASTInterface(TestReifiedAST):
     """Test interfaces of ReifiedAST class"""
 
     class NotAnASTFact(Predicate):
-        pass
+        """This is, in fact, not an ast fact."""
 
     def test_update_ast_facts(self):
         """Test updating of reified facts of a ReifiedAST by list of
@@ -86,11 +88,13 @@ class TestReifyReflect(TestReifiedAST):
 
     base_str = ""
 
-    def assertReifyReflectEqual(self, prog_str: str, ast_fact_files: List[str]):
+    def assertReifyReflectEqual(
+        self, prog_str: str, ast_fact_files: List[str]
+    ):  # pylint: disable=invalid-name
         """Assert that reification of prog_str results in ast_facts,
         and that reflection of ast_facts result in prog_str."""
 
-        ast_fact_files = [(good_reify_files / f) for f in ast_fact_files]
+        ast_fact_files_str = [(good_reify_files / f) for f in ast_fact_files]
         for operation in ["reification", "reflection"]:
             with self.subTest(operation=operation):
                 if operation == "reification":
@@ -98,12 +102,12 @@ class TestReifyReflect(TestReifiedAST):
                     rast1.reify_string(prog_str)
                     reified_facts = rast1.reified_facts
                     rast2 = ReifiedAST()
-                    rast2.add_reified_files(ast_fact_files)
+                    rast2.add_reified_files(ast_fact_files_str)
                     expected_facts = rast2.reified_facts
-                    self.assertSetEqual(reified_facts, expected_facts)
+                    self.assertSetEqual(reified_facts, expected_facts)  # type: ignore
                 elif operation == "reflection":
                     rast = ReifiedAST()
-                    rast.add_reified_files(ast_fact_files)
+                    rast.add_reified_files(ast_fact_files_str)
                     rast.reflect()
                     expected_string = self.base_str + prog_str
                     self.assertEqual(rast.program_string, expected_string)
@@ -125,7 +129,10 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         rast = ReifiedAST()
         rast.reify_string("a.")
         statements = []
-        parse_string("a.", lambda s: statements.append(s))
+        parse_string(
+            "a.", lambda s: statements.append(s)  # pylint: disable=unnecessary-lambda
+        )
+        rast.reflect()
         self.assertEqual(rast.program_ast, statements)
 
     def test_reify_prop_normal_rule(self):
@@ -136,11 +143,14 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
 
     def test_reify_function(self):
         """
-        Test reification of a variable-free normal rule with function symbols.
+        Test reification of a variable-free normal rule with a function.
         """
         self.assertReifyReflectEqual("rel(2,1) :- rel(1,2).", ["function.lp"])
 
     def test_reify_nested_function(self):
+        """
+        Test reification of a rule with nested functions.
+        """
         self.assertReifyReflectEqual("next(move(a)).", ["nested_function.lp"])
 
     def test_reify_variable(self):
@@ -161,7 +171,10 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         """
         self.assertReifyReflectEqual("good(human).", ["constant_term.lp"])
 
-    def test_reify_binary_operator(self):
+    def test_reify_binary_operation(self):
+        """
+        Test reification of a normal rule with a binary operation.
+        """
         self.assertReifyReflectEqual("equal((1+1),2).", ["binary_operation.lp"])
 
     def test_reify_external_false(self):

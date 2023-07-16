@@ -2,11 +2,10 @@
 import inspect
 import logging
 import re
-import sys
 from contextlib import AbstractContextManager
 from functools import singledispatchmethod
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence
+from typing import Iterator, List, Optional, Sequence
 
 from clingo import Control, ast, symbol
 from clingo.ast import AST, ASTType, Location, Position, parse_files, parse_string
@@ -19,7 +18,7 @@ from clorm import (
     parse_fact_files,
     parse_fact_string,
 )
-from thefuzz import process
+from thefuzz import process  # type: ignore
 
 import renopro.predicates as preds
 
@@ -80,8 +79,9 @@ class TryUnify(AbstractContextManager):
                 error.predicates,
             ) from None
         for idx, arg in enumerate(unmatched.arguments):
-            # This is very hacky. Should ask Dave for a better solution, if there is one.
-            arg_field = candidate[idx]._field
+            # This is very hacky. Should ask Dave for a better
+            # solution, if there is one.
+            arg_field = candidate[idx]._field  # pylint: disable=protected-access
             arg_field_str = re.sub(r"\(.*?\)", "", str(arg_field))
             try:
                 arg_field.cltopy(arg)
@@ -110,18 +110,21 @@ class ReifiedAST:
         self._reified = FactBase()
         self._program_ast = []
         self._id_counter = -1
+        self._statement_tup_id = None
+        self._statement_pos = 0
+        self._program_string = ""
 
-    def add_reified_facts(self, reified_facts: Iterable[preds.AST_Predicate]) -> None:
+    def add_reified_facts(self, reified_facts: Iterator[preds.AstPredicate]) -> None:
         """Add factbase containing reified AST facts into internal factbase."""
         unifier = Unifier(preds.AST_Facts)
         # couldn't find a way in clorm to directly add a set of facts
         # while checking unification, so we have to unify against the
         # underlying symbols
         with TryUnify():
-            reified_facts = unifier.iter_unify(
+            unified_facts = unifier.iter_unify(
                 [fact.symbol for fact in reified_facts], raise_nomatch=True
             )
-            self._reified.update(reified_facts)
+            self._reified.update(unified_facts)
 
     def add_reified_string(self, reified_string: str) -> None:
         """Add string of reified facts into internal factbase."""
@@ -134,10 +137,10 @@ class ReifiedAST:
 
     def add_reified_files(self, reified_files: Sequence[Path]) -> None:
         """Add files containing reified facts into internal factbase."""
-        reified_files = [str(f) for f in reified_files]
+        reified_files_str = [str(f) for f in reified_files]
         with TryUnify():
             facts = parse_fact_files(
-                reified_files,
+                reified_files_str,
                 unifier=preds.AST_Facts,
                 raise_nomatch=True,
                 raise_nonfact=True,
@@ -155,33 +158,43 @@ class ReifiedAST:
         for f in files:
             if not f.is_file():  # nocoverage
                 raise IOError(f"File {f} does not exist.")
-        files = [str(f) for f in files]
-        parse_files(files, self.reify_node)
+        files_str = [str(f) for f in files]
+        parse_files(files_str, self.reify_node)
 
     @property
     def program_string(self) -> str:
-        return "\n".join([str(statement) for statement in self._program_ast])
+        """String representation of reflected AST facts."""
+        return self._program_string
 
     @property
     def program_ast(self) -> List[AST]:
+        """AST nodes attained via reflection of AST facts."""
         return self._program_ast
 
     @property
     def reified_facts(self) -> FactBase:
+        """Set of reified AST facts, encoding a non-ground ASP program."""
         return self._reified
 
     @property
     def reified_string(self) -> str:
+        """String representation of reified AST facts, encoding a
+        non-ground ASP program."""
         return self._reified.asp_str()
 
     @property
     def reified_string_doc(self) -> str:  # nocoverage
+        """String representation of reified AST facts, encoding a
+        non-ground ASP program, with comments describing the schema of
+        occurring facts.
+
+        """
         return self._reified.asp_str(commented=True)
 
     @staticmethod
     def dispatch_on_node_type(meth):
         """ "Dispatch on node.ast_type if node is of type AST or
-        node.type if node is of type Symbol.
+        dispatch on node.type if node is of type Symbol.
 
         """
         registry = {}
@@ -202,10 +215,9 @@ class ReifiedAST:
         def wrapper(self, node, *args, **kw):
             if isinstance(node, AST):
                 return dispatch(node.ast_type)(self, node, *args, **kw)
-            elif isinstance(node, Symbol):
+            if isinstance(node, Symbol):
                 return dispatch(node.type)(self, node, *args, **kw)
-            else:
-                return dispatch(type(node))(self, node, *args, **kw)
+            return dispatch(type(node))(self, node, *args, **kw)
 
         wrapper.register = register
         wrapper.dispatch = dispatch
@@ -227,19 +239,17 @@ class ReifiedAST:
                     "f{node.ast_type.name}."
                 )
             )
-        elif hasattr(node, "type"):  # nocoverage
+        if hasattr(node, "type"):  # nocoverage
             raise NotImplementedError(
                 (
                     "Reification not implemented for symbol of type: "
                     "f{node.typle.name}."
                 )
             )
-        else:
-            raise TypeError(f"Nodes should be of type AST or Symbol, got: {type(node)}")
+        raise TypeError(f"Nodes should be of type AST or Symbol, got: {type(node)}")
 
     @reify_node.register(ASTType.Program)
     def _reify_program(self, node):
-        self._program_ast.append(node)
         const_tup_id = preds.Constant_Tuple1()
         for pos, param in enumerate(node.parameters):
             const_tup = preds.Constant_Tuple(
@@ -257,11 +267,9 @@ class ReifiedAST:
         self._reified.add(program)
         self._statement_tup_id = program.statements.id
         self._statement_pos = 0
-        return
 
     @reify_node.register(ASTType.External)
     def _reify_external(self, node):
-        self._program_ast.append(node)
         ext_type = node.external_type.symbol.name
         external1 = preds.External1()
         external = preds.External(
@@ -282,11 +290,9 @@ class ReifiedAST:
                     id=external.body.id, position=pos, element=self.reify_node(element)
                 )
             )
-        return
 
     @reify_node.register(ASTType.Rule)
     def _reify_rule(self, node):
-        self._program_ast.append(node)
         rule1 = preds.Rule1()
 
         # assumption: head can only be a Literal
@@ -304,7 +310,6 @@ class ReifiedAST:
                     id=rule.body.id, position=pos, element=self.reify_node(element)
                 )
             )
-        return
 
     @reify_node.register(ASTType.Literal)
     def _reify_literal(self, node):
@@ -413,7 +418,7 @@ class ReifiedAST:
 
         """
         identifier = child_id_fact.id
-        child_ast_pred = preds.id_pred2ast_pred[type(child_id_fact)]
+        child_ast_pred = getattr(preds, type(child_id_fact).__name__.rstrip("1"))
         query = self._reified.query(child_ast_pred).where(
             child_ast_pred.id == identifier
         )
@@ -425,7 +430,7 @@ class ReifiedAST:
                 ", found none."
             )
             raise ChildQueryError(msg)
-        elif len(child_preds) > 1:
+        if len(child_preds) > 1:
             child_pred_strings = [str(pred) for pred in child_preds]
             msg = (
                 f"Error finding child fact of predicate '{parent_fact}':\n"
@@ -433,11 +438,10 @@ class ReifiedAST:
                 ", found multiple:\n" + "\n".join(child_pred_strings)
             )
             raise ChildQueryError(msg)
-        else:
-            child_pred = child_preds[0]
+        child_pred = child_preds[0]
         return self.reflect_predicate(child_pred)
 
-    def _reflect_child_preds(self, parent_fact, children_id_fact):
+    def _reflect_child_preds(self, children_id_fact):
         """Utility function that takes a unary ast fact containing
         only an identifier pointing to a tuple of child facts, and
         returns a list of the child nodes obtained by reflecting all
@@ -445,11 +449,11 @@ class ReifiedAST:
 
         """
         identifier = children_id_fact.id
-        child_pred = preds.id_pred2ast_pred[type(children_id_fact)]
+        child_ast_pred = getattr(preds, type(children_id_fact).__name__.rstrip("1"))
         query = (
-            self._reified.query(child_pred)
-            .where(child_pred.id == identifier)
-            .order_by(child_pred.position)
+            self._reified.query(child_ast_pred)
+            .where(child_ast_pred.id == identifier)
+            .order_by(child_ast_pred.position)
         )
         tuples = list(query.all())
         child_nodes = []
@@ -458,7 +462,7 @@ class ReifiedAST:
         return child_nodes
 
     @singledispatchmethod
-    def reflect_predicate(self, pred: preds.AST_Predicate):  # nocoverage
+    def reflect_predicate(self, pred: preds.AstPredicate):  # nocoverage
         """Convert the input AST element's reified fact representation
         back into a the corresponding member of clingo's abstract
         syntax tree, recursively reflecting all child facts.
@@ -475,13 +479,13 @@ class ReifiedAST:
 
         """
         subprogram = []
-        parameter_nodes = self._reflect_child_preds(program, program.parameters)
+        parameter_nodes = self._reflect_child_preds(program.parameters)
         subprogram.append(
             ast.Program(
-                location=DUMMY_LOC, name=program.name, parameters=parameter_nodes
+                location=DUMMY_LOC, name=str(program.name), parameters=parameter_nodes
             )
         )
-        statement_nodes = self._reflect_child_preds(program, program.statements)
+        statement_nodes = self._reflect_child_preds(program.statements)
         subprogram.extend(statement_nodes)
         return subprogram
 
@@ -489,10 +493,10 @@ class ReifiedAST:
     def _reflect_external(self, external: preds.External) -> AST:
         """Reflect an External fact into an External node."""
         atom_node = self._reflect_child_pred(external, external.atom)
-        body_nodes = self._reflect_child_preds(external, external.body)
+        body_nodes = self._reflect_child_preds(external.body)
         ext_type = ast.SymbolicTerm(
             location=DUMMY_LOC,
-            symbol=symbol.Function(name=external.external_type, arguments=[]),
+            symbol=symbol.Function(name=str(external.external_type), arguments=[]),
         )
         return ast.External(
             location=DUMMY_LOC, atom=atom_node, body=body_nodes, external_type=ext_type
@@ -502,13 +506,13 @@ class ReifiedAST:
     def _reflect_rule(self, rule: preds.Rule) -> AST:
         """Reflect a Rule fact into a Rule node."""
         head_node = self._reflect_child_pred(rule, rule.head)
-        body_nodes = self._reflect_child_preds(rule, rule.body)
+        body_nodes = self._reflect_child_preds(rule.body)
         return ast.Rule(location=DUMMY_LOC, head=head_node, body=body_nodes)
 
     @reflect_predicate.register
     def _reflect_literal(self, lit: preds.Literal) -> AST:
         """Reflect a Literal fact into a Literal node."""
-        sign = preds.sign_cl2ast[lit.sig]
+        sign = preds.sign_cl2ast[preds.Sign(lit.sig)]
         atom_node = self._reflect_child_pred(lit, lit.atom)
         return ast.Literal(location=DUMMY_LOC, sign=sign, atom=atom_node)
 
@@ -529,34 +533,36 @@ class ReifiedAST:
         to handle them differently when reifying.
 
         """
-        arg_nodes = self._reflect_child_preds(func, func.arguments)
+        arg_nodes = self._reflect_child_preds(func.arguments)
         return ast.Function(
-            location=DUMMY_LOC, name=func.name, arguments=arg_nodes, external=0
+            location=DUMMY_LOC, name=str(func.name), arguments=arg_nodes, external=0
         )
 
     @reflect_predicate.register
     def _reflect_variable(self, var: preds.Variable) -> AST:
         """Reflect a Variable fact into a Variable node."""
-        return ast.Variable(location=DUMMY_LOC, name=var.name)
+        return ast.Variable(location=DUMMY_LOC, name=str(var.name))
 
     @reflect_predicate.register
     def _reflect_number(self, number: preds.Number) -> AST:
         """Reflect a Number fact into a Number node."""
         return ast.SymbolicTerm(
-            location=DUMMY_LOC, symbol=symbol.Number(number=number.value)
+            location=DUMMY_LOC, symbol=symbol.Number(number=number.value)  # type: ignore
         )
 
     @reflect_predicate.register
-    def _reflect_string(self, string: preds.String) -> Symbol:
-        """Reflect a String fact into a String node."""
+    def _reflect_string(self, string: preds.String) -> AST:
+        """Reflect a String fact into a String symbol wrapped in SymbolicTerm."""
         return ast.SymbolicTerm(
-            location=DUMMY_LOC, symbol=symbol.String(string=string.value)
+            location=DUMMY_LOC, symbol=symbol.String(string=str(string.value))
         )
 
     @reflect_predicate.register
     def _reflect_binary_operation(self, operation: preds.Binary_Operation) -> AST:
         """Reflect a Binary_Operation fact into a BinaryOperation node."""
-        ast_operator = preds.binary_operator_cl2ast[operation.operator]
+        ast_operator = preds.binary_operator_cl2ast[
+            preds.BinaryOperator(operation.operator)
+        ]
         return ast.BinaryOperation(
             location=DUMMY_LOC,
             operator_type=ast_operator,
@@ -565,16 +571,20 @@ class ReifiedAST:
         )
 
     def reflect(self):
-        """Convert the reified ast contained in the internal factbase
-        back into a non-ground program."""
+        """Convert stored reified ast facts into a (sequence of) AST
+        node(s), and it's string representation.
+
+        """
         # reset list of program statements before population via reflect
         self._program_ast = []
         # should probably define an order in which programs are queried
         for prog in self._reified.query(preds.Program).all():
             subprogram = self.reflect_predicate(prog)
             self._program_ast.extend(subprogram)
-        logger.info(f"Reflected program string:\n{self.program_string}")
-        return
+        self._program_string = "\n".join(
+            [str(statement) for statement in self._program_ast]
+        )
+        logger.info("Reflected program string:\n%s", self.program_string)
 
     def transform(
         self,
@@ -604,7 +614,7 @@ class ReifiedAST:
         ctl.add(meta_prog)
         ctl.load("./src/renopro/asp/encodings/transform.lp")
         ctl.ground()
-        with ctl.solve(yield_=True) as handle:
+        with ctl.solve(yield_=True) as handle:  # type: ignore
             model = next(iter(handle))
             ast_symbols = [final.arguments[0] for final in model.symbols(shown=True)]
             unifier = Unifier(preds.AST_Facts)
@@ -614,6 +624,6 @@ class ReifiedAST:
 
 
 if __name__ == "__main__":  # nocoverage
-    print(ReifiedAST.from_prog(sys.argv[1]))
+    pass
 
 #  LocalWords:  nocoverage
