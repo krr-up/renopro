@@ -102,6 +102,40 @@ class TryUnify(AbstractContextManager):
         raise RuntimeError("Code should be unreachable")  # nocoverage
 
 
+def dispatch_on_node_type(meth):
+    """ "Dispatch method on node.ast_type if node is of type AST
+    or dispatch on node.type if node is of type Symbol.
+
+    """
+    registry = {}
+
+    def dispatch(value):
+        try:
+            return registry[value]
+        except KeyError:
+            return meth
+
+    def register(value, func=None):
+        if func is None:
+            return lambda f: register(value, f)
+
+        registry[value] = func
+        return func
+
+    def wrapper(self, node, *args, **kw):
+        if isinstance(node, AST):
+            return dispatch(node.ast_type)(self, node, *args, **kw)
+        if isinstance(node, Symbol):
+            return dispatch(node.type)(self, node, *args, **kw)
+        return dispatch(type(node))(self, node, *args, **kw)
+
+    wrapper.register = register
+    wrapper.dispatch = dispatch
+    wrapper.registry = registry
+
+    return wrapper
+
+
 class ReifiedAST:
     """Class for converting between reified and non-reified
     representation of ASP programs."""
@@ -190,40 +224,6 @@ class ReifiedAST:
 
         """
         return self._reified.asp_str(commented=True)
-
-    @staticmethod
-    def dispatch_on_node_type(meth):
-        """ "Dispatch on node.ast_type if node is of type AST or
-        dispatch on node.type if node is of type Symbol.
-
-        """
-        registry = {}
-
-        def dispatch(value):
-            try:
-                return registry[value]
-            except KeyError:
-                return meth
-
-        def register(value, func=None):
-            if func is None:
-                return lambda f: register(value, f)
-
-            registry[value] = func
-            return func
-
-        def wrapper(self, node, *args, **kw):
-            if isinstance(node, AST):
-                return dispatch(node.ast_type)(self, node, *args, **kw)
-            if isinstance(node, Symbol):
-                return dispatch(node.type)(self, node, *args, **kw)
-            return dispatch(type(node))(self, node, *args, **kw)
-
-        wrapper.register = register
-        wrapper.dispatch = dispatch
-        wrapper.registry = registry
-
-        return wrapper
 
     @dispatch_on_node_type
     def reify_node(self, node):
