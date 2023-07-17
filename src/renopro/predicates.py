@@ -25,16 +25,17 @@ id_count = count()
 Identifier_Field = combine_fields([IntegerField, RawField])
 
 
-class LazilyCombinedField(BaseField):
+class LazilyCombinedField(BaseField):  # nocoverage
+    # pylint: disable=no-self-argument
     "A field defined by lazily combining multiple existing field definitions."
     fields: List[BaseField] = []
 
-    @staticmethod
-    def cltopy(v):  # nocoverage
+    # cannot use a staticmethod decorator as clorm raises error if cltopy/pytocl
+    # is not callable, and staticmethods are not callable for python < 3.10
+    def cltopy(v):
         pass
 
-    @staticmethod
-    def pytocl(v):  # nocoverage
+    def pytocl(v):
         pass
 
 
@@ -59,22 +60,25 @@ def combine_fields_lazily(
 
     fields = list(fields)
 
-    def _pytocl(v):
+    def _pytocl(value):
         for f in fields:
             try:
-                return f.pytocl(v)
+                return f.pytocl(value)
             except (TypeError, ValueError, AttributeError):
                 pass
-        raise TypeError(f"No combined pytocl() match for value {v}.")
+        raise TypeError(f"No combined pytocl() match for value {value}.")
 
-    def _cltopy(r):
+    def _cltopy(symbol):
         for f in fields:
             try:
-                return f.cltopy(r)
+                return f.cltopy(symbol)
             except (TypeError, ValueError):
                 pass
         raise TypeError(
-            (f"Object '{r}' ({type(r)}) failed to unify " f"with {subclass_name}.")
+            (
+                f"Object '{symbol}' ({type(symbol)}) failed to unify "
+                f"with {subclass_name}."
+            )
         )
 
     return type(
