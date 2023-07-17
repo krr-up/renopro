@@ -124,7 +124,7 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         preds.id_count = count()
 
     def test_reify_prop_fact(self):
-        """Test reification of a propositional fact."""
+        "Test reification and reflection of a propositional fact."
         self.assertReifyReflectEqual("a.", ["prop_fact.lp"])
         rast = ReifiedAST()
         rast.reify_string("a.")
@@ -136,55 +136,45 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         self.assertEqual(rast.program_ast, statements)
 
     def test_reify_prop_normal_rule(self):
-        """
-        Test reification of a normal rule containing only propositional atoms.
-        """
+        "Test reification and reflection of a normal rule containing only propositional atoms."
         self.assertReifyReflectEqual("a :- b; not c.", ["prop_normal_rule.lp"])
 
     def test_reify_function(self):
-        """
-        Test reification of a variable-free normal rule with a function.
-        """
-        self.assertReifyReflectEqual("rel(2,1) :- rel(1,2).", ["function.lp"])
+        "Test reification and reflection of a variable-free normal rule with a symbolic atom."
+        self.assertReifyReflectEqual("rel(2,1) :- rel(1,2).", ["atom.lp"])
 
     def test_reify_nested_function(self):
-        """
-        Test reification of a rule with nested functions.
-        """
-        self.assertReifyReflectEqual("next(move(a)).", ["nested_function.lp"])
+        "Test reification and reflection of a rule with a function term."
+        self.assertReifyReflectEqual("next(move(a)).", ["function.lp"])
 
     def test_reify_variable(self):
-        """
-        Test reification of normal rule with variables.
-        """
+        "Test reification and reflection of normal rule with variable terms."
         self.assertReifyReflectEqual("rel(Y,X) :- rel(X,Y).", ["variable.lp"])
 
     def test_reify_string(self):
-        """
-        Test reification of normal rule with string.
-        """
+        "Test reification and reflection of normal rule with a string term."
         self.assertReifyReflectEqual('yummy("carrot").', ["string.lp"])
 
     def test_reify_constant_term(self):
-        """
-        Test reification of normal rule with constant term.
-        """
+        "Test reification and reflection of a normal rule with constant term."
         self.assertReifyReflectEqual("good(human).", ["constant_term.lp"])
 
+    def test_reify_interval(self):
+        "Test reification and reflection of a normal rule with an interval term."
+        self.assertReifyReflectEqual("a((1..3)).", ["interval.lp"])
+
     def test_reify_binary_operation(self):
-        """
-        Test reification of a normal rule with a binary operation.
-        """
+        "Test reification and reflection of a normal rule with a binary operation."
         self.assertReifyReflectEqual("equal((1+1),2).", ["binary_operation.lp"])
 
     def test_reify_external_false(self):
-        """Test reification of an external statement with default value false."""
+        "Test reification of an external statement with default value false."
         self.assertReifyReflectEqual(
             "#external a(X) : c(X); d(e(X)). [false]", ["external.lp"]
         )
 
     def test_reify_program_params(self):
-        """Test reification of a program statement with parameters."""
+        "Test reification and reflection of a program statement with parameters."
         self.assertReifyReflectEqual("#program acid(k).", ["program_acid.lp"])
 
     def test_reify_node_failure(self):

@@ -252,6 +252,31 @@ class Binary_Operation1(ComplexTerm):
 Term_Field.fields.append(Binary_Operation1.Field)
 
 
+class Interval(Predicate):
+    """Predicate representing an interval term.
+
+    id: Identifier of the interval.
+    left: Left bound of the interval.
+    right: Right bound of the interval.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    left = Term_Field
+    right = Term_Field
+
+
+class Interval1(ComplexTerm):
+    "Term identifying a child interval predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "interval"
+
+
+Term_Field.fields.append(Interval1.Field)
+
+
 class Atom(Predicate):
     """Predicate representing a symbolic atom.
 
@@ -465,6 +490,8 @@ AstPredicate = Union[
     Function1,
     Binary_Operation,
     Binary_Operation1,
+    Interval,
+    Interval1,
     Atom,
     Atom1,
     Literal,
@@ -495,6 +522,8 @@ AST_Predicates = [
     Function1,
     Binary_Operation,
     Binary_Operation1,
+    Interval,
+    Interval1,
     Atom,
     Atom1,
     Literal,
@@ -519,6 +548,7 @@ AstFact = Union[
     Function,
     Term_Tuple,
     Binary_Operation,
+    Interval,
     Atom,
     Literal,
     Literal_Tuple,
@@ -536,6 +566,7 @@ AST_Facts = [
     Function,
     Term_Tuple,
     Binary_Operation,
+    Interval,
     Atom,
     Literal,
     Literal_Tuple,

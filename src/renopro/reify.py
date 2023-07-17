@@ -410,6 +410,15 @@ class ReifiedAST:
         self._reified.add(preds.String(id=string1.id, value=symb.string))
         return string1
 
+    @reify_node.register(ASTType.Interval)
+    def _reify_interval(self, node):
+        interval1 = preds.Interval1()
+        left = self.reify_node(node.left)
+        right = self.reify_node(node.right)
+        interval = preds.Interval(id=interval1.id, left=left, right=right)
+        self._reified.add(interval)
+        return interval1
+
     def _reflect_child_pred(self, parent_fact, child_id_fact):
         """Utility function that takes a unary ast predicate
         containing only an identifier pointing to a child predicate,
@@ -568,6 +577,14 @@ class ReifiedAST:
             operator_type=ast_operator,
             left=self._reflect_child_pred(operation, operation.left),
             right=self._reflect_child_pred(operation, operation.right),
+        )
+
+    @reflect_predicate.register
+    def _reflect_interval(self, interval: preds.Interval) -> AST:
+        return ast.Interval(
+            location=DUMMY_LOC,
+            left=self._reflect_child_pred(interval, interval.left),
+            right=self._reflect_child_pred(interval, interval.right),
         )
 
     def reflect(self):
