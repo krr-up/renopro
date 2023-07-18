@@ -277,7 +277,75 @@ class Interval1(ComplexTerm):
 Term_Field.fields.append(Interval1.Field)
 
 
-class Atom(Predicate):
+class ComparisonOperator(str, enum.Enum):
+    """
+    String enumeration of clingo's comparison operators.
+    """
+
+    Equal = "="
+    GreaterEqual = ">="
+    GreaterThan = ">"
+    LessEqual = "<="
+    LessThan = "<"
+    NotEqual = "!="
+
+
+comp_operator_cl2ast = {
+    ComparisonOperator[op.name]: ast.ComparisonOperator[op.name]
+    for op in ast.ComparisonOperator
+}
+comp_operator_ast2cl = {v: k for k, v in comp_operator_cl2ast.items()}
+
+
+class Guard_Tuple(Predicate):
+    """Predicate representing a tuple of guards for a comparison or aggregate atom.
+
+    id: Identifier of the guard.
+    position: Position of the element the tuple, given by < relation over integers.
+    comparison: The clingo comparison operator, in string form.
+    term: The term serving as the guard.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    comparison = define_enum_field(
+        parent_field=StringField, enum_class=ComparisonOperator, name="ComparisonField"
+    )
+    term = Term_Field
+
+
+class Guard_Tuple1(ComplexTerm):
+    "Term identifying a child guard tuple predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "guard_tuple"
+
+
+class Comparison(Predicate):
+    """Predicate representing a comparison atom.
+
+    id: Identifier of the comparison.
+    term: Leftmost term of the comparison atom.
+    guards: tuple of guard predicates
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    term = Term_Field
+    guards = Guard_Tuple1.Field
+
+
+class Comparison1(ComplexTerm):
+    "Term identifying a child comparison predicate"
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "comparison"
+
+
+class Symbolic_Atom(Predicate):
     """Predicate representing a symbolic atom.
 
     id: Identifier of the atom.
@@ -288,13 +356,18 @@ class Atom(Predicate):
     symbol = Function1.Field
 
 
-class Atom1(ComplexTerm):
-    "Term identifying a child atom predicate"
+class Symbolic_Atom1(ComplexTerm):
+    "Term identifying a child symbolic atom predicate"
     id = Identifier_Field(default=lambda: next(id_count))
 
     class Meta:
         # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "atom"
+        name = "symbolic_atom"
+
+
+AtomField = combine_fields_lazily(
+    [Symbolic_Atom1.Field, Comparison1.Field], name="AtomField"
+)
 
 
 class Sign(str, enum.Enum):
@@ -329,7 +402,7 @@ class Literal(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     sig = define_enum_field(parent_field=StringField, enum_class=Sign, name="SignField")
-    atom = Atom1.Field
+    atom = AtomField
 
 
 class Literal1(ComplexTerm):
@@ -404,7 +477,7 @@ class External(Predicate):
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
-    atom = Atom1.Field
+    atom = Symbolic_Atom1.Field
     body = Literal_Tuple1.Field
     external_type = ExternalTypeField
 
@@ -490,10 +563,14 @@ AstPredicate = Union[
     Function1,
     Binary_Operation,
     Binary_Operation1,
+    Guard_Tuple,
+    Guard_Tuple1,
+    Comparison,
+    Comparison1,
     Interval,
     Interval1,
-    Atom,
-    Atom1,
+    Symbolic_Atom,
+    Symbolic_Atom1,
     Literal,
     Literal1,
     Literal_Tuple,
@@ -522,10 +599,14 @@ AST_Predicates = [
     Function1,
     Binary_Operation,
     Binary_Operation1,
+    Guard_Tuple,
+    Guard_Tuple1,
+    Comparison,
+    Comparison1,
     Interval,
     Interval1,
-    Atom,
-    Atom1,
+    Symbolic_Atom,
+    Symbolic_Atom1,
     Literal,
     Literal1,
     Literal_Tuple,
@@ -548,8 +629,10 @@ AstFact = Union[
     Function,
     Term_Tuple,
     Binary_Operation,
+    Guard_Tuple,
+    Comparison,
     Interval,
-    Atom,
+    Symbolic_Atom,
     Literal,
     Literal_Tuple,
     Rule,
@@ -566,8 +649,10 @@ AST_Facts = [
     Function,
     Term_Tuple,
     Binary_Operation,
+    Guard_Tuple,
+    Comparison,
     Interval,
-    Atom,
+    Symbolic_Atom,
     Literal,
     Literal_Tuple,
     Rule,

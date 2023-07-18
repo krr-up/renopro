@@ -251,7 +251,7 @@ class ReifiedAST:
     @reify_node.register(ASTType.Program)
     def _reify_program(self, node):
         const_tup_id = preds.Constant_Tuple1()
-        for pos, param in enumerate(node.parameters):
+        for pos, param in enumerate(node.parameters, start=0):
             const_tup = preds.Constant_Tuple(
                 id=const_tup_id.id, position=pos, element=preds.Function1()
             )
@@ -313,7 +313,6 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.Literal)
     def _reify_literal(self, node):
-        # assumption: all literals contain only symbolic atoms
         lit1 = preds.Literal1()
         clorm_sign = preds.sign_ast2cl[node.sign]
         lit = preds.Literal(id=lit1.id, sig=clorm_sign, atom=self.reify_node(node.atom))
@@ -322,10 +321,52 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.SymbolicAtom)
     def _reify_symbolic_atom(self, node):
-        atom1 = preds.Atom1()
-        atom = preds.Atom(id=atom1.id, symbol=self.reify_node(node.symbol))
+        atom1 = preds.Symbolic_Atom1()
+        atom = preds.Symbolic_Atom(id=atom1.id, symbol=self.reify_node(node.symbol))
         self._reified.add(atom)
         return atom1
+
+    @reify_node.register(ASTType.Comparison)
+    def _reify_comparison(self, node):
+        comparison1 = preds.Comparison1()
+        comparison = preds.Comparison(
+            id=comparison1.id,
+            term=self.reify_node(node.term),
+            guards=preds.Guard_Tuple1(),
+        )
+        self._reified.add(comparison)
+        for pos, guard in enumerate(node.guards, start=0):
+            self._reified.add(
+                preds.Guard_Tuple(
+                    id=comparison.guards.id,
+                    position=pos,
+                    comparison=preds.comp_operator_ast2cl[guard.comparison],
+                    term=self.reify_node(guard.term),
+                )
+            )
+        return comparison1
+
+    @reify_node.register(ASTType.Interval)
+    def _reify_interval(self, node):
+        interval1 = preds.Interval1()
+        left = self.reify_node(node.left)
+        right = self.reify_node(node.right)
+        interval = preds.Interval(id=interval1.id, left=left, right=right)
+        self._reified.add(interval)
+        return interval1
+
+    @reify_node.register(ASTType.BinaryOperation)
+    def _reify_binary_operation(self, node):
+        clorm_operator = preds.binary_operator_ast2cl[node.operator_type]
+        binop1 = preds.Binary_Operation1()
+        binop = preds.Binary_Operation(
+            id=binop1.id,
+            operator=clorm_operator,
+            left=self.reify_node(node.left),
+            right=self.reify_node(node.right),
+        )
+        self._reified.add(binop)
+        return binop1
 
     @reify_node.register(ASTType.Function)
     def _reify_function(self, node):
@@ -371,19 +412,6 @@ class ReifiedAST:
         """
         return self.reify_node(node.symbol)
 
-    @reify_node.register(ASTType.BinaryOperation)
-    def _reify_binary_operation(self, node):
-        clorm_operator = preds.binary_operator_ast2cl[node.operator_type]
-        binop1 = preds.Binary_Operation1()
-        binop = preds.Binary_Operation(
-            id=binop1.id,
-            operator=clorm_operator,
-            left=self.reify_node(node.left),
-            right=self.reify_node(node.right),
-        )
-        self._reified.add(binop)
-        return binop1
-
     @reify_node.register(SymbolType.Number)
     def _reify_symbol_number(self, symb):
         number1 = preds.Number1()
@@ -410,15 +438,6 @@ class ReifiedAST:
         self._reified.add(preds.String(id=string1.id, value=symb.string))
         return string1
 
-    @reify_node.register(ASTType.Interval)
-    def _reify_interval(self, node):
-        interval1 = preds.Interval1()
-        left = self.reify_node(node.left)
-        right = self.reify_node(node.right)
-        interval = preds.Interval(id=interval1.id, left=left, right=right)
-        self._reified.add(interval)
-        return interval1
-
     def _reflect_child_pred(self, parent_fact, child_id_fact):
         """Utility function that takes a unary ast predicate
         containing only an identifier pointing to a child predicate,
@@ -434,7 +453,7 @@ class ReifiedAST:
         child_preds = list(query.all())
         if len(child_preds) == 0:
             msg = (
-                f"Error finding child fact of predicate '{parent_fact}':\n"
+                f"Error finding child fact of fact '{parent_fact}':\n"
                 f"Expected single child fact for identifier '{child_id_fact}'"
                 ", found none."
             )
@@ -442,7 +461,7 @@ class ReifiedAST:
         if len(child_preds) > 1:
             child_pred_strings = [str(pred) for pred in child_preds]
             msg = (
-                f"Error finding child fact of predicate '{parent_fact}':\n"
+                f"Error finding child fact of fact '{parent_fact}':\n"
                 f"Expected single child fact for identifier '{child_id_fact}'"
                 ", found multiple:\n" + "\n".join(child_pred_strings)
             )
@@ -450,13 +469,8 @@ class ReifiedAST:
         child_pred = child_preds[0]
         return self.reflect_predicate(child_pred)
 
-    def _reflect_child_preds(self, children_id_fact):
-        """Utility function that takes a unary ast fact containing
-        only an identifier pointing to a tuple of child facts, and
-        returns a list of the child nodes obtained by reflecting all
-        child facts.
-
-        """
+    def _get_child_tuple_preds(self, parent_fact, children_id_fact):
+        """Query factbase to retrieve all tuple facts identified by children_id_fact."""
         identifier = children_id_fact.id
         child_ast_pred = getattr(preds, type(children_id_fact).__name__.rstrip("1"))
         query = (
@@ -465,6 +479,23 @@ class ReifiedAST:
             .order_by(child_ast_pred.position)
         )
         tuples = list(query.all())
+        # check that there are no tuple elements in the same position
+        if len(tuples) != len(set(tup.position for tup in tuples)):
+            msg = (
+                f"Error finding children facts of fact '{parent_fact}':\n"
+                f"Found multiple tuple elements in same position for identifier '{children_id_fact}'."
+            )
+            raise ChildrenQueryError(msg)
+        return tuples
+
+    def _reflect_child_preds(self, parent_fact, children_id_fact):
+        """Utility function that takes a unary ast fact containing
+        only an identifier pointing to a tuple of child facts, and
+        returns a list of the child nodes obtained by reflecting all
+        child facts.
+
+        """
+        tuples = self._get_child_tuple_preds(parent_fact, children_id_fact)
         child_nodes = []
         for tup in tuples:
             child_nodes.append(self._reflect_child_pred(tup, tup.element))
@@ -488,34 +519,37 @@ class ReifiedAST:
 
         """
         subprogram = []
-        parameter_nodes = self._reflect_child_preds(program.parameters)
+        parameter_nodes = self._reflect_child_preds(program, program.parameters)
         subprogram.append(
             ast.Program(
                 location=DUMMY_LOC, name=str(program.name), parameters=parameter_nodes
             )
         )
-        statement_nodes = self._reflect_child_preds(program.statements)
+        statement_nodes = self._reflect_child_preds(program, program.statements)
         subprogram.extend(statement_nodes)
         return subprogram
 
     @reflect_predicate.register
     def _reflect_external(self, external: preds.External) -> AST:
         """Reflect an External fact into an External node."""
-        atom_node = self._reflect_child_pred(external, external.atom)
-        body_nodes = self._reflect_child_preds(external.body)
+        symb_atom_node = self._reflect_child_pred(external, external.atom)
+        body_nodes = self._reflect_child_preds(external, external.body)
         ext_type = ast.SymbolicTerm(
             location=DUMMY_LOC,
             symbol=symbol.Function(name=str(external.external_type), arguments=[]),
         )
         return ast.External(
-            location=DUMMY_LOC, atom=atom_node, body=body_nodes, external_type=ext_type
+            location=DUMMY_LOC,
+            atom=symb_atom_node,
+            body=body_nodes,
+            external_type=ext_type,
         )
 
     @reflect_predicate.register
     def _reflect_rule(self, rule: preds.Rule) -> AST:
         """Reflect a Rule fact into a Rule node."""
         head_node = self._reflect_child_pred(rule, rule.head)
-        body_nodes = self._reflect_child_preds(rule.body)
+        body_nodes = self._reflect_child_preds(rule, rule.body)
         return ast.Rule(location=DUMMY_LOC, head=head_node, body=body_nodes)
 
     @reflect_predicate.register
@@ -526,9 +560,32 @@ class ReifiedAST:
         return ast.Literal(location=DUMMY_LOC, sign=sign, atom=atom_node)
 
     @reflect_predicate.register
-    def _reflect_atom(self, atom: preds.Atom) -> AST:
-        """Reflect an Atom fact into an Atom node."""
+    def _reflect_symbolic_atom(self, atom: preds.Symbolic_Atom) -> AST:
+        """Reflect a Symbolic_Atom fact into a SymbolicAtom node."""
         return ast.SymbolicAtom(symbol=self._reflect_child_pred(atom, atom.symbol))
+
+    @reflect_predicate.register
+    def _reflect_comparison(self, comparison: preds.Comparison) -> AST:
+        term_node = self._reflect_child_pred(comparison, comparison.term)
+        guard_tuples = self._get_child_tuple_preds(comparison, comparison.guards)
+        guard_nodes = [
+            ast.Guard(
+                comparison=preds.comp_operator_cl2ast[g.comparison],
+                term=self._reflect_child_pred(g, g.term),
+            )
+            for g in guard_tuples
+        ]
+        if len(guard_nodes) == 0:
+            msg = (
+                f"Error finding child facts of predicate '{comparison}'.\n"
+                "Found no child guard_tuple facts with identifier matching "
+                f"'{comparison.guards}', expected at least one."
+            )
+            raise ChildrenQueryError(msg)
+        return ast.Comparison(
+            term=term_node,
+            guards=guard_nodes,
+        )
 
     @reflect_predicate.register
     def _reflect_function(self, func: preds.Function) -> AST:
@@ -542,7 +599,7 @@ class ReifiedAST:
         to handle them differently when reifying.
 
         """
-        arg_nodes = self._reflect_child_preds(func.arguments)
+        arg_nodes = self._reflect_child_preds(func, func.arguments)
         return ast.Function(
             location=DUMMY_LOC, name=str(func.name), arguments=arg_nodes, external=0
         )

@@ -1,1 +1,1 @@
-atom(12,function(13)).
+symbolic_atom(12,function(13)).

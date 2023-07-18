@@ -8,7 +8,7 @@ from clingo.ast import parse_string
 from clorm import FactBase, Predicate, UnifierNoMatchError
 
 import renopro.predicates as preds
-from renopro.reify import ChildQueryError, ReifiedAST
+from renopro.reify import ChildQueryError, ChildrenQueryError, ReifiedAST
 
 reify_files = Path("src", "renopro", "asp", "tests", "reify")
 good_reify_files = reify_files / "good_ast"
@@ -70,7 +70,7 @@ class TestReifiedASTInterface(TestReifiedAST):
         # second case: argument of ast fact fails to unify
         # should show the argument that failed to unify with the specified field
         fact_str = 'literal(1,"pos",attom(2)).'
-        regex = r"(?s).*'literal\(1,\"pos\",attom\(2\)\)'.*'attom\(2\).*Atom1Field"
+        regex = r"(?s).*'literal\(1,\"pos\",attom\(2\)\)'.*'attom\(2\).*AtomField"
         with self.assertRaisesRegex(UnifierNoMatchError, expected_regex=regex):
             rast.add_reified_string(fact_str)
 
@@ -78,7 +78,7 @@ class TestReifiedASTInterface(TestReifiedAST):
         """Test adding of reified facts from files to reified facts of a ReifiedAST."""
         rast = ReifiedAST()
         rast.add_reified_files([malformed_reify_files / "ast_fact.lp"])
-        fb = FactBase([preds.Atom(id=12, symbol=preds.Function1(id=13))])
+        fb = FactBase([preds.Symbolic_Atom(id=12, symbol=preds.Function1(id=13))])
         self.assertSetEqual(rast.reified_facts, fb)
 
 
@@ -167,6 +167,10 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         "Test reification and reflection of a normal rule with a binary operation."
         self.assertReifyReflectEqual("equal((1+1),2).", ["binary_operation.lp"])
 
+    def test_reify_comparison(self):
+        "Test reification and reflection of a comparison operator"
+        self.assertReifyReflectEqual("1 < 2 != 3 > 4.", ["comparison.lp"])
+
     def test_reify_external_false(self):
         "Test reification of an external statement with default value false."
         self.assertReifyReflectEqual(
@@ -207,4 +211,29 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         rast.add_reified_files([malformed_reify_files / "multiple_child.lp"])
         regex = r"(?s).*atom\(4,function\(5\)\).*function\(5\).*found multiple.*"
         with self.assertRaisesRegex(ChildQueryError, expected_regex=regex):
+            rast.reflect()
+
+    def test_children_query_error_multiple_in_same_position(self):
+        """Refection of a child tuple with multiple elements in the
+        same position should fail"""
+        rast = ReifiedAST()
+        rast.add_reified_files([malformed_reify_files / "multiple_in_same_pos.lp"])
+        regex = (
+            r"(?s).*comparison\(4,number\(5\),guard_tuple\(6\)\).*"
+            r"multiple tuple elements in same position.*guard_tuple\(6\)"
+        )
+        with self.assertRaisesRegex(ChildrenQueryError, expected_regex=regex):
+            rast.reflect()
+
+    def test_comparison_no_guard_found(self):
+        """Reflection of a comparison fact with an empty guard tuple should fail."""
+        rast = ReifiedAST()
+        rast.add_reified_files(
+            [malformed_reify_files / "missing_guard_in_comparison.lp"]
+        )
+        regex = (
+            r"(?s).*comparison\(4,number\(5\),guard_tuple\(6\)\).*"
+            r".*guard_tuple\(6\).*expected at least one."
+        )
+        with self.assertRaisesRegex(ChildrenQueryError, expected_regex=regex):
             rast.reflect()

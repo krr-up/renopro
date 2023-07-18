@@ -5,7 +5,7 @@ max_arg_index(TT,Idx)
 arity(F,N+1) :- function(F,_,term_tuple(T)), max_arg_index(T,N).
 
 prev_chain(A,function(F),O)
-:- atom(A,function(F)), function(F,prev,term_tuple(T)), arity(F,1),
+:- symbolic_atom(A,function(F)), function(F,prev,term_tuple(T)), arity(F,1),
 	 term_tuple(T,0,O).
 
 prev_chain(A,function(F),O)
@@ -22,18 +22,18 @@ num_prevs(A,N) :- N = #count{ F : prev_chain(A,F,_) }, prev_chain(A,_,_).
 first_prev(A,F) :- prev_chain(A,F,O), not prev_chain(A,_,F).
 
 
-% when an atom is not prev.
+% when an symbolic_atom is not prev.
 
 % add time point constant as additional argument
 ast_operation(
 		add(term_tuple(T,N+1,function(new_id(T)));
 				function(new_id(T),t,term_tuple(new_id(T)))))
-:- atom(A,function(F)), function(F,Name,term_tuple(T)),
+:- symbolic_atom(A,function(F)), function(F,Name,term_tuple(T)),
 	 Name!=prev, max_arg_index(T,N).
 
-% when an atom is a prev.
+% when an symbolic_atom is a prev.
 
-% replace function symbol of atom with final operand, appending
+% replace function symbol of symbolic_atom with final operand, appending
 % appropriate time point as additional argument.
 ast_operation(
 		delete(function(F,N,T1));
