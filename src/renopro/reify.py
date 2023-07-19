@@ -5,13 +5,23 @@ import re
 from contextlib import AbstractContextManager
 from functools import singledispatchmethod
 from pathlib import Path
-from typing import Iterator, List, Optional, Sequence
+from typing import Iterator, List, Optional, Sequence, Type
 
 from clingo import Control, ast, symbol
-from clingo.ast import AST, ASTType, Location, Position, parse_files, parse_string
+from clingo.ast import (
+    AST,
+    ASTSequence,
+    ASTType,
+    Location,
+    Position,
+    parse_files,
+    parse_string,
+)
 from clingo.symbol import Symbol, SymbolType
 from clorm import (
+    BaseField,
     FactBase,
+    Predicate,
     Unifier,
     UnifierNoMatchError,
     control_add_facts,
@@ -268,6 +278,19 @@ class ReifiedAST:
         self._statement_tup_id = program.statements.id
         self._statement_pos = 0
 
+    def _reify_ast_seqence(
+        self,
+        seq: ASTSequence,
+        tup_id: BaseField,
+        tup_pred: Type[Predicate],
+    ):
+        """Reify ast sequence into a tuple of predicates of type
+        tup_pred with identifier tup_id."""
+        for pos, item in enumerate(seq, start=0):
+            self._reified.add(
+                tup_pred(id=tup_id, position=pos, element=self.reify_node(item))
+            )
+
     @reify_node.register(ASTType.External)
     def _reify_external(self, node):
         ext_type = node.external_type.symbol.name
@@ -275,7 +298,7 @@ class ReifiedAST:
         external = preds.External(
             id=external1.id,
             atom=self.reify_node(node.atom),
-            body=preds.Literal_Tuple1(),
+            body=preds.Body_Literal_Tuple1(),
             external_type=ext_type,
         )
         self._reified.add(external)
@@ -284,12 +307,7 @@ class ReifiedAST:
         )
         self._reified.add(statement_tup)
         self._statement_pos += 1
-        for pos, element in enumerate(node.body, start=0):
-            self._reified.add(
-                preds.Literal_Tuple(
-                    id=external.body.id, position=pos, element=self.reify_node(element)
-                )
-            )
+        self._reify_ast_seqence(node.body, external.body.id, preds.Body_Literal_Tuple)
 
     @reify_node.register(ASTType.Rule)
     def _reify_rule(self, node):
@@ -297,19 +315,28 @@ class ReifiedAST:
 
         # assumption: head can only be a Literal
         head = self.reify_node(node.head)
-        rule = preds.Rule(id=rule1.id, head=head, body=preds.Literal_Tuple1())
+        rule = preds.Rule(id=rule1.id, head=head, body=preds.Body_Literal_Tuple1())
         self._reified.add(rule)
         statement_tup = preds.Statement_Tuple(
             id=self._statement_tup_id, position=self._statement_pos, element=rule1
         )
         self._reified.add(statement_tup)
         self._statement_pos += 1
-        for pos, element in enumerate(node.body, start=0):
-            self._reified.add(
-                preds.Literal_Tuple(
-                    id=rule.body.id, position=pos, element=self.reify_node(element)
-                )
-            )
+        self._reify_ast_seqence(node.body, rule.body.id, preds.Body_Literal_Tuple)
+
+    @reify_node.register(ASTType.ConditionalLiteral)
+    def _reify_conditional_literal(self, node) -> preds.Conditional_Literal1:
+        cond_lit1 = preds.Conditional_Literal1()
+        cond_lit = preds.Conditional_Literal(
+            id=cond_lit1.id,
+            literal=self.reify_node(node.literal),
+            condition=preds.Literal_Tuple1(),
+        )
+        self._reified.add(cond_lit)
+        self._reify_ast_seqence(
+            node.condition, cond_lit.condition.id, preds.Literal_Tuple
+        )
+        return cond_lit1
 
     @reify_node.register(ASTType.Literal)
     def _reify_literal(self, node):
@@ -385,14 +412,7 @@ class ReifiedAST:
             arguments=preds.Term_Tuple1(),
         )
         self._reified.add(function)
-        for pos, term in enumerate(node.arguments, start=0):
-            self._reified.add(
-                preds.Term_Tuple(
-                    id=function.arguments.id,
-                    position=pos,
-                    element=self.reify_node(term),
-                )
-            )
+        self._reify_ast_seqence(node.arguments, function.arguments.id, preds.Term_Tuple)
         return function1
 
     @reify_node.register(ASTType.Variable)
@@ -558,6 +578,14 @@ class ReifiedAST:
         sign = preds.sign_cl2ast[preds.Sign(lit.sig)]
         atom_node = self._reflect_child_pred(lit, lit.atom)
         return ast.Literal(location=DUMMY_LOC, sign=sign, atom=atom_node)
+
+    @reflect_predicate.register
+    def _reflect_conditional_literal(self, cond_lit: preds.Conditional_Literal) -> AST:
+        return ast.ConditionalLiteral(
+            location=DUMMY_LOC,
+            literal=self._reflect_child_pred(cond_lit, cond_lit.literal),
+            condition=self._reflect_child_preds(cond_lit, cond_lit.condition),
+        )
 
     @reflect_predicate.register
     def _reflect_symbolic_atom(self, atom: preds.Symbolic_Atom) -> AST:

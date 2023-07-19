@@ -11,7 +11,8 @@ ast(guard_tuple(Id,Pos,Comp_Op,Term))  :- guard_tuple(Id,Pos,Comp_Op,Term).
 ast(comparison(Id,Guards)) :- comparison(Id,Guards).
 ast(symbolic_atom(Id,Symbol)) :- symbolic_atom(Id,Symbol).
 ast(literal(Id,Sign,Function)) :- literal(Id,Sign,Function).
-ast(literal_tuple(Id,Pos,Element)) :- literal_tuple(Id,Pos,Element).
+ast(body_literal_tuple(Id,Pos,Element)) :- body_literal_tuple(Id,Pos,Element).
+ast(conditional_literal(Id,Literal,Condition)) :- conditional_literal(Id,Literal,Condition).
 ast(rule(Id,Head,Body)) :- rule(Id,Head,Body).
 ast(statement_tuple(Id,Pos,Element)) :- statement_tuple(Id,Pos,Element).
 ast(constant_tuple(Id,Pos,Element)) :- constant_tuple(Id,Pos,Element).

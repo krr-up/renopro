@@ -22,7 +22,7 @@ id_count = count()
 
 # by default we use integer identifiers, but allow arbitrary symbols as well
 # for flexibility when these are user generated
-Identifier_Field = combine_fields([IntegerField, RawField])
+Identifier_Field = combine_fields([IntegerField, RawField], name="IdentifierField")
 
 
 class LazilyCombinedField(BaseField):  # nocoverage
@@ -148,7 +148,7 @@ class Variable1(ComplexTerm):
 
 
 Term_Field = combine_fields_lazily(
-    [String1.Field, Number1.Field, Variable1.Field], name="Term"
+    [String1.Field, Number1.Field, Variable1.Field], name="TermField"
 )
 
 
@@ -156,7 +156,7 @@ class Term_Tuple(Predicate):
     """Predicate representing an element of a tuple of terms.
 
     id: Identifier of the tuple.
-    position: Position of the element the tuple, given by < relation over integers.
+    position: Integer representing position of the element the tuple, ordered by <.
     element: Predicate identifying the element.
     """
 
@@ -301,7 +301,7 @@ class Guard_Tuple(Predicate):
     """Predicate representing a tuple of guards for a comparison or aggregate atom.
 
     id: Identifier of the guard.
-    position: Position of the element the tuple, given by < relation over integers.
+    position: Integer representing position of the element the tuple, ordered by <.
     comparison: The clingo comparison operator, in string form.
     term: The term serving as the guard.
     """
@@ -415,11 +415,11 @@ class Literal1(ComplexTerm):
 
 
 class Literal_Tuple(Predicate):
-    """Predicate representing an element of a tuple of literals.
+    """Predicate representing an element of a tuple of (conditional) literals.
 
     id: Identifier of the tuple.
-    position: Position of the element the tuple, given by < relation over integers.
-    element: Predicate identifying the element.
+    position: Integer representing position of the element the tuple, ordered by <.
+    element: Term identifying the element.
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
@@ -436,7 +436,59 @@ class Literal_Tuple1(ComplexTerm):
         name = "literal_tuple"
 
 
+class Conditional_Literal(Predicate):
+    """Predicate representing a conditional literal.
+
+    id: Identifier of the conditional literal.
+    literal: the literal in the head of the conditional literal
+    condition: the tuple of literals forming the condition
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    literal = Literal1.Field
+    condition = Literal_Tuple1.Field
+
+
+class Conditional_Literal1(ComplexTerm):
+    "Term identifying a child conditional literal."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "conditional_literal"
+
+
+# will need to expand this to accept literals with body_atoms
+BodyLiteralField = combine_fields(
+    [Literal1.Field, Conditional_Literal1.Field], name="BodyLiteralField"
+)
+
+
+class Body_Literal_Tuple(Predicate):
+    """Predicate representing an element of a tuple of literals
+    occurring in the body of a statement.
+
+    id: Identifier of the tuple.
+    position: Integer representing position of the element the tuple, ordered by <.
+    element:  Term identifying the element.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    element = BodyLiteralField
+
+
+class Body_Literal_Tuple1(ComplexTerm):
+    "Term identifying a child tuple of body literals."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+    class Meta:
+        # pylint: disable=too-few-public-methods, missing-class-docstring
+        name = "body_literal_tuple"
+
+
 class Rule(Predicate):
+
     """Predicate representing a rule statement.
 
     id: Identifier of the rule.
@@ -446,7 +498,7 @@ class Rule(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     head = Literal1.Field
-    body = Literal_Tuple1.Field
+    body = Body_Literal_Tuple1.Field
 
 
 class Rule1(ComplexTerm):
@@ -478,7 +530,7 @@ class External(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     atom = Symbolic_Atom1.Field
-    body = Literal_Tuple1.Field
+    body = Body_Literal_Tuple1.Field
     external_type = ExternalTypeField
 
 
@@ -491,20 +543,20 @@ class External1(ComplexTerm):
         name = "external"
 
 
-Statement = combine_fields([Rule1.Field, External1.Field])
+StatementField = combine_fields([Rule1.Field, External1.Field], name="StatementField")
 
 
 class Statement_Tuple(Predicate):
     """Predicate representing an element of a tuple of statements.
 
     id: Identifier of the tuple.
-    position: Position of the element the tuple, given by < relation over integers.
+    position: Integer representing position of the element the tuple, ordered by <.
     element: Predicate identifying the element.
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = Statement
+    element = StatementField
 
 
 class Statement_Tuple1(ComplexTerm):
@@ -520,7 +572,7 @@ class Constant_Tuple(Predicate):
     """Predicate representing an element of a tuple of constant terms.
 
     id: Identifier of the tuple.
-    position: Position of the element the tuple, given by < relation over integers.
+    position: Integer representing position of the element the tuple, ordered by <.
     element: Predicate identifying the element.
     """
 
@@ -575,6 +627,10 @@ AstPredicate = Union[
     Literal1,
     Literal_Tuple,
     Literal_Tuple1,
+    Conditional_Literal,
+    Conditional_Literal1,
+    Body_Literal_Tuple,
+    Body_Literal_Tuple1,
     Rule,
     Rule1,
     External,
@@ -611,6 +667,10 @@ AST_Predicates = [
     Literal1,
     Literal_Tuple,
     Literal_Tuple1,
+    Conditional_Literal,
+    Conditional_Literal1,
+    Body_Literal_Tuple,
+    Body_Literal_Tuple1,
     Rule,
     Rule1,
     External,
@@ -635,6 +695,8 @@ AstFact = Union[
     Symbolic_Atom,
     Literal,
     Literal_Tuple,
+    Conditional_Literal,
+    Body_Literal_Tuple,
     Rule,
     External,
     Statement_Tuple,
@@ -655,6 +717,8 @@ AST_Facts = [
     Symbolic_Atom,
     Literal,
     Literal_Tuple,
+    Conditional_Literal,
+    Body_Literal_Tuple,
     Rule,
     External,
     Statement_Tuple,

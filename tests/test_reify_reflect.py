@@ -171,6 +171,10 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         "Test reification and reflection of a comparison operator"
         self.assertReifyReflectEqual("1 < 2 != 3 > 4.", ["comparison.lp"])
 
+    def test_reify_conditional_literal(self):
+        "Test reification and reflection of a conditional literal."
+        self.assertReifyReflectEqual("a :- b: c, d.", ["conditional_literal.lp"])
+
     def test_reify_external_false(self):
         "Test reification of an external statement with default value false."
         self.assertReifyReflectEqual(
