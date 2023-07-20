@@ -1,3 +1,4 @@
+# pylint: disable=too-many-public-methods
 """Test cases for reification functionality."""
 from itertools import count
 from pathlib import Path
@@ -88,29 +89,42 @@ class TestReifyReflect(TestReifiedAST):
 
     base_str = ""
 
+    def assertReifyEqual(
+        self, prog_str: str, ast_fact_files: List[str]
+    ):  # pylint: disable=invalid-name
+        "Assert that reification of prog_str results in ast_facts."
+        ast_fact_files_str = [(good_reify_files / f) for f in ast_fact_files]
+        rast1 = ReifiedAST()
+        rast1.reify_string(prog_str)
+        reified_facts = rast1.reified_facts
+        rast2 = ReifiedAST()
+        rast2.add_reified_files(ast_fact_files_str)
+        expected_facts = rast2.reified_facts
+        self.assertSetEqual(reified_facts, expected_facts)  # type: ignore
+
+    def assertReflectEqual(
+        self, prog_str: str, ast_fact_files: List[str]
+    ):  # pylint: disable=invalid-name
+        "Assert that reflection of ast_facts results in prog_str."
+        ast_fact_files_str = [(good_reify_files / f) for f in ast_fact_files]
+        rast = ReifiedAST()
+        rast.add_reified_files(ast_fact_files_str)
+        rast.reflect()
+        expected_string = self.base_str + prog_str
+        self.assertEqual(rast.program_string, expected_string)
+
     def assertReifyReflectEqual(
         self, prog_str: str, ast_fact_files: List[str]
     ):  # pylint: disable=invalid-name
         """Assert that reification of prog_str results in ast_facts,
         and that reflection of ast_facts result in prog_str."""
 
-        ast_fact_files_str = [(good_reify_files / f) for f in ast_fact_files]
         for operation in ["reification", "reflection"]:
             with self.subTest(operation=operation):
                 if operation == "reification":
-                    rast1 = ReifiedAST()
-                    rast1.reify_string(prog_str)
-                    reified_facts = rast1.reified_facts
-                    rast2 = ReifiedAST()
-                    rast2.add_reified_files(ast_fact_files_str)
-                    expected_facts = rast2.reified_facts
-                    self.assertSetEqual(reified_facts, expected_facts)  # type: ignore
+                    self.assertReifyEqual(prog_str, ast_fact_files)
                 elif operation == "reflection":
-                    rast = ReifiedAST()
-                    rast.add_reified_files(ast_fact_files_str)
-                    rast.reflect()
-                    expected_string = self.base_str + prog_str
-                    self.assertEqual(rast.program_string, expected_string)
+                    self.assertReflectEqual(prog_str, ast_fact_files)
 
 
 class TestReifyReflectSimplePrograms(TestReifyReflect):
@@ -170,6 +184,14 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
     def test_reify_comparison(self):
         "Test reification and reflection of a comparison operator"
         self.assertReifyReflectEqual("1 < 2 != 3 > 4.", ["comparison.lp"])
+
+    def test_reify_boolean_constant(self):
+        "Test reification and reflection of a boolean constant."
+        self.assertReifyReflectEqual("#false.\n#true.", ["bool_const.lp"])
+
+    def test_reify_integrity_constraint(self):
+        "Test reification and reflection of an integrity constraint."
+        self.assertReifyEqual(":- a.", ["integrity_constraint.lp"])
 
     def test_reify_conditional_literal(self):
         "Test reification and reflection of a conditional literal."

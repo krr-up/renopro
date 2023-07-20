@@ -88,6 +88,9 @@ def combine_fields_lazily(
     )
 
 
+# Terms
+
+
 class String(Predicate):
     """Predicate representing a string term.
 
@@ -135,53 +138,9 @@ class Variable1(ComplexTerm, name="variable"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-Term_Field = combine_fields_lazily(
+TermField = combine_fields_lazily(
     [String1.Field, Number1.Field, Variable1.Field], name="TermField"
 )
-
-
-class Term_Tuple(Predicate):
-    """Predicate representing an element of a tuple of terms.
-
-    id: Identifier of the tuple.
-    position: Integer representing position of the element the tuple, ordered by <.
-    element: Predicate identifying the element.
-    """
-
-    id = Identifier_Field(default=lambda: next(id_count))
-    position = IntegerField
-    element = Term_Field
-
-
-class Term_Tuple1(ComplexTerm, name="term_tuple"):
-    "Term identifying a child term tuple predicate."
-    id = Identifier_Field(default=lambda: next(id_count))
-
-
-class Function(Predicate):
-    """Predicate representing a function symbol with term arguments.
-    Note that we represent function terms and constant terms as well as symbolic
-    atoms and propositional constants via this predicate.
-
-    id: Identifier of the function.
-    name: Symbolic name of the function, a constant term.
-    arguments: Term tuple predicate identifying the function's arguments.
-               If there are no elements of the term tuple with a matching
-               identifier, the function has no arguments and is thus a constant.
-
-    """
-
-    id = Identifier_Field(default=lambda: next(id_count))
-    name = ConstantField
-    arguments = Term_Tuple1.Field
-
-
-class Function1(ComplexTerm, name="function"):
-    "Term identifying a child function predicate."
-    id = Identifier_Field(default=lambda: next(id_count))
-
-
-Term_Field.fields.append(Function1.Field)
 
 
 class BinaryOperator(str, enum.Enum):
@@ -216,8 +175,8 @@ class Binary_Operation(Predicate):
     operator = define_enum_field(
         parent_field=StringField, enum_class=BinaryOperator, name="OperatorField"
     )
-    left = Term_Field
-    right = Term_Field
+    left = TermField
+    right = TermField
 
 
 class Binary_Operation1(ComplexTerm, name="binary_operation"):
@@ -225,7 +184,7 @@ class Binary_Operation1(ComplexTerm, name="binary_operation"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-Term_Field.fields.append(Binary_Operation1.Field)
+TermField.fields.append(Binary_Operation1.Field)
 
 
 class Interval(Predicate):
@@ -237,8 +196,8 @@ class Interval(Predicate):
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
-    left = Term_Field
-    right = Term_Field
+    left = TermField
+    right = TermField
 
 
 class Interval1(ComplexTerm, name="interval"):
@@ -246,10 +205,70 @@ class Interval1(ComplexTerm, name="interval"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-Term_Field.fields.append(Interval1.Field)
+TermField.fields.append(Interval1.Field)
+
+
+class Term_Tuple(Predicate):
+    """Predicate representing an element of a tuple of terms.
+
+    id: Identifier of the tuple.
+    position: Integer representing position of the element the tuple, ordered by <.
+    element: Predicate identifying the element.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    element = TermField
+
+
+class Term_Tuple1(ComplexTerm, name="term_tuple"):
+    "Term identifying a child term tuple predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Function(Predicate):
+    """Predicate representing a function symbol with term arguments.
+    Note that we represent function terms and constant terms as well as symbolic
+    atoms and propositional constants via this predicate.
+
+    id: Identifier of the function.
+    name: Symbolic name of the function, a constant term.
+    arguments: Term tuple predicate identifying the function's arguments.
+               If there are no elements of the term tuple with a matching
+               identifier, the function has no arguments and is thus a constant.
+
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    name = ConstantField
+    arguments = Term_Tuple1.Field
+
+
+class Function1(ComplexTerm, name="function"):
+    "Term identifying a child function predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+TermField.fields.append(Function1.Field)
 
 
 # Literals
+
+
+class Symbolic_Atom(Predicate):
+    """Predicate representing a symbolic atom.
+
+    id: Identifier of the atom.
+    symbol: The function symbol constituting the atom.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    symbol = Function1.Field
+
+
+class Symbolic_Atom1(ComplexTerm, name="symbolic_atom"):
+    "Term identifying a child symbolic atom predicate"
+    id = Identifier_Field(default=lambda: next(id_count))
 
 
 class ComparisonOperator(str, enum.Enum):
@@ -286,7 +305,7 @@ class Guard_Tuple(Predicate):
     comparison = define_enum_field(
         parent_field=StringField, enum_class=ComparisonOperator, name="ComparisonField"
     )
-    term = Term_Field
+    term = TermField
 
 
 class Guard_Tuple1(ComplexTerm, name="guard_tuple"):
@@ -303,7 +322,7 @@ class Comparison(Predicate):
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
-    term = Term_Field
+    term = TermField
     guards = Guard_Tuple1.Field
 
 
@@ -312,24 +331,28 @@ class Comparison1(ComplexTerm, name="comparison"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-class Symbolic_Atom(Predicate):
-    """Predicate representing a symbolic atom.
+BoolField = refine_field(ConstantField, ["true", "false"], name="BoolField")
 
-    id: Identifier of the atom.
-    symbol: The function symbol constituting the atom.
+
+class Boolean_Constant(Predicate):
+    """Predicate representing a boolean constant, true or false.
+
+    id: Identifier of the boolean constant
+    value: Boolean value of the constant, represented by the constant
+    terms 'true' and 'false'.
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
-    symbol = Function1.Field
+    value = BoolField
 
 
-class Symbolic_Atom1(ComplexTerm, name="symbolic_atom"):
-    "Term identifying a child symbolic atom predicate"
+class Boolean_Constant1(ComplexTerm, name="boolean_constant"):
+    "Term identifying a child boolean_constant predicate."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
 AtomField = combine_fields_lazily(
-    [Symbolic_Atom1.Field, Comparison1.Field], name="AtomField"
+    [Symbolic_Atom1.Field, Comparison1.Field, Boolean_Constant1.Field], name="AtomField"
 )
 
 
@@ -456,9 +479,6 @@ class Rule1(ComplexTerm, name="rule"):
 # note that clingo's parser actually allows arbitrary constant as the external_type
 # argument of External, but any other value than true or false results in the external
 # statement having no effect
-ExternalTypeField = refine_field(
-    ConstantField, ["true", "false"], name="ExternalTypeField"
-)
 
 
 class External(Predicate):
@@ -474,7 +494,7 @@ class External(Predicate):
     id = Identifier_Field(default=lambda: next(id_count))
     atom = Symbolic_Atom1.Field
     body = Body_Literal_Tuple1.Field
-    external_type = ExternalTypeField
+    external_type = BoolField
 
 
 class External1(ComplexTerm, name="external"):
@@ -543,6 +563,7 @@ AstPredicate = Union[
     Interval,
     Guard_Tuple,
     Comparison,
+    Boolean_Constant,
     Symbolic_Atom,
     Literal,
     Literal_Tuple,
@@ -565,6 +586,7 @@ AstPredicates = [
     Interval,
     Guard_Tuple,
     Comparison,
+    Boolean_Constant,
     Symbolic_Atom,
     Literal,
     Literal_Tuple,

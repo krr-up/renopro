@@ -9,6 +9,7 @@ ast(binary_operation(Id,Operator,Left,Right)) :- binary_operation(Id,Operator,Le
 ast(interval(Id,Left,Right)) :- interval(Id,Left,Right).
 ast(guard_tuple(Id,Pos,Comp_Op,Term))  :- guard_tuple(Id,Pos,Comp_Op,Term).
 ast(comparison(Id,Guards)) :- comparison(Id,Guards).
+ast(boolean_constant(Id,Bool)) :- boolean_constant(Id,Bool).
 ast(symbolic_atom(Id,Symbol)) :- symbolic_atom(Id,Symbol).
 ast(literal(Id,Sign,Function)) :- literal(Id,Sign,Function).
 ast(body_literal_tuple(Id,Pos,Element)) :- body_literal_tuple(Id,Pos,Element).

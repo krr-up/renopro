@@ -353,6 +353,20 @@ class ReifiedAST:
         self._reified.add(atom)
         return atom1
 
+    @reify_node.register(ASTType.BooleanConstant)
+    def _reify_boolean_constant(self, node):
+        bool_const1 = preds.Boolean_Constant1()
+        bool_str = ""
+        if node.value == 1:
+            bool_str = "true"
+        elif node.value == 0:
+            bool_str = "false"
+        else:  # nocoverage
+            raise RuntimeError("Code should be unreachable")
+        bool_const = preds.Boolean_Constant(id=bool_const1.id, value=bool_str)
+        self._reified.add(bool_const)
+        return bool_const1
+
     @reify_node.register(ASTType.Comparison)
     def _reify_comparison(self, node):
         comparison1 = preds.Comparison1()
@@ -591,6 +605,17 @@ class ReifiedAST:
     def _reflect_symbolic_atom(self, atom: preds.Symbolic_Atom) -> AST:
         """Reflect a Symbolic_Atom fact into a SymbolicAtom node."""
         return ast.SymbolicAtom(symbol=self._reflect_child_pred(atom, atom.symbol))
+
+    @reflect_predicate.register
+    def _reflect_boolean_constant(self, bool_const: preds.Boolean_Constant) -> AST:
+        bool_const_term = bool_const.value
+        if bool_const_term == "true":
+            b = 1
+        elif bool_const_term == "false":
+            b = 0
+        else:  # nocoverage
+            raise RuntimeError("Code should be unreachable")
+        return ast.BooleanConstant(value=b)
 
     @reflect_predicate.register
     def _reflect_comparison(self, comparison: preds.Comparison) -> AST:
