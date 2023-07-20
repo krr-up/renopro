@@ -99,13 +99,9 @@ class String(Predicate):
     value = StringField
 
 
-class String1(ComplexTerm):
+class String1(ComplexTerm, name="string"):
     "Term identifying a child string predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "string"
 
 
 class Number(Predicate):
@@ -118,13 +114,9 @@ class Number(Predicate):
     value = IntegerField
 
 
-class Number1(ComplexTerm):
+class Number1(ComplexTerm, name="number"):
     "Term identifying a child number predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "number"
 
 
 class Variable(Predicate):
@@ -138,13 +130,9 @@ class Variable(Predicate):
     name = StringField
 
 
-class Variable1(ComplexTerm):
+class Variable1(ComplexTerm, name="variable"):
     "Term identifying a child variable predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "variable"
 
 
 Term_Field = combine_fields_lazily(
@@ -165,13 +153,9 @@ class Term_Tuple(Predicate):
     element = Term_Field
 
 
-class Term_Tuple1(ComplexTerm):
+class Term_Tuple1(ComplexTerm, name="term_tuple"):
     "Term identifying a child term tuple predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "term_tuple"
 
 
 class Function(Predicate):
@@ -192,13 +176,9 @@ class Function(Predicate):
     arguments = Term_Tuple1.Field
 
 
-class Function1(ComplexTerm):
+class Function1(ComplexTerm, name="function"):
     "Term identifying a child function predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "function"
 
 
 Term_Field.fields.append(Function1.Field)
@@ -240,13 +220,9 @@ class Binary_Operation(Predicate):
     right = Term_Field
 
 
-class Binary_Operation1(ComplexTerm):
+class Binary_Operation1(ComplexTerm, name="binary_operation"):
     "Term identifying a child binary operation predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "binary_operation"
 
 
 Term_Field.fields.append(Binary_Operation1.Field)
@@ -265,16 +241,15 @@ class Interval(Predicate):
     right = Term_Field
 
 
-class Interval1(ComplexTerm):
+class Interval1(ComplexTerm, name="interval"):
     "Term identifying a child interval predicate."
     id = Identifier_Field(default=lambda: next(id_count))
 
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "interval"
-
 
 Term_Field.fields.append(Interval1.Field)
+
+
+# Literals
 
 
 class ComparisonOperator(str, enum.Enum):
@@ -314,13 +289,9 @@ class Guard_Tuple(Predicate):
     term = Term_Field
 
 
-class Guard_Tuple1(ComplexTerm):
+class Guard_Tuple1(ComplexTerm, name="guard_tuple"):
     "Term identifying a child guard tuple predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "guard_tuple"
 
 
 class Comparison(Predicate):
@@ -336,13 +307,9 @@ class Comparison(Predicate):
     guards = Guard_Tuple1.Field
 
 
-class Comparison1(ComplexTerm):
+class Comparison1(ComplexTerm, name="comparison"):
     "Term identifying a child comparison predicate"
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "comparison"
 
 
 class Symbolic_Atom(Predicate):
@@ -356,13 +323,9 @@ class Symbolic_Atom(Predicate):
     symbol = Function1.Field
 
 
-class Symbolic_Atom1(ComplexTerm):
+class Symbolic_Atom1(ComplexTerm, name="symbolic_atom"):
     "Term identifying a child symbolic atom predicate"
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "symbolic_atom"
 
 
 AtomField = combine_fields_lazily(
@@ -405,13 +368,9 @@ class Literal(Predicate):
     atom = AtomField
 
 
-class Literal1(ComplexTerm):
+class Literal1(ComplexTerm, name="literal"):
     "Term identifying a child literal predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "literal"
 
 
 class Literal_Tuple(Predicate):
@@ -427,13 +386,9 @@ class Literal_Tuple(Predicate):
     element = Literal1.Field
 
 
-class Literal_Tuple1(ComplexTerm):
+class Literal_Tuple1(ComplexTerm, name="literal_tuple"):
     "Term identifying a child literal tuple."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "literal_tuple"
 
 
 class Conditional_Literal(Predicate):
@@ -449,13 +404,9 @@ class Conditional_Literal(Predicate):
     condition = Literal_Tuple1.Field
 
 
-class Conditional_Literal1(ComplexTerm):
+class Conditional_Literal1(ComplexTerm, name="conditional_literal"):
     "Term identifying a child conditional literal."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "conditional_literal"
 
 
 # will need to expand this to accept literals with body_atoms
@@ -478,13 +429,9 @@ class Body_Literal_Tuple(Predicate):
     element = BodyLiteralField
 
 
-class Body_Literal_Tuple1(ComplexTerm):
+class Body_Literal_Tuple1(ComplexTerm, name="body_literal_tuple"):
     "Term identifying a child tuple of body literals."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "body_literal_tuple"
 
 
 class Rule(Predicate):
@@ -501,13 +448,9 @@ class Rule(Predicate):
     body = Body_Literal_Tuple1.Field
 
 
-class Rule1(ComplexTerm):
+class Rule1(ComplexTerm, name="rule"):
     "Term identifying a child rule predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "rule"
 
 
 # note that clingo's parser actually allows arbitrary constant as the external_type
@@ -534,13 +477,9 @@ class External(Predicate):
     external_type = ExternalTypeField
 
 
-class External1(ComplexTerm):
+class External1(ComplexTerm, name="external"):
     "Term identifying a child external predicate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "external"
 
 
 StatementField = combine_fields([Rule1.Field, External1.Field], name="StatementField")
@@ -559,13 +498,9 @@ class Statement_Tuple(Predicate):
     element = StatementField
 
 
-class Statement_Tuple1(ComplexTerm):
+class Statement_Tuple1(ComplexTerm, name="statement_tuple"):
     "Term identifying a child statement tuple"
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "statement_tuple"
 
 
 class Constant_Tuple(Predicate):
@@ -581,13 +516,9 @@ class Constant_Tuple(Predicate):
     element = Function1.Field
 
 
-class Constant_Tuple1(ComplexTerm):
+class Constant_Tuple1(ComplexTerm, name="constant_tuple"):
     "Term identifying a child constant tuple."
     id = Identifier_Field(default=lambda: next(id_count))
-
-    class Meta:
-        # pylint: disable=too-few-public-methods, missing-class-docstring
-        name = "constant_tuple"
 
 
 class Program(Predicate):
@@ -604,86 +535,6 @@ class Program(Predicate):
 
 AstPredicate = Union[
     String,
-    String1,
-    Number,
-    Number1,
-    Variable,
-    Variable1,
-    Term_Tuple,
-    Term_Tuple1,
-    Function,
-    Function1,
-    Binary_Operation,
-    Binary_Operation1,
-    Interval,
-    Interval1,
-    Guard_Tuple,
-    Guard_Tuple1,
-    Comparison,
-    Comparison1,
-    Symbolic_Atom,
-    Symbolic_Atom1,
-    Literal,
-    Literal1,
-    Literal_Tuple,
-    Literal_Tuple1,
-    Conditional_Literal,
-    Conditional_Literal1,
-    Body_Literal_Tuple,
-    Body_Literal_Tuple1,
-    Rule,
-    Rule1,
-    External,
-    External1,
-    Statement_Tuple,
-    Statement_Tuple1,
-    Constant_Tuple,
-    Constant_Tuple1,
-    Program,
-]
-
-AST_Predicates = [
-    String,
-    String1,
-    Number,
-    Number1,
-    Variable,
-    Variable1,
-    Term_Tuple,
-    Term_Tuple1,
-    Function,
-    Function1,
-    Binary_Operation,
-    Binary_Operation1,
-    Interval,
-    Interval1,
-    Guard_Tuple,
-    Guard_Tuple1,
-    Comparison,
-    Comparison1,
-    Symbolic_Atom,
-    Symbolic_Atom1,
-    Literal,
-    Literal1,
-    Literal_Tuple,
-    Literal_Tuple1,
-    Conditional_Literal,
-    Conditional_Literal1,
-    Body_Literal_Tuple,
-    Body_Literal_Tuple1,
-    Rule,
-    Rule1,
-    External,
-    External1,
-    Statement_Tuple,
-    Statement_Tuple1,
-    Constant_Tuple,
-    Constant_Tuple1,
-    Program,
-]
-
-AstFact = Union[
-    String,
     Number,
     Variable,
     Function,
@@ -704,7 +555,7 @@ AstFact = Union[
     Program,
 ]
 
-AST_Facts = [
+AstPredicates = [
     String,
     Number,
     Variable,
@@ -732,4 +583,4 @@ AST_Facts = [
 class Final(Predicate):
     """Wrapper predicate to distinguish output AST facts of a transformation."""
 
-    ast = combine_fields([fact.Field for fact in AST_Facts])
+    ast = combine_fields([fact.Field for fact in AstPredicates])

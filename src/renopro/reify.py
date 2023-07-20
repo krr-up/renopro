@@ -67,7 +67,7 @@ class TryUnify(AbstractContextManager):
         """
         unmatched = error.symbol
         name2arity2pred = {
-            pred.meta.name: {pred.meta.arity: pred} for pred in preds.AST_Facts
+            pred.meta.name: {pred.meta.arity: pred} for pred in preds.AstPredicates
         }
         candidate = name2arity2pred.get(unmatched.name, {}).get(
             len(unmatched.arguments)
@@ -159,8 +159,8 @@ class ReifiedAST:
         self._program_string = ""
 
     def add_reified_facts(self, reified_facts: Iterator[preds.AstPredicate]) -> None:
-        """Add factbase containing reified AST facts into internal factbase."""
-        unifier = Unifier(preds.AST_Facts)
+        """Add iterator of reified AST facts to internal factbase."""
+        unifier = Unifier(preds.AstPredicates)
         # couldn't find a way in clorm to directly add a set of facts
         # while checking unification, so we have to unify against the
         # underlying symbols
@@ -172,7 +172,7 @@ class ReifiedAST:
 
     def add_reified_string(self, reified_string: str) -> None:
         """Add string of reified facts into internal factbase."""
-        unifier = preds.AST_Facts
+        unifier = preds.AstPredicates
         with TryUnify():
             facts = parse_fact_string(
                 reified_string, unifier=unifier, raise_nomatch=True, raise_nonfact=True
@@ -185,7 +185,7 @@ class ReifiedAST:
         with TryUnify():
             facts = parse_fact_files(
                 reified_files_str,
-                unifier=preds.AST_Facts,
+                unifier=preds.AstPredicates,
                 raise_nomatch=True,
                 raise_nonfact=True,
             )
@@ -719,7 +719,7 @@ class ReifiedAST:
         with ctl.solve(yield_=True) as handle:  # type: ignore
             model = next(iter(handle))
             ast_symbols = [final.arguments[0] for final in model.symbols(shown=True)]
-            unifier = Unifier(preds.AST_Facts)
+            unifier = Unifier(preds.AstPredicates)
             with TryUnify():
                 ast_facts = unifier.iter_unify(ast_symbols, raise_nomatch=True)
                 self._reified = FactBase(ast_facts)
