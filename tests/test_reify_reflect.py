@@ -87,7 +87,7 @@ class TestReifyReflect(TestReifiedAST):
     """Base class for tests for reification and reflection of
     non-ground programs."""
 
-    base_str = ""
+    base_str = "#program base.\n"
 
     def assertReifyEqual(
         self, prog_str: str, ast_fact_files: List[str]
@@ -127,15 +127,8 @@ class TestReifyReflect(TestReifiedAST):
                     self.assertReflectEqual(prog_str, ast_fact_files)
 
 
-class TestReifyReflectSimplePrograms(TestReifyReflect):
-    """Test cases for simple programs containing only a couple
-    statements."""
-
-    base_str = "#program base.\n"
-
-    def setUp(self):
-        # reset id counter between test cases
-        preds.id_count = count()
+class TestReifyReflectNormalPrograms(TestReifyReflect):
+    """Test cases for reification and reflection of normal logic programs."""
 
     def test_reify_prop_fact(self):
         "Test reification and reflection of a propositional fact."
@@ -197,15 +190,9 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         "Test reification and reflection of a conditional literal."
         self.assertReifyReflectEqual("a :- b: c, d.", ["conditional_literal.lp"])
 
-    def test_reify_external_false(self):
-        "Test reification of an external statement with default value false."
-        self.assertReifyReflectEqual(
-            "#external a(X) : c(X); d(e(X)). [false]", ["external.lp"]
-        )
-
-    def test_reify_program_params(self):
-        "Test reification and reflection of a program statement with parameters."
-        self.assertReifyReflectEqual("#program acid(k).", ["program_acid.lp"])
+    def test_reify_disjunction(self):
+        "Test reification and reflection of a disjunction."
+        self.assertReifyReflectEqual("a(X); b(X): c(X) :- d(X).", ["disjunction.lp"])
 
     def test_reify_node_failure(self):
         """Reification for any object not of type clingo.ast.AST or
@@ -245,8 +232,8 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
         rast = ReifiedAST()
         rast.add_reified_files([malformed_reify_files / "multiple_in_same_pos.lp"])
         regex = (
-            r"(?s).*comparison\(4,number\(5\),guard_tuple\(6\)\).*"
-            r"multiple tuple elements in same position.*guard_tuple\(6\)"
+            r"(?s).*comparison\(4,number\(5\),guards\(6\)\).*"
+            r"multiple tuple elements in same position.*guards\(6\)"
         )
         with self.assertRaisesRegex(ChildrenQueryError, expected_regex=regex):
             rast.reflect()
@@ -258,8 +245,22 @@ class TestReifyReflectSimplePrograms(TestReifyReflect):
             [malformed_reify_files / "missing_guard_in_comparison.lp"]
         )
         regex = (
-            r"(?s).*comparison\(4,number\(5\),guard_tuple\(6\)\).*"
-            r".*guard_tuple\(6\).*expected at least one."
+            r"(?s).*comparison\(4,number\(5\),guards\(6\)\).*"
+            r".*guards\(6\).*expected at least one."
         )
         with self.assertRaisesRegex(ChildrenQueryError, expected_regex=regex):
             rast.reflect()
+
+
+class TestReifyReflectStatements(TestReifyReflect):
+    """Test cases for reification and reflection of statements."""
+
+    def test_reify_external_false(self):
+        "Test reification of an external statement with default value false."
+        self.assertReifyReflectEqual(
+            "#external a(X) : c(X); d(e(X)). [false]", ["external.lp"]
+        )
+
+    def test_reify_program_params(self):
+        "Test reification and reflection of a program statement with parameters."
+        self.assertReifyReflectEqual("#program acid(k).", ["program_acid.lp"])

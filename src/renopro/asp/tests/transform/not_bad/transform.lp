@@ -15,16 +15,16 @@
 
 % auxiliary predicate to get maximal index within a tuple of rule body literals
 max_lit_index(LT,Idx)
-:- Idx = #max{ P : body_literal_tuple(LT,P,_); -1 }, rule(_,_,body_literal_tuple(LT)).
+:- Idx = #max{ P : body_literals(LT,P,_); -1 }, rule(_,_,body_literals(LT)).
 
 
 % the transformation itself
 ast_operation(
-add((body_literal_tuple(LT,N+1,literal(new_id(LT,0)));
+add((body_literals(LT,N+1,literal(new_id(LT,0)));
 		literal(new_id(LT,0),"not",symbolic_atom(new_id(LT,1)));
 		symbolic_atom(new_id(LT,1),function(new_id(LT,2)));
 		function(new_id(LT,2),bad,Fargs))))
-:- rule(_,literal(L),body_literal_tuple(LT)),
+:- rule(_,literal(L),body_literals(LT)),
 	 literal(L,"pos",symbolic_atom(A)),
 	 symbolic_atom(A,function(F)),
 	 function(F,good,Fargs),

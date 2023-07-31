@@ -1,7 +1,7 @@
 % reified fact representation of program:
 % #program acid(k).
 
-program("base",constant_tuple(0),statement_tuple(1)).
-program("acid",constant_tuple(2),statement_tuple(5)).
-constant_tuple(2,0,function(3)).
-function(3,k,term_tuple(4)).
+program("base",constants(0),statements(1)).
+program("acid",constants(2),statements(5)).
+constants(2,0,function(3)).
+function(3,k,terms(4)).

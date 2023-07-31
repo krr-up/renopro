@@ -1,10 +1,10 @@
-program("base",constant_tuple(0),statement_tuple(1)).
-statement_tuple(1,0,rule(2)).
-rule(2,literal(3),body_literal_tuple(10)).
+program("base",constants(0),statements(1)).
+statements(1,0,rule(2)).
+rule(2,literal(3),body_literals(10)).
 literal(3,"pos",comparison(4)).
-comparison(4,number(5),guard_tuple(6)).
+comparison(4,number(5),guards(6)).
 number(5,1).
-guard_tuple(6,0,"<",number(7)).
+guards(6,0,"<",number(7)).
 number(7,2).
-guard_tuple(6,0,"<",number(8)).
+guards(6,0,"<",number(8)).
 number(8,3).

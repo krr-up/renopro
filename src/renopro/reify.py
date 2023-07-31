@@ -260,19 +260,19 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.Program)
     def _reify_program(self, node):
-        const_tup_id = preds.Constant_Tuple1()
+        const_tup_id = preds.Constants1()
         for pos, param in enumerate(node.parameters, start=0):
-            const_tup = preds.Constant_Tuple(
+            const_tup = preds.Constants(
                 id=const_tup_id.id, position=pos, element=preds.Function1()
             )
             const = preds.Function(
-                id=const_tup.element.id, name=param.name, arguments=preds.Term_Tuple1()
+                id=const_tup.element.id, name=param.name, arguments=preds.Terms1()
             )
             self._reified.add([const_tup, const])
         program = preds.Program(
             name=node.name,
             parameters=const_tup_id,
-            statements=preds.Statement_Tuple1(),
+            statements=preds.Statements1(),
         )
         self._reified.add(program)
         self._statement_tup_id = program.statements.id
@@ -286,10 +286,11 @@ class ReifiedAST:
     ):
         """Reify ast sequence into a tuple of predicates of type
         tup_pred with identifier tup_id."""
-        for pos, item in enumerate(seq, start=0):
-            self._reified.add(
-                tup_pred(id=tup_id, position=pos, element=self.reify_node(item))
-            )
+        reified_seq = [
+            tup_pred(id=tup_id, position=pos, element=self.reify_node(item))
+            for pos, item in enumerate(seq, start=0)
+        ]
+        self._reified.add(reified_seq)
 
     @reify_node.register(ASTType.External)
     def _reify_external(self, node):
@@ -298,31 +299,46 @@ class ReifiedAST:
         external = preds.External(
             id=external1.id,
             atom=self.reify_node(node.atom),
-            body=preds.Body_Literal_Tuple1(),
+            body=preds.Body_Literals1(),
             external_type=ext_type,
         )
         self._reified.add(external)
-        statement_tup = preds.Statement_Tuple(
+        statement_tup = preds.Statements(
             id=self._statement_tup_id, position=self._statement_pos, element=external1
         )
         self._reified.add(statement_tup)
         self._statement_pos += 1
-        self._reify_ast_seqence(node.body, external.body.id, preds.Body_Literal_Tuple)
+        self._reify_ast_seqence(node.body, external.body.id, preds.Body_Literals)
 
     @reify_node.register(ASTType.Rule)
     def _reify_rule(self, node):
         rule1 = preds.Rule1()
-
-        # assumption: head can only be a Literal
-        head = self.reify_node(node.head)
-        rule = preds.Rule(id=rule1.id, head=head, body=preds.Body_Literal_Tuple1())
+        if node.head.ast_type is ASTType.Disjunction:
+            head = preds.Disjunction1()
+            # the clingo ast represents literals in a disjunction as a
+            # conditional literal with an empty condition. We represent
+            # these explicitly as a Literal fact.
+            reified_elements = [
+                self.reify_node(cond_lit.literal)
+                if len(cond_lit.condition) == 0
+                else self.reify_node(cond_lit)
+                for cond_lit in node.head.elements
+            ]
+            disjunction = [
+                preds.Disjunction(id=head.id, position=pos, element=e)
+                for pos, e in enumerate(reified_elements, start=0)
+            ]
+            self._reified.add(disjunction)
+        else:
+            head = self.reify_node(node.head)
+        rule = preds.Rule(id=rule1.id, head=head, body=preds.Body_Literals1())
         self._reified.add(rule)
-        statement_tup = preds.Statement_Tuple(
+        statement_tup = preds.Statements(
             id=self._statement_tup_id, position=self._statement_pos, element=rule1
         )
         self._reified.add(statement_tup)
         self._statement_pos += 1
-        self._reify_ast_seqence(node.body, rule.body.id, preds.Body_Literal_Tuple)
+        self._reify_ast_seqence(node.body, rule.body.id, preds.Body_Literals)
 
     @reify_node.register(ASTType.ConditionalLiteral)
     def _reify_conditional_literal(self, node) -> preds.Conditional_Literal1:
@@ -330,12 +346,10 @@ class ReifiedAST:
         cond_lit = preds.Conditional_Literal(
             id=cond_lit1.id,
             literal=self.reify_node(node.literal),
-            condition=preds.Literal_Tuple1(),
+            condition=preds.Literals1(),
         )
         self._reified.add(cond_lit)
-        self._reify_ast_seqence(
-            node.condition, cond_lit.condition.id, preds.Literal_Tuple
-        )
+        self._reify_ast_seqence(node.condition, cond_lit.condition.id, preds.Literals)
         return cond_lit1
 
     @reify_node.register(ASTType.Literal)
@@ -373,12 +387,12 @@ class ReifiedAST:
         comparison = preds.Comparison(
             id=comparison1.id,
             term=self.reify_node(node.term),
-            guards=preds.Guard_Tuple1(),
+            guards=preds.Guards1(),
         )
         self._reified.add(comparison)
         for pos, guard in enumerate(node.guards, start=0):
             self._reified.add(
-                preds.Guard_Tuple(
+                preds.Guards(
                     id=comparison.guards.id,
                     position=pos,
                     comparison=preds.comp_operator_ast2cl[guard.comparison],
@@ -423,10 +437,10 @@ class ReifiedAST:
         function = preds.Function(
             id=function1.id,
             name=node.name,
-            arguments=preds.Term_Tuple1(),
+            arguments=preds.Terms1(),
         )
         self._reified.add(function)
-        self._reify_ast_seqence(node.arguments, function.arguments.id, preds.Term_Tuple)
+        self._reify_ast_seqence(node.arguments, function.arguments.id, preds.Terms)
         return function1
 
     @reify_node.register(ASTType.Variable)
@@ -462,7 +476,7 @@ class ReifiedAST:
         """
         func1 = preds.Function1()
         self._reified.add(
-            preds.Function(id=func1.id, name=symb.name, arguments=preds.Term_Tuple1())
+            preds.Function(id=func1.id, name=symb.name, arguments=preds.Terms1())
         )
         return func1
 
@@ -503,7 +517,7 @@ class ReifiedAST:
         child_pred = child_preds[0]
         return self.reflect_predicate(child_pred)
 
-    def _get_child_tuple_preds(self, parent_fact, children_id_fact):
+    def _get_childs_preds(self, parent_fact, children_id_fact):
         """Query factbase to retrieve all tuple facts identified by children_id_fact."""
         identifier = children_id_fact.id
         child_ast_pred = getattr(preds, type(children_id_fact).__name__.rstrip("1"))
@@ -529,7 +543,7 @@ class ReifiedAST:
         child facts.
 
         """
-        tuples = self._get_child_tuple_preds(parent_fact, children_id_fact)
+        tuples = self._get_childs_preds(parent_fact, children_id_fact)
         child_nodes = []
         for tup in tuples:
             child_nodes.append(self._reflect_child_pred(tup, tup.element))
@@ -582,7 +596,12 @@ class ReifiedAST:
     @reflect_predicate.register
     def _reflect_rule(self, rule: preds.Rule) -> AST:
         """Reflect a Rule fact into a Rule node."""
-        head_node = self._reflect_child_pred(rule, rule.head)
+        if isinstance(rule.head, preds.Disjunction1):
+            head_node = ast.Disjunction(
+                location=DUMMY_LOC, elements=self._reflect_child_preds(rule, rule.head)
+            )
+        else:
+            head_node = self._reflect_child_pred(rule, rule.head)
         body_nodes = self._reflect_child_preds(rule, rule.body)
         return ast.Rule(location=DUMMY_LOC, head=head_node, body=body_nodes)
 
@@ -620,18 +639,18 @@ class ReifiedAST:
     @reflect_predicate.register
     def _reflect_comparison(self, comparison: preds.Comparison) -> AST:
         term_node = self._reflect_child_pred(comparison, comparison.term)
-        guard_tuples = self._get_child_tuple_preds(comparison, comparison.guards)
+        guardss = self._get_childs_preds(comparison, comparison.guards)
         guard_nodes = [
             ast.Guard(
                 comparison=preds.comp_operator_cl2ast[g.comparison],
                 term=self._reflect_child_pred(g, g.term),
             )
-            for g in guard_tuples
+            for g in guardss
         ]
         if len(guard_nodes) == 0:
             msg = (
                 f"Error finding child facts of predicate '{comparison}'.\n"
-                "Found no child guard_tuple facts with identifier matching "
+                "Found no child guards facts with identifier matching "
                 f"'{comparison.guards}', expected at least one."
             )
             raise ChildrenQueryError(msg)
