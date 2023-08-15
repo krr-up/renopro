@@ -275,21 +275,39 @@ comp_operator_cl2ast = {
 comp_operator_ast2cl = {v: k for k, v in comp_operator_cl2ast.items()}
 
 
+ComparisonField = define_enum_field(
+    parent_field=StringField, enum_class=ComparisonOperator, name="ComparisonField"
+)
+
+
+class Guard(Predicate):
+    """Predicate representing a guard for a comparison or aggregate atom.
+
+    id: identifier of the
+
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    comparison = ComparisonField
+    term = TermField
+
+
+class Guard1(Predicate, name="guard"):
+    "Term identifying a child guard predicate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
 class Guards(Predicate):
     """Predicate representing a tuple of guards for a comparison or aggregate atom.
 
     id: Identifier of the guard.
     position: Integer representing position of the element the tuple, ordered by <.
-    comparison: The clingo comparison operator, in string form.
-    term: The term serving as the guard.
+    element: Term identifying the element.
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    comparison = define_enum_field(
-        parent_field=StringField, enum_class=ComparisonOperator, name="ComparisonField"
-    )
-    term = TermField
+    element = Guard1.Field
 
 
 class Guards1(ComplexTerm, name="guards"):
@@ -377,6 +395,11 @@ sign_cl2ast = {Sign[op.name]: ast.Sign[op.name] for op in ast.Sign}
 sign_ast2cl = {v: k for k, v in sign_cl2ast.items()}
 
 
+SignField = define_enum_field(
+    parent_field=StringField, enum_class=Sign, name="SignField"
+)
+
+
 class Literal(Predicate):
     """Predicate representing a literal.
 
@@ -387,7 +410,7 @@ class Literal(Predicate):
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
-    sig = define_enum_field(parent_field=StringField, enum_class=Sign, name="SignField")
+    sig = SignField
     atom = AtomField
 
 
@@ -432,12 +455,12 @@ class Conditional_Literal1(ComplexTerm, name="conditional_literal"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-class Conditional_Literals(Predicate):
-    """Predicate representing an element of a tuple of conditional literals.
+class Agg_Elements(Predicate, name="agg_elements"):
+    """Predicate representing an element of an implicit count aggregate.
 
     id: Identifier of the tuple.
     position: Integer representing position of the element the tuple, ordered by <.
-    element:  Term identifying the element.
+    element:  The conditional literal forming the element.
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
@@ -445,12 +468,12 @@ class Conditional_Literals(Predicate):
     element = Conditional_Literal1.Field
 
 
-class Conditional_Literals1(ComplexTerm, name="conditional_literals"):
-    "Term identifying a child conditional literal tuple"
+class Agg_Elements1(ComplexTerm, name="agg_elements"):
+    "Term identifying a child tuple elements of a count aggregate."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-class Count_Aggregate(Predicate):
+class Aggregate(Predicate):
     """Predicate representing an (implicit) count aggregate atom with
     conditional literal elements.
 
@@ -463,12 +486,12 @@ class Count_Aggregate(Predicate):
                  as a guard tuple of 0 or 1 element."""
 
     id = Identifier_Field(default=lambda: next(id_count))
-    left_guard = Guards1.Field
-    elements = Conditional_Literals1.Field
-    right_guard = Guards1.Field
+    left_guard = Guard1.Field
+    elements = Agg_Elements1.Field
+    right_guard = Guard1.Field
 
 
-class Count_Aggregate1(ComplexTerm):
+class Aggregate1(ComplexTerm, name="aggregate"):
     "Term identifying a child count aggregate."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -496,12 +519,12 @@ AggregateFunctionField = define_enum_field(
 )
 
 
-class Body_Aggregate_Elements(Predicate):
+class Body_Agg_Elements(Predicate, name="body_agg_elements"):
     """Predicate representing an element of a body aggregate.
 
     id: Identifier of the tuple of body aggregate elements.
     position: Integer representing position of the element the tuple, ordered by <.
-    terms: The tuple of terms.
+    terms: The tuple of terms to which the aggregate function will be applied.
     condition: The tuple of literals on which the tuple of terms is conditioned.
     """
 
@@ -511,28 +534,28 @@ class Body_Aggregate_Elements(Predicate):
     condition = Literals1.Field
 
 
-class Body_Aggregate_Elements1(ComplexTerm, name="body_aggregate_elements"):
+class Body_Agg_Elements1(ComplexTerm, name="body_agg_elements"):
     "Term identifying the child tuple of elements in a body aggregate."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
 class Body_Aggregate(Predicate):
-    """Predicate representing an aggregate atom.
+    """Predicate representing an aggregate atom occurring in a body.
 
-    id: Identifier of the count aggregate.
+    id: Identifier of the body aggregate.
     left_guard: The (optional) left guard of the aggregate, represented
-                as a guard tuple of 0 or 1 element.
+                as a guard tuple of 0 or 1 elements.
     function: The aggregate function applied to the terms of the aggregate
               remaining after evaluation of the conditions.
-    elements: Tuple of
+    elements: The elements of the aggregate,
     right_guard: The (optional) right guard of the aggregate, represented
-                 as a guard tuple of 0 or 1 element."""
+                 as a guard tuple of 0 or 1 elements."""
 
     id = Identifier_Field(default=lambda: next(id_count))
-    left_guard = Guards1.Field
+    left_guard = Guard1.Field
     function = AggregateFunctionField
-    elements = Body_Aggregate_Elements1.Field
-    right_guard = Guards1.Field
+    elements = Body_Agg_Elements1.Field
+    right_guard = Guard1.Field
 
 
 class Body_Aggregate1(Predicate, name="body_aggregate"):
@@ -540,24 +563,39 @@ class Body_Aggregate1(Predicate, name="body_aggregate"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-BodyAtomField = combine_fields([AtomField, Body_Aggregate1.Field], name="BodyAtomField")
+ExtendedBodyAtomField = combine_fields(
+    [Aggregate1.Field, Body_Aggregate1.Field], name="ExtendedBodyAtomField"
+)
 
 
-class Body_Aggregate_Literal(Literal, name="literal"):
-    def __init__(self, *args, **kwargs):
-        self.super().__init__(*args, **kwargs)
-
-    atom = BodyAtomField
+# could not get inheritance to work for predicate definitions.
+# should ask Dave about how to set this up. Ideally Body_Literal
+# would just inherit from Literal and override the atom field.
 
 
-class Body_Aggregate_Literal1(Literal, name="literal"):
+class Extended_Body_Literal(Predicate, name="literal"):
+    """Predicate representing a literal occurring in the body of a
+    rule, the atom of which is a (body) aggregate or theory atom.
+
+    id: Identifier of the literal.
+    sig: Sign of the literal, in string form. Possible values are
+         "pos" "not" and "not not".
+    atom: The aggregate or theory atom constituting the literal.
+
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    sig = SignField
+    atom = ExtendedBodyAtomField
+
+
+class Extended_Body_Literal1(Literal, name="literal"):
     "Term identifying a child body aggregate literal."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-# will need to expand this to accept literals with body_atoms
 BodyLiteralField = combine_fields(
-    [Literal1.Field, Conditional_Literal1.Field, Body_Aggregate_Literal1.Field],
+    [Literal1.Field, Conditional_Literal1.Field, Extended_Body_Literal1.Field],
     name="BodyLiteralField",
 )
 
@@ -574,6 +612,57 @@ class Body_Literals(Predicate):
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
     element = BodyLiteralField
+
+
+class Body_Literals1(ComplexTerm, name="body_literals"):
+    "Term identifying a child tuple of body literals."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Head_Agg_Elements(Predicate, name="head_agg_elements"):
+    """Predicate representing an element of a head aggregate.
+
+    id: Identifier of the tuple of head aggregate elements.
+    position: Integer representing position of the element the tuple, ordered by <.
+    terms: The tuple of terms to which the aggregate function will be applied.
+    condition: The conditional literal who's condition determines if
+               the tuple of terms are added to the aggregate's set. When the condition
+               holds, the head of the conditional literal is also derived.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    terms = Terms1.Field
+    condition = Conditional_Literal1.Field
+
+
+class Head_Agg_Elements1(ComplexTerm, name="head_agg_elements"):
+    "Term identifying the child tuple of elements in a head aggregate."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Head_Aggregate(Predicate):
+    """Predicate representing an aggregate atom occuring in a head.
+
+    id: Identifier of the head aggregate.
+    left_guard: The (optional) left guard of the aggregate, represented
+                as a guard tuple of 0 or 1 elements.
+    function: The aggregate function applied to the term elements of the aggregate
+              remaining after evaluation of their conditions.
+    elements: The elements of the aggregate,
+    right_guard: The (optional) right guard of the aggregate, represented
+                 as a guard tuple of 0 or 1 elements."""
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    left_guard = Guard1.Field
+    function = AggregateFunctionField
+    elements = Head_Agg_Elements1.Field
+    right_guard = Guard1.Field
+
+
+class Head_Aggregate1(Predicate, name="head_aggregate"):
+    "Term identifying a child body aggregate"
+    id = Identifier_Field(default=lambda: next(id_count))
 
 
 class Disjunction(Predicate):
@@ -595,12 +684,10 @@ class Disjunction1(ComplexTerm, name="disjunction"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-HeadField = combine_fields([Literal1.Field, Count_Aggregate1.Field, Disjunction1.Field])
-
-
-class Body_Literals1(ComplexTerm, name="body_literals"):
-    "Term identifying a child tuple of body literals."
-    id = Identifier_Field(default=lambda: next(id_count))
+HeadField = combine_fields(
+    [Literal1.Field, Aggregate1.Field, Head_Aggregate1.Field, Disjunction1.Field],
+    name="HeadField",
+)
 
 
 class Rule(Predicate):
@@ -707,6 +794,7 @@ AstPredicate = Union[
     Interval,
     Terms,
     Function,
+    Guard,
     Guards,
     Comparison,
     Boolean_Constant,
@@ -714,9 +802,14 @@ AstPredicate = Union[
     Literal,
     Literals,
     Conditional_Literal,
-    Conditional_Literals,
-    Count_Aggregate,
+    Agg_Elements,
+    Aggregate,
+    Body_Agg_Elements,
+    Body_Aggregate,
+    Extended_Body_Literal,
     Body_Literals,
+    Head_Agg_Elements,
+    Head_Aggregate,
     Disjunction,
     Rule,
     Statements,
@@ -733,6 +826,7 @@ AstPredicates = [
     Interval,
     Terms,
     Function,
+    Guard,
     Guards,
     Comparison,
     Boolean_Constant,
@@ -740,9 +834,14 @@ AstPredicates = [
     Literal,
     Literals,
     Conditional_Literal,
-    Conditional_Literals,
-    Count_Aggregate,
+    Agg_Elements,
+    Aggregate,
+    Body_Agg_Elements,
+    Body_Aggregate,
+    Extended_Body_Literal,
     Body_Literals,
+    Head_Agg_Elements,
+    Head_Aggregate,
     Disjunction,
     Rule,
     Statements,

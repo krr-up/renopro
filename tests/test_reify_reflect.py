@@ -252,6 +252,18 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
             rast.reflect()
 
 
+class TestReifyReflectAggTheory(TestReifyReflect):
+    """Test cases for reification and reflection of aggregates and
+    theory atoms."""
+
+    def test_reify_aggregate(self):
+        "Test reification of a simple count aggregate."
+        with self.subTest(operation="reify"):
+            self.assertReifyEqual("1 {a(X): b(X); c} :- d(X).", ["aggregate.lp"])
+        with self.subTest(operation="reflect"):
+            self.assertReflectEqual("1 <= { a(X): b(X); c } :- d(X).", ["aggregate.lp"])
+
+
 class TestReifyReflectStatements(TestReifyReflect):
     """Test cases for reification and reflection of statements."""
 

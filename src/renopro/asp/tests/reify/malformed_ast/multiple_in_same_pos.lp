@@ -4,7 +4,9 @@ rule(2,literal(3),body_literals(10)).
 literal(3,"pos",comparison(4)).
 comparison(4,number(5),guards(6)).
 number(5,1).
-guards(6,0,"<",number(7)).
-number(7,2).
-guards(6,0,"<",number(8)).
-number(8,3).
+guards(6,0,guard(7)).
+guard(7,"<",number(8)).
+number(8,2).
+guards(6,0,guard(10)).
+guard(10,"<",number(11)).
+number(11,3).

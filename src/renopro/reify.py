@@ -246,14 +246,14 @@ class ReifiedAST:
             raise NotImplementedError(
                 (
                     "Reification not implemented for AST nodes of type: "
-                    "f{node.ast_type.name}."
+                    f"{node.ast_type.name}."
                 )
             )
         if hasattr(node, "type"):  # nocoverage
             raise NotImplementedError(
                 (
                     "Reification not implemented for symbol of type: "
-                    "f{node.typle.name}."
+                    f"{node.typle.name}."
                 )
             )
         raise TypeError(f"Nodes should be of type AST or Symbol, got: {type(node)}")
@@ -340,6 +340,30 @@ class ReifiedAST:
         self._statement_pos += 1
         self._reify_ast_seqence(node.body, rule.body.id, preds.Body_Literals)
 
+    @reify_node.register(ASTType.Aggregate)
+    def _reify_aggregate(self, node) -> preds.Aggregate1:
+        count_agg1 = preds.Aggregate1()
+        left_guard = (
+            preds.Guard1()
+            if node.left_guard is None
+            else self.reify_node(node.left_guard)
+        )
+        elements1 = preds.Agg_Elements1()
+        self._reify_ast_seqence(node.elements, elements1.id, preds.Agg_Elements)
+        right_guard = (
+            preds.Guard1()
+            if node.right_guard is None
+            else self.reify_node(node.right_guard)
+        )
+        count_agg = preds.Aggregate(
+            id=count_agg1.id,
+            left_guard=left_guard,
+            elements=elements1,
+            right_guard=right_guard,
+        )
+        self._reified.add(count_agg)
+        return count_agg1
+
     @reify_node.register(ASTType.ConditionalLiteral)
     def _reify_conditional_literal(self, node) -> preds.Conditional_Literal1:
         cond_lit1 = preds.Conditional_Literal1()
@@ -390,16 +414,18 @@ class ReifiedAST:
             guards=preds.Guards1(),
         )
         self._reified.add(comparison)
-        for pos, guard in enumerate(node.guards, start=0):
-            self._reified.add(
-                preds.Guards(
-                    id=comparison.guards.id,
-                    position=pos,
-                    comparison=preds.comp_operator_ast2cl[guard.comparison],
-                    term=self.reify_node(guard.term),
-                )
-            )
+        self._reify_ast_seqence(node.guards, comparison.guards.id, preds.Guards)
         return comparison1
+
+    @reify_node.register(ASTType.Guard)
+    def _reify_guard(self, node):
+        guard1 = preds.Guard1()
+        clorm_operator = preds.comp_operator_ast2cl[node.comparison]
+        guard = preds.Guard(
+            id=guard1.id, comparison=clorm_operator, term=self.reify_node(node.term)
+        )
+        self._reified.add(guard)
+        return guard1
 
     @reify_node.register(ASTType.Interval)
     def _reify_interval(self, node):
@@ -486,7 +512,7 @@ class ReifiedAST:
         self._reified.add(preds.String(id=string1.id, value=symb.string))
         return string1
 
-    def _reflect_child_pred(self, parent_fact, child_id_fact):
+    def _reflect_child_pred(self, parent_fact, child_id_fact, optional=False):
         """Utility function that takes a unary ast predicate
         containing only an identifier pointing to a child predicate,
         queries reified factbase for child predicate, and returns the
@@ -500,12 +526,18 @@ class ReifiedAST:
         )
         child_preds = list(query.all())
         if len(child_preds) == 0:
-            msg = (
-                f"Error finding child fact of fact '{parent_fact}':\n"
-                f"Expected single child fact for identifier '{child_id_fact}'"
-                ", found none."
-            )
-            raise ChildQueryError(msg)
+            if not optional:
+                msg = (
+                    f"Error finding child fact of fact '{parent_fact}':\n"
+                    f"Expected single child fact for identifier '{child_id_fact}'"
+                    ", found none."
+                )
+                raise ChildQueryError(msg)
+            return None
+        if len(child_preds) == 1:
+            child_pred = child_preds[0]
+            child_ast = self.reflect_predicate(child_pred)
+            return child_ast
         if len(child_preds) > 1:
             child_pred_strings = [str(pred) for pred in child_preds]
             msg = (
@@ -514,8 +546,7 @@ class ReifiedAST:
                 ", found multiple:\n" + "\n".join(child_pred_strings)
             )
             raise ChildQueryError(msg)
-        child_pred = child_preds[0]
-        return self.reflect_predicate(child_pred)
+        raise RuntimeError("Code should be unreachable.")  # nocoverage
 
     def _get_childs_preds(self, parent_fact, children_id_fact):
         """Query factbase to retrieve all tuple facts identified by children_id_fact."""
@@ -606,6 +637,19 @@ class ReifiedAST:
         return ast.Rule(location=DUMMY_LOC, head=head_node, body=body_nodes)
 
     @reflect_predicate.register
+    def _reflect_aggregate(self, aggregate: preds.Aggregate) -> AST:
+        return ast.Aggregate(
+            location=DUMMY_LOC,
+            left_guard=self._reflect_child_pred(
+                aggregate, aggregate.left_guard, optional=True
+            ),
+            elements=self._reflect_child_preds(aggregate, aggregate.elements),
+            right_guard=self._reflect_child_pred(
+                aggregate, aggregate.right_guard, optional=True
+            ),
+        )
+
+    @reflect_predicate.register
     def _reflect_literal(self, lit: preds.Literal) -> AST:
         """Reflect a Literal fact into a Literal node."""
         sign = preds.sign_cl2ast[preds.Sign(lit.sig)]
@@ -639,14 +683,7 @@ class ReifiedAST:
     @reflect_predicate.register
     def _reflect_comparison(self, comparison: preds.Comparison) -> AST:
         term_node = self._reflect_child_pred(comparison, comparison.term)
-        guardss = self._get_childs_preds(comparison, comparison.guards)
-        guard_nodes = [
-            ast.Guard(
-                comparison=preds.comp_operator_cl2ast[g.comparison],
-                term=self._reflect_child_pred(g, g.term),
-            )
-            for g in guardss
-        ]
+        guard_nodes = self._reflect_child_preds(comparison, comparison.guards)
         if len(guard_nodes) == 0:
             msg = (
                 f"Error finding child facts of predicate '{comparison}'.\n"
@@ -657,6 +694,15 @@ class ReifiedAST:
         return ast.Comparison(
             term=term_node,
             guards=guard_nodes,
+        )
+
+    @reflect_predicate.register
+    def _reflect_guard(self, guard: preds.Guard) -> AST:
+        clingo_operator = preds.comp_operator_cl2ast[
+            preds.ComparisonOperator(guard.comparison)
+        ]
+        return ast.Guard(
+            comparison=clingo_operator, term=self._reflect_child_pred(guard, guard.term)
         )
 
     @reflect_predicate.register
