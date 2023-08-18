@@ -33,32 +33,14 @@ def get_parser() -> ArgumentParser:
     )
 
     levels = [
-        (
-            "error",
-            logging.ERROR,
-        ),
-        (
-            "warning",
-            logging.WARNING,
-        ),
-        (
-            "info",
-            logging.INFO,
-        ),
-        (
-            "debug",
-            logging.DEBUG,
-        ),
+        ("error", logging.ERROR),
+        ("warning", logging.WARNING),
+        ("info", logging.INFO),
+        ("debug", logging.DEBUG),
     ]
 
-    def get(
-        levels,
-        name,
-    ):
-        for (
-            key,
-            val,
-        ) in levels:
+    def get(levels, name):
+        for key, val in levels:
             if key == name:
                 return val
         return None  # nocoverage
@@ -69,48 +51,20 @@ def get_parser() -> ArgumentParser:
         choices=[val for _, val in levels],
         metavar=f"{{{','.join(key for key, _ in levels)}}}",
         help="set log level [%(default)s]",
-        type=cast(
-            Any,
-            lambda name: get(
-                levels,
-                name,
-            ),
-        ),
+        type=cast(Any, lambda name: get(levels, name)),
     )
 
     parser.add_argument(
-        "--version",
-        "-v",
-        action="version",
-        version=f"%(prog)s {VERSION}",
+        "--version", "-v", action="version", version=f"%(prog)s {VERSION}"
     )
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        "--reify",
-        "-r",
-        action="store_true",
-    )
-    group.add_argument(
-        "--reflect",
-        "-R",
-        action="store_true",
-    )
-    group.add_argument(
-        "--transform",
-        "-t",
-        action="store_true",
-    )
+    group.add_argument("--reify", "-r", action="store_true")
+    group.add_argument("--reflect", "-R", action="store_true")
+    group.add_argument("--transform", "-t", action="store_true")
 
-    parser.add_argument(
-        "string",
-        type=str,
-    )
+    parser.add_argument("string", type=str)
 
-    parser.add_argument(
-        "--files",
-        "-f",
-        nargs="?",
-    )
+    parser.add_argument("--files", "-f", nargs="?")
 
     return parser

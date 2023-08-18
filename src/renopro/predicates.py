@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines
 """Definitions of AST elements as clorm predicates."""
 import enum
 import inspect
@@ -22,13 +21,7 @@ id_count = count()
 
 # by default we use integer identifiers, but allow arbitrary symbols as well
 # for flexibility when these are user generated
-Identifier_Field = combine_fields(
-    [
-        IntegerField,
-        RawField,
-    ],
-    name="IdentifierField",
-)
+Identifier_Field = combine_fields([IntegerField, RawField], name="IdentifierField")
 
 
 class LazilyCombinedField(BaseField):  # nocoverage
@@ -38,21 +31,15 @@ class LazilyCombinedField(BaseField):  # nocoverage
 
     # cannot use a staticmethod decorator as clorm raises error if cltopy/pytocl
     # is not callable, and staticmethods are not callable for python < 3.10
-    def cltopy(
-        v,
-    ):
+    def cltopy(v):
         pass
 
-    def pytocl(
-        v,
-    ):
+    def pytocl(v):
         pass
 
 
 def combine_fields_lazily(
-    fields: Sequence[Type[BaseField]],
-    *,
-    name: str = "",
+    fields: Sequence[Type[BaseField]], *, name: str = ""
 ) -> Type[LazilyCombinedField]:
     """Factory function that returns a field sub-class that combines
     other fields lazily.
@@ -67,38 +54,24 @@ def combine_fields_lazily(
 
     # Must combine at least two fields otherwise it doesn't make sense
     for f in fields:
-        if not inspect.isclass(f) or not issubclass(
-            f,
-            BaseField,
-        ):
+        if not inspect.isclass(f) or not issubclass(f, BaseField):
             raise TypeError("{f} is not BaseField or a sub-class.")
 
     fields = list(fields)
 
-    def _pytocl(
-        value,
-    ):
+    def _pytocl(value):
         for f in fields:
             try:
                 return f.pytocl(value)
-            except (
-                TypeError,
-                ValueError,
-                AttributeError,
-            ):
+            except (TypeError, ValueError, AttributeError):
                 pass
         raise TypeError(f"No combined pytocl() match for value {value}.")
 
-    def _cltopy(
-        symbol,
-    ):
+    def _cltopy(symbol):
         for f in fields:
             try:
                 return f.cltopy(symbol)
-            except (
-                TypeError,
-                ValueError,
-            ):
+            except (TypeError, ValueError):
                 pass
         raise TypeError(
             (
@@ -110,21 +83,14 @@ def combine_fields_lazily(
     return type(
         subclass_name,
         (BaseField,),
-        {
-            "fields": fields,
-            "pytocl": _pytocl,
-            "cltopy": _cltopy,
-        },
+        {"fields": fields, "pytocl": _pytocl, "cltopy": _cltopy},
     )
 
 
 # Enum field definitions
 
 
-class UnaryOperator(
-    str,
-    enum.Enum,
-):
+class UnaryOperator(str, enum.Enum):
     "String enum of clingo's unary operators."
     Absolute = "||"  # For taking the absolute value.
     Minus = "-"  # For unary minus and classical negation.
@@ -132,16 +98,11 @@ class UnaryOperator(
 
 
 UnaryOperatorField = define_enum_field(
-    parent_field=StringField,
-    enum_class=UnaryOperator,
-    name="UnaryOperatorField",
+    parent_field=StringField, enum_class=UnaryOperator, name="UnaryOperatorField"
 )
 
 
-class BinaryOperator(
-    str,
-    enum.Enum,
-):
+class BinaryOperator(str, enum.Enum):
     "String enum of clingo's binary operators."
     And = "&"  # bitwise and
     Division = "/"  # arithmetic division
@@ -155,16 +116,11 @@ class BinaryOperator(
 
 
 BinaryOperatorField = define_enum_field(
-    parent_field=StringField,
-    enum_class=BinaryOperator,
-    name="BinaryOperatorField",
+    parent_field=StringField, enum_class=BinaryOperator, name="BinaryOperatorField"
 )
 
 
-class ComparisonOperator(
-    str,
-    enum.Enum,
-):
+class ComparisonOperator(str, enum.Enum):
     """
     String enumeration of clingo's comparison operators.
     """
@@ -184,10 +140,7 @@ ComparisonOperatorField = define_enum_field(
 )
 
 
-class Sign(
-    str,
-    enum.Enum,
-):
+class Sign(str, enum.Enum):
     """String enum of possible sign of a literal."""
 
     DoubleNegation = "not not"
@@ -205,16 +158,11 @@ class Sign(
 
 
 SignField = define_enum_field(
-    parent_field=StringField,
-    enum_class=Sign,
-    name="SignField",
+    parent_field=StringField, enum_class=Sign, name="SignField"
 )
 
 
-class AggregateFunction(
-    str,
-    enum.Enum,
-):
+class AggregateFunction(str, enum.Enum):
     "String enum of clingo's aggregate functions."
     Count = "#count"
     Max = "#max"
@@ -230,20 +178,11 @@ AggregateFunctionField = define_enum_field(
 )
 
 
-A = TypeVar(
-    "A",
-    bound=enum.Enum,
-)
-B = TypeVar(
-    "B",
-    bound=enum.Enum,
-)
+A = TypeVar("A", bound=enum.Enum)
+B = TypeVar("B", bound=enum.Enum)
 
 
-def convert_enum(
-    enum_member: A,
-    other_enum: Type[B],
-) -> B:
+def convert_enum(enum_member: A, other_enum: Type[B]) -> B:
     """Given an enum_member, convert it to the other_enum member of
     the same name.
     """
@@ -275,10 +214,7 @@ class String(Predicate):
     value = StringField
 
 
-class String1(
-    ComplexTerm,
-    name="string",
-):
+class String1(ComplexTerm, name="string"):
     "Term identifying a child string fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -294,10 +230,7 @@ class Number(Predicate):
     value = IntegerField
 
 
-class Number1(
-    ComplexTerm,
-    name="number",
-):
+class Number1(ComplexTerm, name="number"):
     "Term identifying a child number fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -313,21 +246,13 @@ class Variable(Predicate):
     name = StringField
 
 
-class Variable1(
-    ComplexTerm,
-    name="variable",
-):
+class Variable1(ComplexTerm, name="variable"):
     "Term identifying a child variable fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
 TermField = combine_fields_lazily(
-    [
-        String1.Field,
-        Number1.Field,
-        Variable1.Field,
-    ],
-    name="TermField",
+    [String1.Field, Number1.Field, Variable1.Field], name="TermField"
 )
 
 
@@ -344,10 +269,7 @@ class Unary_Operation(Predicate):
     argument = TermField
 
 
-class Unary_Operation1(
-    ComplexTerm,
-    name="unary_operation",
-):
+class Unary_Operation1(ComplexTerm, name="unary_operation"):
     "Term identifying a child unary operation fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -367,10 +289,7 @@ class Binary_Operation(Predicate):
     right = TermField
 
 
-class Binary_Operation1(
-    ComplexTerm,
-    name="binary_operation",
-):
+class Binary_Operation1(ComplexTerm, name="binary_operation"):
     "Term identifying a child binary operation fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -388,10 +307,7 @@ class Interval(Predicate):
     right = TermField
 
 
-class Interval1(
-    ComplexTerm,
-    name="interval",
-):
+class Interval1(ComplexTerm, name="interval"):
     "Term identifying a child interval fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -409,10 +325,7 @@ class Terms(Predicate):
     element = TermField
 
 
-class Terms1(
-    ComplexTerm,
-    name="terms",
-):
+class Terms1(ComplexTerm, name="terms"):
     "Term identifying a child tuple of terms."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -435,10 +348,7 @@ class Function(Predicate):
     arguments = Terms1.Field
 
 
-class Function1(
-    ComplexTerm,
-    name="function",
-):
+class Function1(ComplexTerm, name="function"):
     "Term identifying a child function fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -454,10 +364,7 @@ class Pool(Predicate):
     arguments = Terms1.Field
 
 
-class Pool1(
-    ComplexTerm,
-    name="pool",
-):
+class Pool1(ComplexTerm, name="pool"):
     "Term identifying a child pool fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -488,10 +395,7 @@ class Guard(Predicate):
     term = TermField
 
 
-class Guard1(
-    Predicate,
-    name="guard",
-):
+class Guard1(Predicate, name="guard"):
     "Term identifying a child guard fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -509,10 +413,7 @@ class Guards(Predicate):
     element = Guard1.Field
 
 
-class Guards1(
-    ComplexTerm,
-    name="guards",
-):
+class Guards1(ComplexTerm, name="guards"):
     "Term identifying a child guard tuple fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -530,22 +431,12 @@ class Comparison(Predicate):
     guards = Guards1.Field
 
 
-class Comparison1(
-    ComplexTerm,
-    name="comparison",
-):
+class Comparison1(ComplexTerm, name="comparison"):
     "Term identifying a child comparison fact"
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-BoolField = refine_field(
-    ConstantField,
-    [
-        "true",
-        "false",
-    ],
-    name="BoolField",
-)
+BoolField = refine_field(ConstantField, ["true", "false"], name="BoolField")
 
 
 class Boolean_Constant(Predicate):
@@ -560,10 +451,7 @@ class Boolean_Constant(Predicate):
     value = BoolField
 
 
-class Boolean_Constant1(
-    ComplexTerm,
-    name="boolean_constant",
-):
+class Boolean_Constant1(ComplexTerm, name="boolean_constant"):
     "Term identifying a child boolean_constant fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -579,21 +467,13 @@ class Symbolic_Atom(Predicate):
     symbol = Function1.Field
 
 
-class Symbolic_Atom1(
-    ComplexTerm,
-    name="symbolic_atom",
-):
+class Symbolic_Atom1(ComplexTerm, name="symbolic_atom"):
     "Term identifying a child symbolic atom fact"
     id = Identifier_Field(default=lambda: next(id_count))
 
 
 AtomField = combine_fields_lazily(
-    [
-        Symbolic_Atom1.Field,
-        Comparison1.Field,
-        Boolean_Constant1.Field,
-    ],
-    name="AtomField",
+    [Symbolic_Atom1.Field, Comparison1.Field, Boolean_Constant1.Field], name="AtomField"
 )
 
 
@@ -611,10 +491,7 @@ class Literal(Predicate):
     atom = AtomField
 
 
-class Literal1(
-    ComplexTerm,
-    name="literal",
-):
+class Literal1(ComplexTerm, name="literal"):
     "Term identifying a child literal fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -632,10 +509,7 @@ class Literals(Predicate):
     element = Literal1.Field
 
 
-class Literals1(
-    ComplexTerm,
-    name="literals",
-):
+class Literals1(ComplexTerm, name="literals"):
     "Term identifying a child literal tuple."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -653,18 +527,12 @@ class Conditional_Literal(Predicate):
     condition = Literals1.Field
 
 
-class Conditional_Literal1(
-    ComplexTerm,
-    name="conditional_literal",
-):
+class Conditional_Literal1(ComplexTerm, name="conditional_literal"):
     "Term identifying a child conditional literal."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-class Agg_Elements(
-    Predicate,
-    name="agg_elements",
-):
+class Agg_Elements(Predicate, name="agg_elements"):
     """Predicate representing an element of an implicit count aggregate.
 
     id: Identifier of the tuple.
@@ -677,10 +545,7 @@ class Agg_Elements(
     element = Conditional_Literal1.Field
 
 
-class Agg_Elements1(
-    ComplexTerm,
-    name="agg_elements",
-):
+class Agg_Elements1(ComplexTerm, name="agg_elements"):
     "Term identifying a child tuple elements of a count aggregate."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -704,18 +569,12 @@ class Aggregate(Predicate):
     right_guard = Guard1.Field
 
 
-class Aggregate1(
-    ComplexTerm,
-    name="aggregate",
-):
+class Aggregate1(ComplexTerm, name="aggregate"):
     "Term identifying a child count aggregate."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-class Body_Agg_Elements(
-    Predicate,
-    name="body_agg_elements",
-):
+class Body_Agg_Elements(Predicate, name="body_agg_elements"):
     """Predicate representing an element of a body aggregate.
 
     id: Identifier of the tuple of body aggregate elements.
@@ -730,10 +589,7 @@ class Body_Agg_Elements(
     condition = Literals1.Field
 
 
-class Body_Agg_Elements1(
-    ComplexTerm,
-    name="body_agg_elements",
-):
+class Body_Agg_Elements1(ComplexTerm, name="body_agg_elements"):
     "Term identifying the child tuple of elements in a body aggregate."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -758,20 +614,13 @@ class Body_Aggregate(Predicate):
     right_guard = Guard1.Field
 
 
-class Body_Aggregate1(
-    Predicate,
-    name="body_aggregate",
-):
+class Body_Aggregate1(Predicate, name="body_aggregate"):
     "Term identifying a child body aggregate"
     id = Identifier_Field(default=lambda: next(id_count))
 
 
 ExtendedBodyAtomField = combine_fields(
-    [
-        Aggregate1.Field,
-        Body_Aggregate1.Field,
-    ],
-    name="ExtendedBodyAtomField",
+    [Aggregate1.Field, Body_Aggregate1.Field], name="ExtendedBodyAtomField"
 )
 
 
@@ -780,10 +629,7 @@ ExtendedBodyAtomField = combine_fields(
 # would just inherit from Literal and override the atom field.
 
 
-class Extended_Body_Literal(
-    Predicate,
-    name="literal",
-):
+class Extended_Body_Literal(Predicate, name="literal"):
     """Predicate representing a literal occurring in the body of a
     rule, the atom of which is a (body) aggregate or theory atom.
 
@@ -799,20 +645,13 @@ class Extended_Body_Literal(
     atom = ExtendedBodyAtomField
 
 
-class Extended_Body_Literal1(
-    Literal,
-    name="literal",
-):
+class Extended_Body_Literal1(Literal, name="literal"):
     "Term identifying a child body aggregate literal."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
 BodyLiteralField = combine_fields(
-    [
-        Literal1.Field,
-        Conditional_Literal1.Field,
-        Extended_Body_Literal1.Field,
-    ],
+    [Literal1.Field, Conditional_Literal1.Field, Extended_Body_Literal1.Field],
     name="BodyLiteralField",
 )
 
@@ -831,18 +670,12 @@ class Body_Literals(Predicate):
     element = BodyLiteralField
 
 
-class Body_Literals1(
-    ComplexTerm,
-    name="body_literals",
-):
+class Body_Literals1(ComplexTerm, name="body_literals"):
     "Term identifying a child tuple of body literals."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-class Head_Agg_Elements(
-    Predicate,
-    name="head_agg_elements",
-):
+class Head_Agg_Elements(Predicate, name="head_agg_elements"):
     """Predicate representing an element of a head aggregate.
 
     id: Identifier of the tuple of head aggregate elements.
@@ -859,10 +692,7 @@ class Head_Agg_Elements(
     condition = Conditional_Literal1.Field
 
 
-class Head_Agg_Elements1(
-    ComplexTerm,
-    name="head_agg_elements",
-):
+class Head_Agg_Elements1(ComplexTerm, name="head_agg_elements"):
     "Term identifying the child tuple of elements in a head aggregate."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -887,10 +717,7 @@ class Head_Aggregate(Predicate):
     right_guard = Guard1.Field
 
 
-class Head_Aggregate1(
-    Predicate,
-    name="head_aggregate",
-):
+class Head_Aggregate1(Predicate, name="head_aggregate"):
     "Term identifying a child body aggregate"
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -906,29 +733,16 @@ class Disjunction(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = combine_fields(
-        [
-            Literal1.Field,
-            Conditional_Literal1.Field,
-        ]
-    )
+    element = combine_fields([Literal1.Field, Conditional_Literal1.Field])
 
 
-class Disjunction1(
-    ComplexTerm,
-    name="disjunction",
-):
+class Disjunction1(ComplexTerm, name="disjunction"):
     "Term representing a child disjunction."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
 HeadField = combine_fields(
-    [
-        Literal1.Field,
-        Aggregate1.Field,
-        Head_Aggregate1.Field,
-        Disjunction1.Field,
-    ],
+    [Literal1.Field, Aggregate1.Field, Head_Aggregate1.Field, Disjunction1.Field],
     name="HeadField",
 )
 
@@ -947,10 +761,7 @@ class Rule(Predicate):
     body = Body_Literals1.Field
 
 
-class Rule1(
-    ComplexTerm,
-    name="rule",
-):
+class Rule1(ComplexTerm, name="rule"):
     "Term identifying a child rule fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -976,21 +787,12 @@ class External(Predicate):
     external_type = BoolField
 
 
-class External1(
-    ComplexTerm,
-    name="external",
-):
+class External1(ComplexTerm, name="external"):
     "Term identifying a child external fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-StatementField = combine_fields(
-    [
-        Rule1.Field,
-        External1.Field,
-    ],
-    name="StatementField",
-)
+StatementField = combine_fields([Rule1.Field, External1.Field], name="StatementField")
 
 
 class Statements(Predicate):
@@ -1006,10 +808,7 @@ class Statements(Predicate):
     element = StatementField
 
 
-class Statements1(
-    ComplexTerm,
-    name="statements",
-):
+class Statements1(ComplexTerm, name="statements"):
     "Term identifying a child statement tuple"
     id = Identifier_Field(default=lambda: next(id_count))
 
@@ -1027,10 +826,7 @@ class Constants(Predicate):
     element = Function1.Field
 
 
-class Constants1(
-    ComplexTerm,
-    name="constants",
-):
+class Constants1(ComplexTerm, name="constants"):
     "Term identifying a child constant tuple."
     id = Identifier_Field(default=lambda: next(id_count))
 

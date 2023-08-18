@@ -11,10 +11,7 @@ def main():
     """
     parser = get_parser()
     args = parser.parse_args()
-    setup_logger(
-        "main",
-        args.log,
-    )
+    setup_logger("main", args.log)
     # rast = ReifiedAST()
     # if args.reify:
     #     if args.files:

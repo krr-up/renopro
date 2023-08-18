@@ -20,29 +20,19 @@ class SingleLevelFilter(logging.Filter):
     Filter levels.
     """
 
-    def __init__(
-        self,
-        passlevel,
-        reject,
-    ):
+    def __init__(self, passlevel, reject):
         # pylint: disable=super-init-not-called
         self.passlevel = passlevel
         self.reject = reject
 
-    def filter(
-        self,
-        record,
-    ):
+    def filter(self, record):
         if self.reject:
             return record.levelno != self.passlevel  # nocoverage
 
         return record.levelno == self.passlevel
 
 
-def setup_logger(
-    name,
-    level,
-):
+def setup_logger(name, level):
     """
     Setup logger.
     """
@@ -52,43 +42,19 @@ def setup_logger(
     logger.setLevel(level)
     log_message_str = "{}%(levelname)s:{}  - %(message)s{}"
 
-    def set_handler(
-        level,
-        color,
-    ):
+    def set_handler(level, color):
         handler = logging.StreamHandler(sys.stderr)
-        handler.addFilter(
-            SingleLevelFilter(
-                level,
-                False,
-            )
-        )
+        handler.addFilter(SingleLevelFilter(level, False))
         handler.setLevel(level)
         formatter = logging.Formatter(
-            log_message_str.format(
-                COLORS[color],
-                COLORS["GREY"],
-                COLORS["NORMAL"],
-            )
+            log_message_str.format(COLORS[color], COLORS["GREY"], COLORS["NORMAL"])
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-    set_handler(
-        logging.INFO,
-        "GREEN",
-    )
-    set_handler(
-        logging.WARNING,
-        "YELLOW",
-    )
-    set_handler(
-        logging.DEBUG,
-        "BLUE",
-    )
-    set_handler(
-        logging.ERROR,
-        "RED",
-    )
+    set_handler(logging.INFO, "GREEN")
+    set_handler(logging.WARNING, "YELLOW")
+    set_handler(logging.DEBUG, "BLUE")
+    set_handler(logging.ERROR, "RED")
 
     return logger
