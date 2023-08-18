@@ -143,11 +143,13 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
         self.assertEqual(rast.program_ast, statements)
 
     def test_reify_prop_normal_rule(self):
-        "Test reification and reflection of a normal rule containing only propositional atoms."
+        """Test reification and reflection of a normal rule containing
+        only propositional atoms."""
         self.assertReifyReflectEqual("a :- b; not c.", ["prop_normal_rule.lp"])
 
     def test_reify_function(self):
-        "Test reification and reflection of a variable-free normal rule with a symbolic atom."
+        """Test reification and reflection of a variable-free normal
+        rule with a symbolic atom."""
         self.assertReifyReflectEqual("rel(2,1) :- rel(1,2).", ["atom.lp"])
 
     def test_reify_nested_function(self):
