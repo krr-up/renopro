@@ -35,7 +35,7 @@ def format(session):
         isort_args.insert(1, "--diff")
     session.run("isort", *isort_args)
 
-    black_args = ["src", "tests"]
+    black_args = ["src", "tests", "-l", "88"]
     if check:
         black_args.insert(0, "--check")
         black_args.insert(1, "--diff")
