@@ -301,9 +301,26 @@ class ReifiedAST:
         self._reified.add(preds.Variable(id=variable1.id, name=node.name))
         return variable1
 
+    @reify_node.register(ASTType.UnaryOperation)
+    def _reify_unary_operation(self, node):
+        clorm_operator = preds.convert_enum(
+            ast.UnaryOperator(node.operator_type), preds.UnaryOperator
+        )
+        unop1 = preds.Unary_Operation1()
+        unop = preds.Unary_Operation(
+            id=unop1.id,
+            operator=clorm_operator,
+            argument=self.reify_node(node.argument),
+        )
+        self._reified.add(unop)
+        return unop1
+
     @reify_node.register(ASTType.BinaryOperation)
     def _reify_binary_operation(self, node):
-        clorm_operator = preds.binary_operator_ast2cl[node.operator_type]
+        clorm_operator = preds.convert_enum(
+            ast.BinaryOperator(node.operator_type),
+            preds.BinaryOperator,
+        )
         binop1 = preds.Binary_Operation1()
         binop = preds.Binary_Operation(
             id=binop1.id,
@@ -357,10 +374,20 @@ class ReifiedAST:
         self._reify_ast_seqence(node.arguments, function.arguments.id, preds.Terms)
         return function1
 
+    @reify_node.register(ASTType.Pool)
+    def _reify_pool(self, node):
+        pool1 = preds.Pool1()
+        pool = preds.Pool(id=pool1.id, arguments=preds.Terms1())
+        self._reified.add(pool)
+        self._reify_ast_seqence(node.arguments, pool.arguments.id, preds.Terms)
+        return pool1
+
     @reify_node.register(ASTType.Guard)
     def _reify_guard(self, node):
         guard1 = preds.Guard1()
-        clorm_operator = preds.comp_operator_ast2cl[node.comparison]
+        clorm_operator = preds.convert_enum(
+            ast.ComparisonOperator(node.comparison), preds.ComparisonOperator
+        )
         guard = preds.Guard(
             id=guard1.id, comparison=clorm_operator, term=self.reify_node(node.term)
         )
@@ -403,7 +430,7 @@ class ReifiedAST:
     @reify_node.register(ASTType.Literal)
     def _reify_literal(self, node):
         lit1 = preds.Literal1()
-        clorm_sign = preds.sign_ast2cl[node.sign]
+        clorm_sign = preds.convert_enum(ast.Sign(node.sign), preds.Sign)
         lit = preds.Literal(id=lit1.id, sig=clorm_sign, atom=self.reify_node(node.atom))
         self._reified.add(lit)
         return lit1
@@ -611,14 +638,26 @@ class ReifiedAST:
         return ast.Variable(location=DUMMY_LOC, name=str(var.name))
 
     @reflect_predicate.register
+    def _reflect_unary_operation(self, operation: preds.Unary_Operation) -> AST:
+        """Reflect a Unary_Operation fact into a UnaryOperation node."""
+        clingo_operator = preds.convert_enum(
+            preds.UnaryOperator(operation.operator), ast.UnaryOperator
+        )
+        return ast.UnaryOperation(
+            location=DUMMY_LOC,
+            operator_type=clingo_operator,
+            argument=self._reflect_child_pred(operation, operation.argument),
+        )
+
+    @reflect_predicate.register
     def _reflect_binary_operation(self, operation: preds.Binary_Operation) -> AST:
         """Reflect a Binary_Operation fact into a BinaryOperation node."""
-        ast_operator = preds.binary_operator_cl2ast[
-            preds.BinaryOperator(operation.operator)
-        ]
+        clingo_operator = preds.convert_enum(
+            preds.BinaryOperator(operation.operator), ast.BinaryOperator
+        )
         return ast.BinaryOperation(
             location=DUMMY_LOC,
-            operator_type=ast_operator,
+            operator_type=clingo_operator,
             left=self._reflect_child_pred(operation, operation.left),
             right=self._reflect_child_pred(operation, operation.right),
         )
@@ -649,10 +688,15 @@ class ReifiedAST:
         )
 
     @reflect_predicate.register
+    def _reflect_pool(self, pool: preds.Pool) -> AST:
+        arg_nodes = self._reflect_child_preds(pool, pool.arguments)
+        return ast.Pool(location=DUMMY_LOC, arguments=arg_nodes)
+
+    @reflect_predicate.register
     def _reflect_guard(self, guard: preds.Guard) -> AST:
-        clingo_operator = preds.comp_operator_cl2ast[
-            preds.ComparisonOperator(guard.comparison)
-        ]
+        clingo_operator = preds.convert_enum(
+            preds.ComparisonOperator(guard.comparison), ast.ComparisonOperator
+        )
         return ast.Guard(
             comparison=clingo_operator, term=self._reflect_child_pred(guard, guard.term)
         )
@@ -692,9 +736,9 @@ class ReifiedAST:
     @reflect_predicate.register
     def _reflect_literal(self, lit: preds.Literal) -> AST:
         """Reflect a Literal fact into a Literal node."""
-        sign = preds.sign_cl2ast[preds.Sign(lit.sig)]
+        clingo_sign = preds.convert_enum(preds.Sign(lit.sig), ast.Sign)
         atom_node = self._reflect_child_pred(lit, lit.atom)
-        return ast.Literal(location=DUMMY_LOC, sign=sign, atom=atom_node)
+        return ast.Literal(location=DUMMY_LOC, sign=clingo_sign, atom=atom_node)
 
     @reflect_predicate.register
     def _reflect_conditional_literal(self, cond_lit: preds.Conditional_Literal) -> AST:

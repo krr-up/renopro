@@ -170,9 +170,17 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
         "Test reification and reflection of a normal rule with an interval term."
         self.assertReifyReflectEqual("a((1..3)).", ["interval.lp"])
 
+    def test_reify_unary_operation(self):
+        "Test reification and reflection of a normal rule with a unary operation."
+        self.assertReifyReflectEqual("neg(-1).", ["unary_operation.lp"])
+
     def test_reify_binary_operation(self):
         "Test reification and reflection of a normal rule with a binary operation."
         self.assertReifyReflectEqual("equal((1+1),2).", ["binary_operation.lp"])
+
+    def test_reify_pool(self):
+        "Test reification and reflection of a normal rule with a pool."
+        self.assertReifyReflectEqual("pool((1;a)).", ["pool.lp"])
 
     def test_reify_comparison(self):
         "Test reification and reflection of a comparison operator"

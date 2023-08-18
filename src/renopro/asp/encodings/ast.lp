@@ -2,10 +2,12 @@
 ast(string(Id,Val)) :- string(Id,Val).
 ast(number(Id,Val)) :- number(Id,Val).
 ast(variable(Id,Name)) :- variable(Id,Name).
+ast(unary_operation(Id,Operator,Argument)) :- unary_operation(Id,Operator,Argument).
 ast(binary_operation(Id,Operator,Left,Right)) :- binary_operation(Id,Operator,Left,Right).
 ast(interval(Id,Left,Right)) :- interval(Id,Left,Right).
 ast(terms(Id,Pos,Element)) :- terms(Id,Pos,Element).
 ast(function(Id,Name,Args)) :- function(Id,Name,Args).
+ast(pool(Id,Args)) :- pool(Id,Args).
 ast(guard(Id,Op,Term)) :- guard(Id,Op,Term).
 ast(guards(Id,Pos,Element))  :- guards(Id,Pos,Element).
 ast(comparison(Id,Guards)) :- comparison(Id,Guards).

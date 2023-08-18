@@ -2,9 +2,8 @@
 import enum
 import inspect
 from itertools import count
-from typing import List, Sequence, Type, Union
+from typing import List, Sequence, Type, TypeVar, Union
 
-from clingo import ast
 from clorm import (
     BaseField,
     ComplexTerm,
@@ -88,58 +87,18 @@ def combine_fields_lazily(
     )
 
 
-# Terms
+# Enum field definitions
 
 
-class String(Predicate):
-    """Predicate representing a string term.
-
-    id: Identifier of the string term.
-    value: Value of string term, a string term itself.
-    """
-
-    id = Identifier_Field(default=lambda: next(id_count))
-    value = StringField
+class UnaryOperator(str, enum.Enum):
+    "String enum of clingo's unary operators."
+    Absolute = "||"  # For taking the absolute value.
+    Minus = "-"  # For unary minus and classical negation.
+    Negation = "~"  # For bitwise negation
 
 
-class String1(ComplexTerm, name="string"):
-    "Term identifying a child string predicate."
-    id = Identifier_Field(default=lambda: next(id_count))
-
-
-class Number(Predicate):
-    """Predicate representing an integer term.
-
-    id: Identifier of the integer term.
-    value: Value of integer term, an integer term itself."""
-
-    id = Identifier_Field(default=lambda: next(id_count))
-    value = IntegerField
-
-
-class Number1(ComplexTerm, name="number"):
-    "Term identifying a child number predicate."
-    id = Identifier_Field(default=lambda: next(id_count))
-
-
-class Variable(Predicate):
-    """Predicate representing a variable term.
-
-    id: Identifier of variable term.
-    value: Value of variable term, a string term.
-    """
-
-    id = Identifier_Field(default=lambda: next(id_count))
-    name = StringField
-
-
-class Variable1(ComplexTerm, name="variable"):
-    "Term identifying a child variable predicate."
-    id = Identifier_Field(default=lambda: next(id_count))
-
-
-TermField = combine_fields_lazily(
-    [String1.Field, Number1.Field, Variable1.Field], name="TermField"
+UnaryOperatorField = define_enum_field(
+    parent_field=StringField, enum_class=UnaryOperator, name="UnaryOperatorField"
 )
 
 
@@ -156,10 +115,159 @@ class BinaryOperator(str, enum.Enum):
     XOr = "^"  # bitwise exclusive or
 
 
-binary_operator_cl2ast = {
-    BinaryOperator[op.name]: ast.BinaryOperator[op.name] for op in ast.BinaryOperator
-}
-binary_operator_ast2cl = {v: k for k, v in binary_operator_cl2ast.items()}
+BinaryOperatorField = define_enum_field(
+    parent_field=StringField, enum_class=BinaryOperator, name="BinaryOperatorField"
+)
+
+
+class ComparisonOperator(str, enum.Enum):
+    """
+    String enumeration of clingo's comparison operators.
+    """
+
+    Equal = "="
+    GreaterEqual = ">="
+    GreaterThan = ">"
+    LessEqual = "<="
+    LessThan = "<"
+    NotEqual = "!="
+
+
+ComparisonOperatorField = define_enum_field(
+    parent_field=StringField,
+    enum_class=ComparisonOperator,
+    name="ComparisonOperatorField",
+)
+
+
+class Sign(str, enum.Enum):
+    """String enum of possible sign of a literal."""
+
+    DoubleNegation = "not not"
+    """
+    For double negated literals (with prefix `not not`)
+    """
+    Negation = "not"
+    """
+    For negative literals (with prefix `not`).
+    """
+    NoSign = "pos"
+    """
+    For positive literals.
+    """
+
+
+SignField = define_enum_field(
+    parent_field=StringField, enum_class=Sign, name="SignField"
+)
+
+
+class AggregateFunction(str, enum.Enum):
+    "String enum of clingo's aggregate functions."
+    Count = "#count"
+    Max = "#max"
+    Min = "#min"
+    Sum = "#sum"
+    SumPlus = "#sum+"
+
+
+AggregateFunctionField = define_enum_field(
+    parent_field=StringField,
+    enum_class=AggregateFunction,
+    name="AggregateFunctionField",
+)
+
+
+A = TypeVar("A", bound=enum.Enum)
+B = TypeVar("B", bound=enum.Enum)
+
+
+def convert_enum(enum_member: A, other_enum: Type[B]) -> B:
+    """Given an enum_member, convert it to the other_enum member of
+    the same name.
+    """
+    # enum_type = type(enum_member)
+    # cast to enum - needed as enum members stored in a clingo AST object
+    # gets cast to it's raw value for some reason
+    # enum_member = enum_type(enum_member)
+    try:
+        return other_enum[enum_member.name]
+    except KeyError as exc:  # nocoverage
+        raise ValueError(
+            f"Enum {other_enum} has no corresponding member with name {enum_member.name}"
+        ) from exc
+
+
+# Terms
+
+
+class String(Predicate):
+    """Predicate representing a string term.
+
+    id: Identifier of the string term.
+    value: Value of string term, a string term itself.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    value = StringField
+
+
+class String1(ComplexTerm, name="string"):
+    "Term identifying a child string fact."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Number(Predicate):
+    """Predicate representing an integer term.
+
+    id: Identifier of the integer term.
+    value: Value of integer term, an integer term itself."""
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    value = IntegerField
+
+
+class Number1(ComplexTerm, name="number"):
+    "Term identifying a child number fact."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Variable(Predicate):
+    """Predicate representing a variable term.
+
+    id: Identifier of variable term.
+    value: Value of variable term, a string term.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    name = StringField
+
+
+class Variable1(ComplexTerm, name="variable"):
+    "Term identifying a child variable fact."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+TermField = combine_fields_lazily(
+    [String1.Field, Number1.Field, Variable1.Field], name="TermField"
+)
+
+
+class Unary_Operation(Predicate):
+    """Predicate representing a unary operation term.
+
+    id: Identifier of the unary operation.
+    operator: A clingo unary operator, in string form.
+    argument: The term argument the unary operator is applied to."""
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    operator = UnaryOperatorField
+    argument = TermField
+
+
+class Unary_Operation1(ComplexTerm, name="unary_operation"):
+    "Term identifying a child unary operation fact."
+    id = Identifier_Field(default=lambda: next(id_count))
 
 
 class Binary_Operation(Predicate):
@@ -172,19 +280,14 @@ class Binary_Operation(Predicate):
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
-    operator = define_enum_field(
-        parent_field=StringField, enum_class=BinaryOperator, name="BinaryOperatorField"
-    )
+    operator = BinaryOperatorField
     left = TermField
     right = TermField
 
 
 class Binary_Operation1(ComplexTerm, name="binary_operation"):
-    "Term identifying a child binary operation predicate."
+    "Term identifying a child binary operation fact."
     id = Identifier_Field(default=lambda: next(id_count))
-
-
-TermField.fields.append(Binary_Operation1.Field)
 
 
 class Interval(Predicate):
@@ -201,11 +304,8 @@ class Interval(Predicate):
 
 
 class Interval1(ComplexTerm, name="interval"):
-    "Term identifying a child interval predicate."
+    "Term identifying a child interval fact."
     id = Identifier_Field(default=lambda: next(id_count))
-
-
-TermField.fields.append(Interval1.Field)
 
 
 class Terms(Predicate):
@@ -233,7 +333,7 @@ class Function(Predicate):
 
     id: Identifier of the function.
     name: Symbolic name of the function, a constant term.
-    arguments: Term tuple predicate identifying the function's arguments.
+    arguments: Term  identifying the function's arguments.
                If there are no elements of the term tuple with a matching
                identifier, the function has no arguments and is thus a constant.
 
@@ -245,39 +345,37 @@ class Function(Predicate):
 
 
 class Function1(ComplexTerm, name="function"):
-    "Term identifying a child function predicate."
+    "Term identifying a child function fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-TermField.fields.append(Function1.Field)
+class Pool(Predicate):
+    """Predicate representing a pool of terms.
+
+    id: Identifier of the pool.
+    arguments: Terms forming the pool."""
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    arguments = Terms1.Field
+
+
+class Pool1(ComplexTerm, name="pool"):
+    "Term identifying a child pool fact."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+TermField.fields.extend(
+    [
+        Unary_Operation1.Field,
+        Binary_Operation1.Field,
+        Interval1.Field,
+        Function1.Field,
+        Pool1.Field,
+    ]
+)
 
 
 # Literals
-
-
-class ComparisonOperator(str, enum.Enum):
-    """
-    String enumeration of clingo's comparison operators.
-    """
-
-    Equal = "="
-    GreaterEqual = ">="
-    GreaterThan = ">"
-    LessEqual = "<="
-    LessThan = "<"
-    NotEqual = "!="
-
-
-comp_operator_cl2ast = {
-    ComparisonOperator[op.name]: ast.ComparisonOperator[op.name]
-    for op in ast.ComparisonOperator
-}
-comp_operator_ast2cl = {v: k for k, v in comp_operator_cl2ast.items()}
-
-
-ComparisonField = define_enum_field(
-    parent_field=StringField, enum_class=ComparisonOperator, name="ComparisonField"
-)
 
 
 class Guard(Predicate):
@@ -288,12 +386,12 @@ class Guard(Predicate):
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
-    comparison = ComparisonField
+    comparison = ComparisonOperatorField
     term = TermField
 
 
 class Guard1(Predicate, name="guard"):
-    "Term identifying a child guard predicate."
+    "Term identifying a child guard fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
@@ -311,7 +409,7 @@ class Guards(Predicate):
 
 
 class Guards1(ComplexTerm, name="guards"):
-    "Term identifying a child guard tuple predicate."
+    "Term identifying a child guard tuple fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
@@ -329,7 +427,7 @@ class Comparison(Predicate):
 
 
 class Comparison1(ComplexTerm, name="comparison"):
-    "Term identifying a child comparison predicate"
+    "Term identifying a child comparison fact"
     id = Identifier_Field(default=lambda: next(id_count))
 
 
@@ -349,7 +447,7 @@ class Boolean_Constant(Predicate):
 
 
 class Boolean_Constant1(ComplexTerm, name="boolean_constant"):
-    "Term identifying a child boolean_constant predicate."
+    "Term identifying a child boolean_constant fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
@@ -365,38 +463,12 @@ class Symbolic_Atom(Predicate):
 
 
 class Symbolic_Atom1(ComplexTerm, name="symbolic_atom"):
-    "Term identifying a child symbolic atom predicate"
+    "Term identifying a child symbolic atom fact"
     id = Identifier_Field(default=lambda: next(id_count))
 
 
 AtomField = combine_fields_lazily(
     [Symbolic_Atom1.Field, Comparison1.Field, Boolean_Constant1.Field], name="AtomField"
-)
-
-
-class Sign(str, enum.Enum):
-    """String enum of possible sign of a literal."""
-
-    DoubleNegation = "not not"
-    """
-    For double negated literals (with prefix `not not`)
-    """
-    Negation = "not"
-    """
-    For negative literals (with prefix `not`).
-    """
-    NoSign = "pos"
-    """
-    For positive literals.
-    """
-
-
-sign_cl2ast = {Sign[op.name]: ast.Sign[op.name] for op in ast.Sign}
-sign_ast2cl = {v: k for k, v in sign_cl2ast.items()}
-
-
-SignField = define_enum_field(
-    parent_field=StringField, enum_class=Sign, name="SignField"
 )
 
 
@@ -415,7 +487,7 @@ class Literal(Predicate):
 
 
 class Literal1(ComplexTerm, name="literal"):
-    "Term identifying a child literal predicate."
+    "Term identifying a child literal fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
@@ -494,29 +566,6 @@ class Aggregate(Predicate):
 class Aggregate1(ComplexTerm, name="aggregate"):
     "Term identifying a child count aggregate."
     id = Identifier_Field(default=lambda: next(id_count))
-
-
-class AggregateFunction(str, enum.Enum):
-    "String enum of clingo's aggregate functions."
-    Count = "#count"
-    Max = "#max"
-    Min = "#min"
-    Sum = "#sum"
-    SumPlus = "#sum+"
-
-
-aggregate_func_cl2ast = {
-    AggregateFunction[op.name]: ast.AggregateFunction[op.name]
-    for op in ast.AggregateFunction
-}
-aggregate_func_ast2cl = {v: k for k, v in aggregate_func_cl2ast.items()}
-
-
-AggregateFunctionField = define_enum_field(
-    parent_field=StringField,
-    enum_class=AggregateFunction,
-    name="AggregateFunctionField",
-)
 
 
 class Body_Agg_Elements(Predicate, name="body_agg_elements"):
@@ -705,7 +754,7 @@ class Rule(Predicate):
 
 
 class Rule1(ComplexTerm, name="rule"):
-    "Term identifying a child rule predicate."
+    "Term identifying a child rule fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
@@ -731,7 +780,7 @@ class External(Predicate):
 
 
 class External1(ComplexTerm, name="external"):
-    "Term identifying a child external predicate."
+    "Term identifying a child external fact."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
@@ -790,10 +839,12 @@ AstPredicate = Union[
     String,
     Number,
     Variable,
+    Unary_Operation,
     Binary_Operation,
     Interval,
     Terms,
     Function,
+    Pool,
     Guard,
     Guards,
     Comparison,
@@ -822,10 +873,12 @@ AstPredicates = [
     String,
     Number,
     Variable,
+    Unary_Operation,
     Binary_Operation,
     Interval,
     Terms,
     Function,
+    Pool,
     Guard,
     Guards,
     Comparison,
