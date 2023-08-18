@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Definitions of AST elements as clorm predicates."""
 import enum
 import inspect

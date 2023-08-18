@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Module implementing reification and de-reification of non-ground programs"""
 import inspect
 import logging
