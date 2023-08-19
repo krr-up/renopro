@@ -14,8 +14,8 @@ number(7,2).
 terms(6,1,number(8)).
 number(8,1).
 % facts representing body literal rel(1,2).
-body_literals(9,0,literal(10)).
-literal(10,"pos",symbolic_atom(11)).
+body_literals(9,0,body_literal(10)).
+body_literal(10,"pos",symbolic_atom(11)).
 symbolic_atom(11,function(12)).
 function(12,rel,terms(13)).
 terms(13,0,number(14)).

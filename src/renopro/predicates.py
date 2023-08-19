@@ -619,40 +619,34 @@ class Body_Aggregate1(Predicate, name="body_aggregate"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-ExtendedBodyAtomField = combine_fields(
-    [Aggregate1.Field, Body_Aggregate1.Field], name="ExtendedBodyAtomField"
+BodyAtomField = combine_fields_lazily(
+    AtomField.fields + [Aggregate1.Field, Body_Aggregate1.Field], name="BodyAtomField"
 )
 
 
-# could not get inheritance to work for predicate definitions.
-# should ask Dave about how to set this up. Ideally Body_Literal
-# would just inherit from Literal and override the atom field.
-
-
-class Extended_Body_Literal(Predicate, name="literal"):
+class Body_Literal(Predicate):
     """Predicate representing a literal occurring in the body of a
-    rule, the atom of which is a (body) aggregate or theory atom.
+    rule.
 
     id: Identifier of the literal.
     sig: Sign of the literal, in string form. Possible values are
          "pos" "not" and "not not".
-    atom: The aggregate or theory atom constituting the literal.
+    atom: The atom constituting the literal.
 
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
     sig = SignField
-    atom = ExtendedBodyAtomField
+    atom = BodyAtomField
 
 
-class Extended_Body_Literal1(Literal, name="literal"):
-    "Term identifying a child body aggregate literal."
+class Body_Literal1(ComplexTerm, name="body_literal"):
+    "Term identifying a child body literal."
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-BodyLiteralField = combine_fields(
-    [Literal1.Field, Conditional_Literal1.Field, Extended_Body_Literal1.Field],
-    name="BodyLiteralField",
+BodyLiteralField = combine_fields_lazily(
+    [Body_Literal1.Field, Conditional_Literal1.Field], name="BodyLiteralField"
 )
 
 
@@ -866,7 +860,7 @@ AstPredicate = Union[
     Aggregate,
     Body_Agg_Elements,
     Body_Aggregate,
-    Extended_Body_Literal,
+    Body_Literal,
     Body_Literals,
     Head_Agg_Elements,
     Head_Aggregate,
@@ -900,7 +894,7 @@ AstPredicates = [
     Aggregate,
     Body_Agg_Elements,
     Body_Aggregate,
-    Extended_Body_Literal,
+    Body_Literal,
     Body_Literals,
     Head_Agg_Elements,
     Head_Aggregate,

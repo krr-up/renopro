@@ -267,14 +267,14 @@ class TestReifyReflectAggTheory(TestReifyReflect):
     theory atoms."""
 
     def test_reify_aggregate(self):
-        "Test reification of a simple count aggregate."
+        "Test reification and reflection of a simple count aggregate."
         with self.subTest(operation="reify"):
             self.assertReifyEqual("1 {a: b; c}.", ["aggregate.lp"])
         with self.subTest(operation="reflect"):
             self.assertReflectEqual("1 <= { a: b; c }.", ["aggregate.lp"])
 
     def test_reify_head_aggregate(self):
-        "Test reification of a head aggregate."
+        "Test reification and reflection of a head aggregate."
         with self.subTest(operation="reify"):
             self.assertReifyEqual(
                 "#sum { 1,2: a: not b; 3: c } = 4.", ["head_aggregate.lp"]
@@ -285,14 +285,14 @@ class TestReifyReflectAggTheory(TestReifyReflect):
             )
 
     def test_reify_body_aggregate(self):
-        "Test reification of a head aggregate."
+        "Test reification and reflection of a body aggregate."
         with self.subTest(operation="reify"):
             self.assertReifyEqual(
-                ":- #sum+ { 1,2: not b; 3: c } != 4.", ["body_aggregate.lp"]
+                ":- #sum+ { 1,2: not a; 3: b } != 4.", ["body_aggregate.lp"]
             )
         with self.subTest(operation="reflect"):
             self.assertReflectEqual(
-                ":- 4 != #sum+ { 1,2: not b; 3: c }.", ["body_aggregate.lp"]
+                "#false :- 4 != #sum+ { 1,2: not a; 3: b }.", ["body_aggregate.lp"]
             )
 
 

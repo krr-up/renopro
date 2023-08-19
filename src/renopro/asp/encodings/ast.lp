@@ -13,13 +13,14 @@ ast(guards(Id,Pos,Element))  :- guards(Id,Pos,Element).
 ast(comparison(Id,Guards)) :- comparison(Id,Guards).
 ast(boolean_constant(Id,Bool)) :- boolean_constant(Id,Bool).
 ast(symbolic_atom(Id,Symbol)) :- symbolic_atom(Id,Symbol).
-ast(literal(Id,Sign,Function)) :- literal(Id,Sign,Function).
+ast(literal(Id,Sign,Atom)) :- literal(Id,Sign,Atom).
 ast(literals(Id,Pos,Element)) :- literals(Id,Pos,Element).
 ast(conditional_literal(Id,Literal,Condition)) :- conditional_literal(Id,Literal,Condition).
 ast(agg_elements(Id,Pos,Element)) :- agg_elements(Id,Pos,Element).
 ast(aggregate(Id,LGuard,Elements,RGuard)) :- aggregate(Id,LGuard,Elements,RGuard).
 ast(body_agg_elements(Id,Pos,Terms,Condition)) :- body_agg_elements(Id,Pos,Terms,Condition).
 ast(body_aggregate(Id,LGuard,Elements,RGuard)) :- body_aggregate(Id,LGuard,Elements,RGuard).
+ast(body_literal(Id,Sign,Atom)) :- body_literal(Id,Sign,Atom).
 ast(body_literals(Id,Pos,Element)) :- body_literals(Id,Pos,Element).
 ast(head_agg_elements(Id,Pos,Terms,Condition)) :- head_agg_elements(Id,Pos,Terms,Condition).
 ast(head_aggregate(Id,LGuard,Elements,RGuard)) :- head_aggregate(Id,LGuard,Elements,RGuard).

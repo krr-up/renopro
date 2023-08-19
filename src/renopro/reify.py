@@ -420,8 +420,8 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.Literal)
     def _reify_literal(self, node):
-        lit1 = preds.Literal1()
         clorm_sign = preds.convert_enum(ast.Sign(node.sign), preds.Sign)
+        lit1 = preds.Literal1()
         lit = preds.Literal(id=lit1.id, sig=clorm_sign, atom=self.reify_node(node.atom))
         self._reified.add(lit)
         return lit1
@@ -537,6 +537,26 @@ class ReifiedAST:
         self._reified.add(agg)
         return agg1
 
+    def _reify_body_literals(self, body_lits: Sequence[ast.AST], body_id):
+        reified_body_lits = []
+        for pos, lit in enumerate(body_lits, start=0):
+            if lit.ast_type is ast.ASTType.ConditionalLiteral:
+                cond_lit1 = self.reify_node(lit)
+                reified_body_lits.append(
+                    preds.Body_Literals(id=body_id, position=pos, element=cond_lit1)
+                )
+            else:
+                body_lit1 = preds.Body_Literal1()
+                reified_body_lits.append(
+                    preds.Body_Literals(id=body_id, position=pos, element=body_lit1)
+                )
+                clorm_sign = preds.convert_enum(ast.Sign(lit.sign), preds.Sign)
+                body_lit = preds.Body_Literal(
+                    id=body_lit1.id, sig=clorm_sign, atom=self.reify_node(lit.atom)
+                )
+                self._reified.add(body_lit)
+        self._reified.add(reified_body_lits)
+
     @reify_node.register(ASTType.Rule)
     def _reify_rule(self, node):
         rule1 = preds.Rule1()
@@ -552,7 +572,7 @@ class ReifiedAST:
         )
         self._reified.add(statement_tup)
         self._statement_pos += 1
-        self._reify_ast_seqence(node.body, rule.body.id, preds.Body_Literals)
+        self._reify_body_literals(node.body, rule.body.id)
 
     @reify_node.register(ASTType.Program)
     def _reify_program(self, node):
@@ -588,7 +608,7 @@ class ReifiedAST:
         )
         self._reified.add(statement_tup)
         self._statement_pos += 1
-        self._reify_ast_seqence(node.body, external.body.id, preds.Body_Literals)
+        self._reify_body_literals(node.body, external.body.id)
 
     def _reflect_child_pred(self, parent_fact, child_id_fact, optional=False):
         """Utility function that takes a unary ast predicate
@@ -626,7 +646,7 @@ class ReifiedAST:
             raise ChildQueryError(msg)
         raise RuntimeError("Code should be unreachable.")  # nocoverage
 
-    def _get_childs_preds(self, parent_fact, children_id_fact):
+    def get_child_facts(self, parent_fact, children_id_fact):
         """Query factbase to retrieve all tuple facts identified by children_id_fact."""
         identifier = children_id_fact.id
         child_ast_pred = getattr(preds, type(children_id_fact).__name__.rstrip("1"))
@@ -653,10 +673,10 @@ class ReifiedAST:
         child facts.
 
         """
-        tuples = self._get_childs_preds(parent_fact, children_id_fact)
+        child_facts = self.get_child_facts(parent_fact, children_id_fact)
         child_nodes = []
-        for tup in tuples:
-            child_nodes.append(self._reflect_child_pred(tup, tup.element))
+        for fact in child_facts:
+            child_nodes.append(self._reflect_child_pred(fact, fact.element))
         return child_nodes
 
     @singledispatchmethod
@@ -820,7 +840,7 @@ class ReifiedAST:
         reflected_agg_function = preds.convert_enum(
             preds.AggregateFunction(aggregate.function), ast.AggregateFunction
         )
-        elements = self._get_childs_preds(aggregate, aggregate.elements)
+        elements = self.get_child_facts(aggregate, aggregate.elements)
         reflected_elements = []
         for e in elements:
             reflected_terms = self._reflect_child_preds(e, e.terms)
@@ -842,6 +862,10 @@ class ReifiedAST:
         )
 
     @reflect_predicate.register
+    def _reflect_body_literal(self, body_lit: preds.Body_Literal) -> AST:
+        return self._reflect_literal(body_lit)
+
+    @reflect_predicate.register
     def _reflect_head_aggregate(self, aggregate: preds.Head_Aggregate) -> AST:
         reflected_left_guard = self._reflect_child_pred(
             aggregate, aggregate.left_guard, optional=True
@@ -849,7 +873,7 @@ class ReifiedAST:
         reflected_agg_function = preds.convert_enum(
             preds.AggregateFunction(aggregate.function), ast.AggregateFunction
         )
-        elements = self._get_childs_preds(aggregate, aggregate.elements)
+        elements = self.get_child_facts(aggregate, aggregate.elements)
         reflected_elements = []
         for e in elements:
             reflected_terms = self._reflect_child_preds(e, e.terms)

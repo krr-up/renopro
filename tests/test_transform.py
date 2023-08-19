@@ -13,7 +13,7 @@ class TestTransform(TestCase):
 
     base_str = "#program base.\n"
 
-    def test_transform_add_literal(self):
+    def test_transform_not_bad(self):
         """Test adding an additional literal to the body of rules.
 
         Desired outcome: for something to be good, we want to require

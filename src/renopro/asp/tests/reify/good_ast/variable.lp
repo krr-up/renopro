@@ -14,8 +14,8 @@ variable(7,"Y").
 terms(6,1,variable(8)).
 variable(8,"X").
 % facts representing body literal rel(X,Y).
-body_literals(9,0,literal(10)).
-literal(10,"pos",symbolic_atom(11)).
+body_literals(9,0,body_literal(10)).
+body_literal(10,"pos",symbolic_atom(11)).
 symbolic_atom(11,function(12)).
 function(12,rel,terms(13)).
 terms(13,0,variable(14)).
