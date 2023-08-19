@@ -537,7 +537,7 @@ class Agg_Elements(Predicate, name="agg_elements"):
 
     id: Identifier of the tuple.
     position: Integer representing position of the element the tuple, ordered by <.
-    element:  The conditional literal forming the element.
+    element: The conditional literal constituting the element of the aggregate.
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
@@ -733,7 +733,7 @@ class Disjunction(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = combine_fields([Literal1.Field, Conditional_Literal1.Field])
+    element = Conditional_Literal1.Field
 
 
 class Disjunction1(ComplexTerm, name="disjunction"):

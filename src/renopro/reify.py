@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Module implementing reification and de-reification of non-ground programs"""
 import inspect
 import logging
@@ -461,25 +462,87 @@ class ReifiedAST:
         self._reified.add(count_agg)
         return count_agg1
 
+    @reify_node.register(ASTType.BodyAggregate)
+    def _reify_body_aggregate(self, node) -> preds.Body_Aggregate1:
+        agg1 = preds.Body_Aggregate1()
+        left_guard = (
+            preds.Guard1()
+            if node.left_guard is None
+            else self.reify_node(node.left_guard)
+        )
+        clorm_agg_func = preds.convert_enum(
+            ast.AggregateFunction(node.function), preds.AggregateFunction
+        )
+        elements1 = preds.Body_Agg_Elements1()
+        reified_elements = []
+        for pos, element in enumerate(node.elements):
+            terms1 = preds.Terms1()
+            self._reify_ast_seqence(element.terms, terms1.id, preds.Terms)
+            literals1 = preds.Literals1()
+            self._reify_ast_seqence(element.condition, literals1.id, preds.Literals)
+            reified_element = preds.Body_Agg_Elements(
+                id=elements1.id, position=pos, terms=terms1, condition=literals1
+            )
+            reified_elements.append(reified_element)
+        self._reified.add(reified_elements)
+        right_guard = (
+            preds.Guard1()
+            if node.right_guard is None
+            else self.reify_node(node.right_guard)
+        )
+        agg = preds.Body_Aggregate(
+            id=agg1.id,
+            left_guard=left_guard,
+            function=clorm_agg_func,
+            elements=elements1,
+            right_guard=right_guard,
+        )
+        self._reified.add(agg)
+        return agg1
+
+    @reify_node.register(ASTType.HeadAggregate)
+    def _reify_head_aggregate(self, node) -> preds.Head_Aggregate1:
+        agg1 = preds.Head_Aggregate1()
+        left_guard = (
+            preds.Guard1()
+            if node.left_guard is None
+            else self.reify_node(node.left_guard)
+        )
+        clorm_agg_func = preds.convert_enum(
+            ast.AggregateFunction(node.function), preds.AggregateFunction
+        )
+        elements1 = preds.Head_Agg_Elements1()
+        reified_elements = []
+        for pos, element in enumerate(node.elements):
+            terms1 = preds.Terms1()
+            self._reify_ast_seqence(element.terms, terms1.id, preds.Terms)
+            cond_lit1 = self.reify_node(element.condition)
+            reified_element = preds.Head_Agg_Elements(
+                id=elements1.id, position=pos, terms=terms1, condition=cond_lit1
+            )
+            reified_elements.append(reified_element)
+        self._reified.add(reified_elements)
+        right_guard = (
+            preds.Guard1()
+            if node.right_guard is None
+            else self.reify_node(node.right_guard)
+        )
+        agg = preds.Head_Aggregate(
+            id=agg1.id,
+            left_guard=left_guard,
+            function=clorm_agg_func,
+            elements=elements1,
+            right_guard=right_guard,
+        )
+        self._reified.add(agg)
+        return agg1
+
     @reify_node.register(ASTType.Rule)
     def _reify_rule(self, node):
         rule1 = preds.Rule1()
         if node.head.ast_type is ASTType.Disjunction:
             head = preds.Disjunction1()
-            # the clingo ast represents literals in a disjunction as a
-            # conditional literal with an empty condition. We represent
-            # these explicitly as a Literal fact.
-            reified_elements = [
-                self.reify_node(cond_lit.literal)
-                if len(cond_lit.condition) == 0
-                else self.reify_node(cond_lit)
-                for cond_lit in node.head.elements
-            ]
-            disjunction = [
-                preds.Disjunction(id=head.id, position=pos, element=e)
-                for pos, e in enumerate(reified_elements, start=0)
-            ]
-            self._reified.add(disjunction)
+            self._reify_ast_seqence(node.head.elements, head.id, preds.Disjunction)
         else:
             head = self.reify_node(node.head)
         rule = preds.Rule(id=rule1.id, head=head, body=preds.Body_Literals1())
@@ -737,15 +800,74 @@ class ReifiedAST:
 
     @reflect_predicate.register
     def _reflect_aggregate(self, aggregate: preds.Aggregate) -> AST:
+        reflected_elements = self._reflect_child_preds(aggregate, aggregate.elements)
         return ast.Aggregate(
             location=DUMMY_LOC,
             left_guard=self._reflect_child_pred(
                 aggregate, aggregate.left_guard, optional=True
             ),
-            elements=self._reflect_child_preds(aggregate, aggregate.elements),
+            elements=reflected_elements,
             right_guard=self._reflect_child_pred(
                 aggregate, aggregate.right_guard, optional=True
             ),
+        )
+
+    @reflect_predicate.register
+    def _reflect_body_aggregate(self, aggregate: preds.Body_Aggregate) -> AST:
+        reflected_left_guard = self._reflect_child_pred(
+            aggregate, aggregate.left_guard, optional=True
+        )
+        reflected_agg_function = preds.convert_enum(
+            preds.AggregateFunction(aggregate.function), ast.AggregateFunction
+        )
+        elements = self._get_childs_preds(aggregate, aggregate.elements)
+        reflected_elements = []
+        for e in elements:
+            reflected_terms = self._reflect_child_preds(e, e.terms)
+            reflected_literals = self._reflect_child_preds(e, e.condition)
+            reflected_elements.append(
+                ast.BodyAggregateElement(
+                    terms=reflected_terms, condition=reflected_literals
+                )
+            )
+        reflected_right_guard = self._reflect_child_pred(
+            aggregate, aggregate.right_guard, optional=True
+        )
+        return ast.BodyAggregate(
+            location=DUMMY_LOC,
+            left_guard=reflected_left_guard,
+            function=reflected_agg_function,
+            elements=reflected_elements,
+            right_guard=reflected_right_guard,
+        )
+
+    @reflect_predicate.register
+    def _reflect_head_aggregate(self, aggregate: preds.Head_Aggregate) -> AST:
+        reflected_left_guard = self._reflect_child_pred(
+            aggregate, aggregate.left_guard, optional=True
+        )
+        reflected_agg_function = preds.convert_enum(
+            preds.AggregateFunction(aggregate.function), ast.AggregateFunction
+        )
+        elements = self._get_childs_preds(aggregate, aggregate.elements)
+        reflected_elements = []
+        for e in elements:
+            reflected_terms = self._reflect_child_preds(e, e.terms)
+            reflected_cond_lit = self._reflect_child_pred(e, e.condition)
+            reflected_elements.append(
+                ast.HeadAggregateElement(
+                    terms=reflected_terms, condition=reflected_cond_lit
+                )
+            )
+        reflected_right_guard = self._reflect_child_pred(
+            aggregate, aggregate.right_guard, optional=True
+        )
+        return ast.HeadAggregate(
+            location=DUMMY_LOC,
+            left_guard=reflected_left_guard,
+            function=reflected_agg_function,
+            elements=reflected_elements,
+            right_guard=reflected_right_guard,
         )
 
     @reflect_predicate.register

@@ -202,7 +202,7 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
 
     def test_reify_disjunction(self):
         "Test reification and reflection of a disjunction."
-        self.assertReifyReflectEqual("a(X); b(X): c(X) :- d(X).", ["disjunction.lp"])
+        self.assertReifyReflectEqual("a; b: c, not d.", ["disjunction.lp"])
 
     def test_reify_node_failure(self):
         """Reification for any object not of type clingo.ast.AST or
@@ -269,9 +269,31 @@ class TestReifyReflectAggTheory(TestReifyReflect):
     def test_reify_aggregate(self):
         "Test reification of a simple count aggregate."
         with self.subTest(operation="reify"):
-            self.assertReifyEqual("1 {a(X): b(X); c} :- d(X).", ["aggregate.lp"])
+            self.assertReifyEqual("1 {a: b; c}.", ["aggregate.lp"])
         with self.subTest(operation="reflect"):
-            self.assertReflectEqual("1 <= { a(X): b(X); c } :- d(X).", ["aggregate.lp"])
+            self.assertReflectEqual("1 <= { a: b; c }.", ["aggregate.lp"])
+
+    def test_reify_head_aggregate(self):
+        "Test reification of a head aggregate."
+        with self.subTest(operation="reify"):
+            self.assertReifyEqual(
+                "#sum { 1,2: a: not b; 3: c } = 4.", ["head_aggregate.lp"]
+            )
+        with self.subTest(operation="reflect"):
+            self.assertReflectEqual(
+                "4 = #sum { 1,2: a: not b; 3: c }.", ["head_aggregate.lp"]
+            )
+
+    def test_reify_body_aggregate(self):
+        "Test reification of a head aggregate."
+        with self.subTest(operation="reify"):
+            self.assertReifyEqual(
+                ":- #sum+ { 1,2: not b; 3: c } != 4.", ["body_aggregate.lp"]
+            )
+        with self.subTest(operation="reflect"):
+            self.assertReflectEqual(
+                ":- 4 != #sum+ { 1,2: not b; 3: c }.", ["body_aggregate.lp"]
+            )
 
 
 class TestReifyReflectStatements(TestReifyReflect):

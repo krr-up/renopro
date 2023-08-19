@@ -1,34 +1,24 @@
 % reified fact representation of program:
 % #program base.
-% 1 <= {a(X): b(X); c} :- d(X).
+% 1 <= { a: b; c }.
 
 program("base",constants(0),statements(1)).
 statements(1,0,rule(2)).
-rule(2,aggregate(3),body_literals(26)).
-aggregate(3,guard(4),agg_elements(6),guard(25)).
+rule(2,aggregate(3),body_literals(24)).
+aggregate(3,guard(4),agg_elements(6),guard(23)).
 guard(4,"<=",number(5)).
 number(5,1).
 agg_elements(6,0,conditional_literal(7)).
-conditional_literal(7,literal(8),literals(13)).
+conditional_literal(7,literal(8),literals(12)).
 literal(8,"pos",symbolic_atom(9)).
 symbolic_atom(9,function(10)).
 function(10,a,terms(11)).
-terms(11,0,variable(12)).
-variable(12,"X").
-literals(13,0,literal(14)).
-literal(14,"pos",symbolic_atom(15)).
-symbolic_atom(15,function(16)).
-function(16,b,terms(17)).
-terms(17,0,variable(18)).
-variable(18,"X").
-agg_elements(6,1,conditional_literal(19)).
-conditional_literal(19,literal(20),literals(24)).
-literal(20,"pos",symbolic_atom(21)).
-symbolic_atom(21,function(22)).
-function(22,c,terms(23)).
-body_literals(26,0,literal(27)).
-literal(27,"pos",symbolic_atom(28)).
-symbolic_atom(28,function(29)).
-function(29,d,terms(30)).
-terms(30,0,variable(31)).
-variable(31,"X").
+literals(12,0,literal(13)).
+literal(13,"pos",symbolic_atom(14)).
+symbolic_atom(14,function(15)).
+function(15,b,terms(16)).
+agg_elements(6,1,conditional_literal(17)).
+conditional_literal(17,literal(18),literals(22)).
+literal(18,"pos",symbolic_atom(19)).
+symbolic_atom(19,function(20)).
+function(20,c,terms(21)).
