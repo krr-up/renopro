@@ -86,9 +86,9 @@ def get_parser() -> ArgumentParser:
     transform_parser.add_argument(
         "--meta-encoding",
         "-m",
+        action="append",
         type=Path,
         help="Meta-encoding to be applied to reified facts.",
-        nargs="+",
         required=True,
     )
     transform_parser.add_argument(
