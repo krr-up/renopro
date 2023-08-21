@@ -30,8 +30,64 @@ pip install renopro
 
 ## Usage
 
+The tool is separated into distinct subcommands. Each expects file
+paths as positional input, and defaults to reading from stdin in their
+absence.
+
+For more information on command line usage, consult command line help.
+
 ```shell
-renopro -h
+$ renopro -h
+```
+
+### reify
+
+Reify the logic program "a." into a set of facts describing it's AST.
+
+```shell
+$ echo "a." | renopro reify > a.lp
+$ cat a.lp
+program("base",constants(0),statements(1)).
+function(5,a,terms(6)).
+symbolic_atom(4,function(5)).
+literal(3,"pos",symbolic_atom(4)).
+rule(2,literal(3),body_literals(7)).
+statements(1,0,rule(2)).
+```
+
+### reflect
+
+Reflect the set of facts generated above back.
+
+```shell
+$ renopro a.lp reflect
+
+#program base.
+a.
+```
+
+### transform
+
+Apply an AST transformation which replaces all *a* symbols with a *b*
+symbol.  The input and output format of the transformation can be set
+to reified facts or a reflected program via --input-format/-i and
+--output-format/-o, respectively.
+
+```shell
+$ echo "ast_operation(delete(function(Id,a,Terms));add(function(Id,b,Terms))) :- function(Id,a,Terms)." > meta.lp
+$ echo "a." | renopro transform -m meta.lp
+#program base.
+b.
+$ renopro a.lp transform --input-format reified -m meta.lp
+#program base.
+b.
+$ echo "a." | renopro transform --output-format reified -m meta.lp
+function(5,b,terms(6)).
+literal(3,"pos",symbolic_atom(4)).
+program("base",constants(0),statements(1)).
+rule(2,literal(3),body_literals(7)).
+statements(1,0,rule(2)).
+symbolic_atom(4,function(5)).
 ```
 
 ## Development

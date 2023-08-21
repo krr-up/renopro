@@ -4,7 +4,8 @@ The command line parser for the project.
 
 import logging
 import sys
-from argparse import ArgumentParser, FileType
+from argparse import ArgumentParser
+from pathlib import Path
 from textwrap import dedent
 from typing import Any, cast
 
@@ -58,7 +59,7 @@ def get_parser() -> ArgumentParser:
         "--version", "-v", action="version", version=f"%(prog)s {VERSION}"
     )
 
-    parser.add_argument("infiles", nargs="*", type=FileType("r"))
+    parser.add_argument("infiles", nargs="*", type=Path)
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -85,7 +86,7 @@ def get_parser() -> ArgumentParser:
     transform_parser.add_argument(
         "--meta-encoding",
         "-m",
-        type=FileType("r"),
+        type=Path,
         help="Meta-encoding to be applied to reified facts.",
         nargs="+",
         required=True,

@@ -28,15 +28,11 @@ def main():
         print(rast.program_string)
 
     elif args.command == "transform":
-        if args.input_format == "refied":
+        if args.input_format == "reified":
             rast.add_reified_files(args.infiles)
         elif args.input_format == "reflected":
             rast.reify_files(args.infiles)
-        meta_str = ""
-        for opened_file in args.meta_encoding:
-            contents = opened_file.read()
-            meta_str += contents
-        rast.transform(meta_str=meta_str)
+        rast.transform(meta_files=args.meta_encoding)
         if args.output_format == "reified":
             print(rast.reified_string)
         elif args.output_format == "reflected":
