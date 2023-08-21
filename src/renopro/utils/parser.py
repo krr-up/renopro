@@ -4,7 +4,7 @@ The command line parser for the project.
 
 import logging
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, FileType
 from textwrap import dedent
 from typing import Any, cast
 
@@ -27,7 +27,7 @@ def get_parser() -> ArgumentParser:
         description=dedent(
             """\
             renopro:
-            A tool for reification of non-ground clingo programs.
+            A tool for reification and reflection of non-ground clingo programs.
             """
         ),
     )
@@ -58,13 +58,57 @@ def get_parser() -> ArgumentParser:
         "--version", "-v", action="version", version=f"%(prog)s {VERSION}"
     )
 
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--reify", "-r", action="store_true")
-    group.add_argument("--reflect", "-R", action="store_true")
-    group.add_argument("--transform", "-t", action="store_true")
+    parser.add_argument("infiles", nargs="*", type=FileType("r"))
 
-    parser.add_argument("string", type=str)
+    subparsers = parser.add_subparsers(dest="command")
 
-    parser.add_argument("--files", "-f", nargs="?")
+    reify_parser = subparsers.add_parser(
+        "reify", help="Reify input program into ASP facts."
+    )
+    reify_parser.add_argument(
+        "--commented",
+        "-c",
+        action="store_true",
+        help=(
+            "When reifying, print documentation of predicates occurring in the "
+            "output as ASP comments."
+        ),
+    )
+    subparsers.add_parser(
+        "reflect",
+        help="Reflect input reified facts into their program string representation.",
+    )
+    transform_parser = subparsers.add_parser(
+        "transform",
+        help="Apply AST transformation to input reified facts via a meta-encoding.",
+    )
+    transform_parser.add_argument(
+        "--meta-encoding",
+        "-m",
+        type=FileType("r"),
+        help="Meta-encoding to be applied to reified facts.",
+        nargs="+",
+        required=True,
+    )
+    transform_parser.add_argument(
+        "--input-format",
+        "-i",
+        help=(
+            "Format of input to be transformed, either reified facts or a"
+            "(reflected) program."
+        ),
+        choices=["reified", "reflected"],
+        default="reflected",
+    )
+    transform_parser.add_argument(
+        "--output-format",
+        "-o",
+        help=(
+            "Format of output to be printed after transformation, either "
+            "reified facts or a (reflected) program."
+        ),
+        choices=["reified", "reflected"],
+        default="reflected",
+    )
 
     return parser

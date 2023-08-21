@@ -54,7 +54,7 @@ class ChildrenQueryError(Exception):
 
 class TryUnify(AbstractContextManager):
     """Context manager to try some operation that requires unification
-    of some set of ast facts. Enhance error message if unification fails
+    of some set of ast facts. Enhance error message if unification fails.
     """
 
     def __exit__(self, exc_type, exc_value, traceback):

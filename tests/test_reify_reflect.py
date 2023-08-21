@@ -9,11 +9,11 @@ from clingo.ast import parse_string
 from clorm import FactBase, Predicate, UnifierNoMatchError
 
 import renopro.predicates as preds
-from renopro.reify import ChildQueryError, ChildrenQueryError, ReifiedAST
+from renopro.rast import ChildQueryError, ChildrenQueryError, ReifiedAST
 
-reify_files = Path("src", "renopro", "asp", "tests", "reify")
-good_reify_files = reify_files / "good_ast"
-malformed_reify_files = reify_files / "malformed_ast"
+test_files = Path("src", "renopro", "asp", "tests", "reify_reflect")
+well_formed_ast_files = test_files / "well_formed_ast"
+malformed_ast_files = test_files / "malformed_ast"
 
 
 class TestReifiedAST(TestCase):
@@ -78,7 +78,7 @@ class TestReifiedASTInterface(TestReifiedAST):
     def test_reified_files(self):
         """Test adding of reified facts from files to reified facts of a ReifiedAST."""
         rast = ReifiedAST()
-        rast.add_reified_files([malformed_reify_files / "ast_fact.lp"])
+        rast.add_reified_files([malformed_ast_files / "ast_fact.lp"])
         fb = FactBase([preds.Symbolic_Atom(id=12, symbol=preds.Function1(id=13))])
         self.assertSetEqual(rast.reified_facts, fb)
 
@@ -93,7 +93,7 @@ class TestReifyReflect(TestReifiedAST):
         self, prog_str: str, ast_fact_files: List[str]
     ):  # pylint: disable=invalid-name
         "Assert that reification of prog_str results in ast_facts."
-        ast_fact_files_str = [(good_reify_files / f) for f in ast_fact_files]
+        ast_fact_files_str = [(well_formed_ast_files / f) for f in ast_fact_files]
         rast1 = ReifiedAST()
         rast1.reify_string(prog_str)
         reified_facts = rast1.reified_facts
@@ -106,7 +106,7 @@ class TestReifyReflect(TestReifiedAST):
         self, prog_str: str, ast_fact_files: List[str]
     ):  # pylint: disable=invalid-name
         "Assert that reflection of ast_facts results in prog_str."
-        ast_fact_files_str = [(good_reify_files / f) for f in ast_fact_files]
+        ast_fact_files_str = [(well_formed_ast_files / f) for f in ast_fact_files]
         rast = ReifiedAST()
         rast.add_reified_files(ast_fact_files_str)
         rast.reflect()
@@ -130,7 +130,7 @@ class TestReifyReflect(TestReifiedAST):
 class TestReifyReflectNormalPrograms(TestReifyReflect):
     """Test cases for reification and reflection of normal logic programs."""
 
-    def test_reify_prop_fact(self):
+    def test_rast_prop_fact(self):
         "Test reification and reflection of a propositional fact."
         self.assertReifyReflectEqual("a.", ["prop_fact.lp"])
         rast = ReifiedAST()
@@ -142,69 +142,69 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
         rast.reflect()
         self.assertEqual(rast.program_ast, statements)
 
-    def test_reify_prop_normal_rule(self):
+    def test_rast_prop_normal_rule(self):
         """Test reification and reflection of a normal rule containing
         only propositional atoms."""
         self.assertReifyReflectEqual("a :- b; not c.", ["prop_normal_rule.lp"])
 
-    def test_reify_function(self):
+    def test_rast_function(self):
         """Test reification and reflection of a variable-free normal
         rule with a symbolic atom."""
         self.assertReifyReflectEqual("rel(2,1) :- rel(1,2).", ["atom.lp"])
 
-    def test_reify_nested_function(self):
+    def test_rast_nested_function(self):
         "Test reification and reflection of a rule with a function term."
         self.assertReifyReflectEqual("next(move(a)).", ["function.lp"])
 
-    def test_reify_variable(self):
+    def test_rast_variable(self):
         "Test reification and reflection of normal rule with variable terms."
         self.assertReifyReflectEqual("rel(Y,X) :- rel(X,Y).", ["variable.lp"])
 
-    def test_reify_string(self):
+    def test_rast_string(self):
         "Test reification and reflection of normal rule with a string term."
         self.assertReifyReflectEqual('yummy("carrot").', ["string.lp"])
 
-    def test_reify_constant_term(self):
+    def test_rast_constant_term(self):
         "Test reification and reflection of a normal rule with constant term."
         self.assertReifyReflectEqual("good(human).", ["constant_term.lp"])
 
-    def test_reify_interval(self):
+    def test_rast_interval(self):
         "Test reification and reflection of a normal rule with an interval term."
         self.assertReifyReflectEqual("a((1..3)).", ["interval.lp"])
 
-    def test_reify_unary_operation(self):
+    def test_rast_unary_operation(self):
         "Test reification and reflection of a normal rule with a unary operation."
         self.assertReifyReflectEqual("neg(-1).", ["unary_operation.lp"])
 
-    def test_reify_binary_operation(self):
+    def test_rast_binary_operation(self):
         "Test reification and reflection of a normal rule with a binary operation."
         self.assertReifyReflectEqual("equal((1+1),2).", ["binary_operation.lp"])
 
-    def test_reify_pool(self):
+    def test_rast_pool(self):
         "Test reification and reflection of a normal rule with a pool."
         self.assertReifyReflectEqual("pool((1;a)).", ["pool.lp"])
 
-    def test_reify_comparison(self):
+    def test_rast_comparison(self):
         "Test reification and reflection of a comparison operator"
         self.assertReifyReflectEqual("1 < 2 != 3 > 4.", ["comparison.lp"])
 
-    def test_reify_boolean_constant(self):
+    def test_rast_boolean_constant(self):
         "Test reification and reflection of a boolean constant."
         self.assertReifyReflectEqual("#false.\n#true.", ["bool_const.lp"])
 
-    def test_reify_integrity_constraint(self):
+    def test_rast_integrity_constraint(self):
         "Test reification and reflection of an integrity constraint."
         self.assertReifyEqual(":- a.", ["integrity_constraint.lp"])
 
-    def test_reify_conditional_literal(self):
+    def test_rast_conditional_literal(self):
         "Test reification and reflection of a conditional literal."
         self.assertReifyReflectEqual("a :- b: c, d.", ["conditional_literal.lp"])
 
-    def test_reify_disjunction(self):
+    def test_rast_disjunction(self):
         "Test reification and reflection of a disjunction."
         self.assertReifyReflectEqual("a; b: c, not d.", ["disjunction.lp"])
 
-    def test_reify_node_failure(self):
+    def test_rast_node_failure(self):
         """Reification for any object not of type clingo.ast.AST or
         clingo.symbol.Symbol should raise a TypeError."""
         rast = ReifiedAST()
@@ -219,7 +219,7 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
 
         """
         rast = ReifiedAST()
-        rast.add_reified_files([malformed_reify_files / "missing_child.lp"])
+        rast.add_reified_files([malformed_ast_files / "missing_child.lp"])
         regex = r"(?s).*atom\(4,function\(5\)\).*function\(5\).*found none.*"
         with self.assertRaisesRegex(ChildQueryError, expected_regex=regex):
             rast.reflect()
@@ -231,7 +231,7 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
 
         """
         rast = ReifiedAST()
-        rast.add_reified_files([malformed_reify_files / "multiple_child.lp"])
+        rast.add_reified_files([malformed_ast_files / "multiple_child.lp"])
         regex = r"(?s).*atom\(4,function\(5\)\).*function\(5\).*found multiple.*"
         with self.assertRaisesRegex(ChildQueryError, expected_regex=regex):
             rast.reflect()
@@ -240,7 +240,7 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
         """Refection of a child tuple with multiple elements in the
         same position should fail"""
         rast = ReifiedAST()
-        rast.add_reified_files([malformed_reify_files / "multiple_in_same_pos.lp"])
+        rast.add_reified_files([malformed_ast_files / "multiple_in_same_pos.lp"])
         regex = (
             r"(?s).*comparison\(4,number\(5\),guards\(6\)\).*"
             r"multiple tuple elements in same position.*guards\(6\)"
@@ -251,9 +251,7 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
     def test_comparison_no_guard_found(self):
         """Reflection of a comparison fact with an empty guard tuple should fail."""
         rast = ReifiedAST()
-        rast.add_reified_files(
-            [malformed_reify_files / "missing_guard_in_comparison.lp"]
-        )
+        rast.add_reified_files([malformed_ast_files / "missing_guard_in_comparison.lp"])
         regex = (
             r"(?s).*comparison\(4,number\(5\),guards\(6\)\).*"
             r".*guards\(6\).*expected at least one."
@@ -266,14 +264,14 @@ class TestReifyReflectAggTheory(TestReifyReflect):
     """Test cases for reification and reflection of aggregates and
     theory atoms."""
 
-    def test_reify_aggregate(self):
+    def test_rast_aggregate(self):
         "Test reification and reflection of a simple count aggregate."
         with self.subTest(operation="reify"):
             self.assertReifyEqual("1 {a: b; c}.", ["aggregate.lp"])
         with self.subTest(operation="reflect"):
             self.assertReflectEqual("1 <= { a: b; c }.", ["aggregate.lp"])
 
-    def test_reify_head_aggregate(self):
+    def test_rast_head_aggregate(self):
         "Test reification and reflection of a head aggregate."
         with self.subTest(operation="reify"):
             self.assertReifyEqual(
@@ -284,7 +282,7 @@ class TestReifyReflectAggTheory(TestReifyReflect):
                 "4 = #sum { 1,2: a: not b; 3: c }.", ["head_aggregate.lp"]
             )
 
-    def test_reify_body_aggregate(self):
+    def test_rast_body_aggregate(self):
         "Test reification and reflection of a body aggregate."
         with self.subTest(operation="reify"):
             self.assertReifyEqual(
@@ -299,12 +297,12 @@ class TestReifyReflectAggTheory(TestReifyReflect):
 class TestReifyReflectStatements(TestReifyReflect):
     """Test cases for reification and reflection of statements."""
 
-    def test_reify_external_false(self):
+    def test_rast_external_false(self):
         "Test reification of an external statement with default value false."
         self.assertReifyReflectEqual(
             "#external a(X) : c(X); d(e(X)). [false]", ["external.lp"]
         )
 
-    def test_reify_program_params(self):
+    def test_rast_program_params(self):
         "Test reification and reflection of a program statement with parameters."
         self.assertReifyReflectEqual("#program acid(k).", ["program_acid.lp"])

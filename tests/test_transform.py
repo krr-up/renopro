@@ -2,7 +2,7 @@
 from pathlib import Path
 from unittest import TestCase
 
-from renopro.reify import ReifiedAST
+from renopro.rast import ReifiedAST
 
 tests_dir = Path("src", "renopro", "asp", "tests")
 test_transform_dir = tests_dir / "transform"
@@ -48,7 +48,7 @@ class TestTransform(TestCase):
         """Test transform behavior under bad input."""
         rast = ReifiedAST()
         # should log warning if rast has no facts before transformation
-        with self.assertLogs("renopro.reify", level="WARNING"):
+        with self.assertLogs("renopro.rast", level="WARNING"):
             rast.transform(meta_str="")
         # should raise error if no meta program is provided
         with self.assertRaises(ValueError):
