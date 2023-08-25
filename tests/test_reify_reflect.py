@@ -11,7 +11,7 @@ from clorm import FactBase, Predicate, UnifierNoMatchError
 import renopro.predicates as preds
 from renopro.rast import ChildQueryError, ChildrenQueryError, ReifiedAST
 
-test_files = Path("src", "renopro", "asp", "tests", "reify_reflect")
+test_files = Path("tests", "asp", "reify_reflect")
 well_formed_ast_files = test_files / "well_formed_ast"
 malformed_ast_files = test_files / "malformed_ast"
 

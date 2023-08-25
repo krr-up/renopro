@@ -981,7 +981,7 @@ class ReifiedAST:
         ctl = Control(["--warn=none"])
         control_add_facts(ctl, self._reified)
         ctl.add(meta_prog)
-        ctl.load("./src/renopro/asp/encodings/transform.lp")
+        ctl.load("./src/renopro/asp/transform.lp")
         ctl.ground()
         with ctl.solve(yield_=True) as handle:  # type: ignore
             model = next(iter(handle))

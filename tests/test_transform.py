@@ -4,7 +4,7 @@ from unittest import TestCase
 
 from renopro.rast import ReifiedAST
 
-tests_dir = Path("src", "renopro", "asp", "tests")
+tests_dir = Path("tests", "asp")
 test_transform_dir = tests_dir / "transform"
 
 
