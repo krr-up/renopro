@@ -30,5 +30,5 @@ class TestMain(TestCase):
         Test the parser.
         """
         parser = get_parser()
-        ret = parser.parse_args(["--log", "info", "reflect"])
+        ret = parser.parse_args(["reflect", "--log", "info"])
         self.assertEqual(ret.log, logging.INFO)

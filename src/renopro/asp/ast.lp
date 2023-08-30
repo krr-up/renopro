@@ -30,3 +30,4 @@ ast(statements(Id,Pos,Element)) :- statements(Id,Pos,Element).
 ast(constants(Id,Pos,Element)) :- constants(Id,Pos,Element).
 ast(program(Name,Params,Statements)) :- program(Name,Params,Statements).
 ast(external(Atom,Body,Type)) :- external(Atom,Body,Type).
+

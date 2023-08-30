@@ -32,6 +32,7 @@ from clorm import (
 from thefuzz import process  # type: ignore
 
 import renopro.predicates as preds
+from renopro.utils.logger import get_clingo_logger_callback
 
 logger = logging.getLogger(__name__)
 
@@ -953,12 +954,13 @@ class ReifiedAST:
         self._program_string = "\n".join(
             [str(statement) for statement in self._program_ast]
         )
-        logger.info("Reflected program string:\n%s", self.program_string)
+        logger.debug("Reflected program string:\n%s", self.program_string)
 
     def transform(
         self,
         meta_str: Optional[str] = None,
         meta_files: Optional[Sequence[Path]] = None,
+        clingo_options: Sequence[str] = (),
     ) -> None:
         """Transform the reified AST using meta encoding.
 
@@ -977,19 +979,30 @@ class ReifiedAST:
             for meta_file in meta_files:
                 with meta_file.open() as f:
                     meta_prog += f.read()
-
-        ctl = Control(["--warn=none"])
+        clingo_logger = get_clingo_logger_callback(logger)
+        ctl = Control(clingo_options, logger=clingo_logger)
         control_add_facts(ctl, self._reified)
         ctl.add(meta_prog)
         ctl.load("./src/renopro/asp/transform.lp")
         ctl.ground()
         with ctl.solve(yield_=True) as handle:  # type: ignore
-            model = next(iter(handle))
+            model_iterator = iter(handle)
+            model = next(model_iterator)
+            logger.debug("Stable model after applying transformation:\n%s", model)
             ast_symbols = [final.arguments[0] for final in model.symbols(shown=True)]
             unifier = Unifier(preds.AstPredicates)
             with TryUnify():
                 ast_facts = unifier.iter_unify(ast_symbols, raise_nomatch=True)
                 self._reified = FactBase(ast_facts)
+            try:
+                next(model_iterator)
+            except StopIteration:
+                pass
+            else:  # nocoverage
+                logger.warning(
+                    ("Transformation encoding produced multiple models, "
+                     "ignoring additional ones.")
+                )
 
 
 if __name__ == "__main__":  # nocoverage

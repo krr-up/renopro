@@ -13,7 +13,7 @@ def main():
     """
     parser = get_parser()
     args = parser.parse_args()
-    setup_logger("main", args.log)
+    setup_logger("renopro", args.log)
     rast = ReifiedAST()
     if args.command == "reify":
         rast.reify_files(args.infiles)
@@ -32,7 +32,9 @@ def main():
             rast.add_reified_files(args.infiles)
         elif args.input_format == "reflected":
             rast.reify_files(args.infiles)
-        rast.transform(meta_files=args.meta_encoding)
+        rast.transform(
+            meta_files=args.meta_encoding, clingo_options=args.clingo_options
+        )
         if args.output_format == "reified":
             print(rast.reified_string)
         elif args.output_format == "reflected":

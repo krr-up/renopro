@@ -4,7 +4,7 @@ The command line parser for the project.
 
 import logging
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, REMAINDER
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, cast
@@ -52,7 +52,9 @@ def get_parser() -> ArgumentParser:
         "--version", "-v", action="version", version=f"%(prog)s {VERSION}"
     )
 
-    common_arg_parser.add_argument("infiles", nargs="*", type=Path)
+    common_arg_parser.add_argument(
+        "infiles", nargs="*", type=Path, help="Input files to be processed."
+    )
 
     parser = ArgumentParser(
         prog="renopro",
@@ -81,12 +83,12 @@ def get_parser() -> ArgumentParser:
     subparsers.add_parser(
         "reflect",
         help="Reflect input reified facts into their program string representation.",
-        parents=[common_arg_parser]
+        parents=[common_arg_parser],
     )
     transform_parser = subparsers.add_parser(
         "transform",
         help="Apply AST transformation to input reified facts via a meta-encoding.",
-        parents=[common_arg_parser]
+        parents=[common_arg_parser],
     )
     transform_parser.add_argument(
         "--meta-encoding",
@@ -115,6 +117,16 @@ def get_parser() -> ArgumentParser:
         ),
         choices=["reified", "reflected"],
         default="reflected",
+    )
+    transform_parser.add_argument(
+        "--clingo-options",
+        "-C",
+        nargs=REMAINDER,
+        help=(
+            "Additional arguments passed to clingo for grounding/solving "
+            "logic program consisting of meta-encoding and input reified facts. "
+            "All arguments after this option will be passed to clingo."
+        ),
     )
 
     return parser
