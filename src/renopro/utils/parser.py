@@ -23,15 +23,8 @@ def get_parser() -> ArgumentParser:
     """
     Return the parser for command line options.
     """
-    parser = ArgumentParser(
-        prog="renopro",
-        description=dedent(
-            """\
-            renopro:
-            A tool for reification and reflection of non-ground clingo programs.
-            """
-        ),
-    )
+
+    common_arg_parser = ArgumentParser(add_help=False)
 
     levels = [
         ("error", logging.ERROR),
@@ -46,7 +39,7 @@ def get_parser() -> ArgumentParser:
                 return val
         return None  # nocoverage
 
-    parser.add_argument(
+    common_arg_parser.add_argument(
         "--log",
         default="warning",
         choices=[val for _, val in levels],
@@ -55,16 +48,26 @@ def get_parser() -> ArgumentParser:
         type=cast(Any, lambda name: get(levels, name)),
     )
 
-    parser.add_argument(
+    common_arg_parser.add_argument(
         "--version", "-v", action="version", version=f"%(prog)s {VERSION}"
     )
 
-    parser.add_argument("infiles", nargs="*", type=Path)
+    common_arg_parser.add_argument("infiles", nargs="*", type=Path)
 
-    subparsers = parser.add_subparsers(dest="command")
+    parser = ArgumentParser(
+        prog="renopro",
+        description=dedent(
+            """\
+            renopro:
+            A tool for reification and reflection of non-ground clingo programs.
+            """
+        ),
+    )
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
     reify_parser = subparsers.add_parser(
-        "reify", help="Reify input program into ASP facts."
+        "reify", help="Reify input program into ASP facts.", parents=[common_arg_parser]
     )
     reify_parser.add_argument(
         "--commented",
@@ -78,10 +81,12 @@ def get_parser() -> ArgumentParser:
     subparsers.add_parser(
         "reflect",
         help="Reflect input reified facts into their program string representation.",
+        parents=[common_arg_parser]
     )
     transform_parser = subparsers.add_parser(
         "transform",
         help="Apply AST transformation to input reified facts via a meta-encoding.",
+        parents=[common_arg_parser]
     )
     transform_parser.add_argument(
         "--meta-encoding",
@@ -95,7 +100,7 @@ def get_parser() -> ArgumentParser:
         "--input-format",
         "-i",
         help=(
-            "Format of input to be transformed, either reified facts or a"
+            "Format of input to be transformed, either reified facts or a "
             "(reflected) program."
         ),
         choices=["reified", "reflected"],

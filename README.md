@@ -60,7 +60,7 @@ statements(1,0,rule(2)).
 Reflect the set of facts generated above back.
 
 ```shell
-$ renopro a.lp reflect
+$ renopro reflect a.lp
 
 #program base.
 a.
@@ -78,7 +78,7 @@ $ echo "ast_operation(delete(function(Id,a,Terms));add(function(Id,b,Terms))) :-
 $ echo "a." | renopro transform -m meta.lp
 #program base.
 b.
-$ renopro a.lp transform --input-format reified -m meta.lp
+$ renopro transform a.lp --input-format reified -m meta.lp
 #program base.
 b.
 $ echo "a." | renopro transform --output-format reified -m meta.lp
