@@ -12,7 +12,7 @@ next(b):- b.
 ### Output
 
 ```shell
-renopro examples/telingo/instance.lp reify | renopro transform --meta-encoding examples/telingo/transformer.lp --input-format=reified > examples/telingo/final.lp
+renopro reify examples/telingo/instance.lp | renopro transform --meta-encoding examples/telingo/transformer.lp  --input-format=reified --clingo-options -c horizon=1  > examples/telingo/final.lp
 ```
 
 ```
@@ -42,8 +42,7 @@ clingraph examples/telingo/reified.lp --viz src/renopro/asp/viz.lp --out=render 
 ## Visualize result after transformation 
 
 ```shell
-renopro examples/telingo/instance.lp reify | renopro transform --meta-encoding examples/telingo/transformer.lp --input-format=reified --output-format=reified > examples/telingo/final-reified.lp
-```
+renopro reify examples/telingo/instance.lp | renopro transform --meta-encoding examples/telingo/transformer.lp --input-format=reified > examples/telingo/final.lp```
 
 Visualize with clingraph
 

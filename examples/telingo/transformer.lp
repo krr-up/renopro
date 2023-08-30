@@ -1,3 +1,6 @@
+#const horizon = 1.
+
+
 % auxiliary atoms
 max_arg_index(TT,Idx)
     :- Idx = #max{ Pos : terms(TT,Pos,_); -1 }, function(_,_,terms(TT)).
@@ -67,7 +70,7 @@ ast_operation(
 	 function(O,Name,terms(T2)),  max_arg_index(T2,I), num(next,A,Num).
 
 % ----- Time steps as new facts (Not working)
-time(0..1).
+time(0..horizon).
 % time(0..2).
 ast_operation(
     add(number(time_number(T),T));
