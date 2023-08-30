@@ -4,7 +4,7 @@ The command line parser for the project.
 
 import logging
 import sys
-from argparse import ArgumentParser, REMAINDER
+from argparse import REMAINDER, ArgumentParser
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, cast
@@ -40,7 +40,8 @@ def get_parser() -> ArgumentParser:
         return None  # nocoverage
 
     common_arg_parser.add_argument(
-        "--log", "-l",
+        "--log",
+        "-l",
         default="warning",
         choices=[val for _, val in levels],
         metavar=f"{{{','.join(key for key, _ in levels)}}}",

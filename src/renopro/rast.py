@@ -1001,8 +1001,10 @@ class ReifiedAST:
                 pass
             else:  # nocoverage
                 logger.warning(
-                    ("Transformation encoding produced multiple models, "
-                     "ignoring additional ones.")
+                    (
+                        "Transformation encoding produced multiple models, "
+                        "ignoring additional ones."
+                    )
                 )
 
 
