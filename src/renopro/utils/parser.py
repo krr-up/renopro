@@ -40,7 +40,7 @@ def get_parser() -> ArgumentParser:
         return None  # nocoverage
 
     common_arg_parser.add_argument(
-        "--log",
+        "--log", "-l",
         default="warning",
         choices=[val for _, val in levels],
         metavar=f"{{{','.join(key for key, _ in levels)}}}",
@@ -103,7 +103,9 @@ def get_parser() -> ArgumentParser:
         "-i",
         help=(
             "Format of input to be transformed, either reified facts or a "
-            "(reflected) program."
+            "reflected program string. If input format is set to reflected, "
+            "the input reflected program string is first reified into facts "
+            "before transformation."
         ),
         choices=["reified", "reflected"],
         default="reflected",
@@ -113,7 +115,9 @@ def get_parser() -> ArgumentParser:
         "-o",
         help=(
             "Format of output to be printed after transformation, either "
-            "reified facts or a (reflected) program."
+            "reified facts or a reflected program string. If output format is "
+            "set to reflected, the transformed facts are reflected into a "
+            "program string before printing."
         ),
         choices=["reified", "reflected"],
         default="reflected",
