@@ -960,7 +960,7 @@ class ReifiedAST:
         self,
         meta_str: Optional[str] = None,
         meta_files: Optional[Sequence[Path]] = None,
-        clingo_options: Sequence[str] = (),
+        clingo_options: Optional[Sequence[str]] = None,
     ) -> None:
         """Transform the reified AST using meta encoding.
 
@@ -980,6 +980,7 @@ class ReifiedAST:
                 with meta_file.open() as f:
                     meta_prog += f.read()
         clingo_logger = get_clingo_logger_callback(logger)
+        clingo_options = [] if clingo_options is None else clingo_options
         ctl = Control(clingo_options, logger=clingo_logger)
         control_add_facts(ctl, self._reified)
         ctl.add(meta_prog)
