@@ -1,6 +1,6 @@
-#const green= "#B5D99C".
-#const red= "#D9A69C".
-#const gray= "#565656".
+#include "defined.lp".
+#const pos_body_lit_color= "#B5D99C".
+#const neg_body_lit_color= "#D9A69C".
 #const tab_color= "#E0E0C8".
 #const program_color = "#A4C9DE".
 #const rule_color = "#C8D7E0".
@@ -60,8 +60,8 @@ attr(node,symbolic_atom(Id),shape,box) :- symbolic_atom(Id,Symbol).
 edge((symbolic_atom(Id),Symbol)) :- symbolic_atom(Id,Symbol).
 
 node(literal(Id)) :- literal(Id,Sign,Atom).
-attr(node,literal(Id),fillcolor,green) :- literal(Id,"pos",Atom).
-attr(node,literal(Id),fillcolor,red) :- literal(Id,"neg",Atom).
+attr(node,literal(Id),fillcolor,pos_body_lit_color) :- literal(Id,"pos",Atom).
+attr(node,literal(Id),fillcolor,neg_body_lit_color) :- literal(Id,"not",Atom).
 edge((literal(Id),Atom)) :- literal(Id,Sign,Atom).
 
 node(literals(Id)) :- literals(Id,Pos,Element).
@@ -77,8 +77,8 @@ attr(edge,(literals(Id),Element),label,pos) :- literals(Id,Pos,Element).
 % node(body_aggregate(Id)) :- body_aggregate(Id,LGuard,Elements,RGuard).
 
 node(body_literal(Id)) :- body_literal(Id,Sign,Atom).
-attr(node,body_literal(Id),fillcolor,green) :- body_literal(Id,"pos",Atom).
-attr(node,body_literal(Id),fillcolor,red) :- body_literal(Id,"neg",Atom).
+attr(node,body_literal(Id),fillcolor,pos_body_lit_color) :- body_literal(Id,"pos",Atom).
+attr(node,body_literal(Id),fillcolor,neg_body_lit_color) :- body_literal(Id,"not",Atom).
 edge((body_literal(Id),Atom)) :- body_literal(Id,Sign,Atom).
 
 node(body_literals(Id)) :- body_literals(Id,Pos,Element).

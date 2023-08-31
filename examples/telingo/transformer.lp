@@ -18,6 +18,7 @@ arity(F,N+1) :- function(F,_,terms(T)), max_arg_index(T,N).
 % chain modal operators
 modal(prev).
 modal(next).
+% modal(initially).
 
 chain(M,A,function(F),O)
     :- symbolic_atom(A,function(F)), function(F,M,terms(T)), arity(F,1),
@@ -69,9 +70,9 @@ ast_operation(
 :- first(next,A,function(F)), function(F,N,T1), final_operand(A,function(O)),
 	 function(O,Name,terms(T2)),  max_arg_index(T2,I), num(next,A,Num).
 
-% ----- Time steps as new facts (Not working)
+% ----- Time steps as new facts
 time(0..horizon).
-% time(0..2).
+
 ast_operation(
     add(number(time_number(T),T));
     add(terms(time_terms(T),0,number(time_number(T))));
@@ -95,5 +96,30 @@ ast_operation(
     )
 :- rule(R,_,body_literals(B)), max_lit_index(B,MAX).
 
+% Add initially(0).
+ast_operation(
+    add(number(init_number,0));
+    add(terms(init_terms,0,number(init_number)));
+    add(function(init_function,initially,terms(init_terms)));
+    add(symbolic_atom(init_symbol,function(init_function)));
+    add(literal(init_literal,"pos",symbolic_atom(init_symbol)));
+    add(rule(init_rule,literal(init_literal),body_literals(init_body_literals)))).
+
+ast_operation(add(statements(S,X+horizon+2,rule(init_rule))))
+    :- program("base",_,statements(S)), max_statement_index(S,X).
+
+
+
+% Add finally(horizon).
+ast_operation(
+    add(number(final_number,horizon));
+    add(terms(final_terms,0,number(final_number)));
+    add(function(final_function,finally,terms(final_terms)));
+    add(symbolic_atom(final_symbol,function(final_function)));
+    add(literal(final_literal,"pos",symbolic_atom(final_symbol)));
+    add(rule(final_rule,literal(final_literal),body_literals(final_body_literals)))).
+
+ast_operation(add(statements(S,X+horizon+3,rule(final_rule))))
+    :- program("base",_,statements(S)), max_statement_index(S,X).
 
 
