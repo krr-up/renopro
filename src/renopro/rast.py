@@ -979,9 +979,13 @@ class ReifiedAST:
             for meta_file in meta_files:
                 with meta_file.open() as f:
                     meta_prog += f.read()
+        logger.debug("Applying transformation defined in following meta-encoding:\n%s", meta_prog)
         clingo_logger = get_clingo_logger_callback(logger)
         clingo_options = [] if clingo_options is None else clingo_options
         ctl = Control(clingo_options, logger=clingo_logger)
+        logger.debug(
+            "Reified facts before applying transformation:\n%s", self.reified_string
+            )
         control_add_facts(ctl, self._reified)
         ctl.add(meta_prog)
         ctl.load("./src/renopro/asp/transform.lp")
@@ -989,7 +993,6 @@ class ReifiedAST:
         with ctl.solve(yield_=True) as handle:  # type: ignore
             model_iterator = iter(handle)
             model = next(model_iterator)
-            logger.debug("Stable model after applying transformation:\n%s", model)
             ast_symbols = [final.arguments[0] for final in model.symbols(shown=True)]
             unifier = Unifier(preds.AstPredicates)
             with TryUnify():
@@ -1006,6 +1009,9 @@ class ReifiedAST:
                         "ignoring additional ones."
                     )
                 )
+        logger.debug(
+            "Reified facts after applying transformation:\n%s", self.reified_string
+        )
 
 
 if __name__ == "__main__":  # nocoverage
