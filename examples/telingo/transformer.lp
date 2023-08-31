@@ -70,29 +70,28 @@ ast_operation(
 :- first(next,A,function(F)), function(F,N,T1), final_operand(A,function(O)),
 	 function(O,Name,terms(T2)),  max_arg_index(T2,I), num(next,A,Num).
 
-% ----- Time steps as new facts
-time(0..horizon).
-
+% ----- Time steps as new fact with interval 0..horizon
 ast_operation(
-    add(number(time_number(T),T));
-    add(terms(time_terms(T),0,number(time_number(T))));
-    add(function(time_function(T),time,terms(time_terms(T))));
-    add(symbolic_atom(time_symbol(T),function(time_function(T))));
-    add(literal(time_literal(T),"pos",symbolic_atom(time_symbol(T))));
-    add(rule(time_rule(T),literal(time_literal(T)),body_literals(time_body_literals(T)))))
-:-time(T).
+		add(number(time_number_0,0));
+		add(number(time_number_h,horizon));
+		add(interval(time_interval,number(time_number_0),number(time_number_h)));
+    add(terms(time_terms,0,interval(time_interval)));
+    add(function(time_function,time,terms(time_terms)));
+    add(symbolic_atom(time_symbol,function(time_function)));
+    add(literal(time_literal,"pos",symbolic_atom(time_symbol)));
+    add(rule(time_rule,literal(time_literal),body_literals(time_body_literals)))).
 
-ast_operation(add(statements(S,X+T+1,rule(time_rule(T)))))
-    :-time(T), program("base",_,statements(S)), max_statement_index(S,X).
+ast_operation(add(statements(S,X+1,rule(time_rule))))
+    :- program("base",_,statements(S)), max_statement_index(S,X).
 
 % Add time(T) in all rules
 ast_operation(
-    add(body_literals(B,MAX+1,body_literal(time_body_literal_var(R))));
-    add(body_literal(time_body_literal_var(R),"pos",symbolic_atom(time_symbol_var(R))));
     add(variable(time_variable(R),"T"));
-    add(symbolic_atom(time_symbol_var(R),function(time_function_var(R))));
+    add(terms(time_terms_var(R),0,variable(time_variable(R))));
     add(function(time_function_var(R),time,terms(time_terms_var(R))));
-    add(terms(time_terms_var(R),0,variable(time_variable(R))))
+    add(symbolic_atom(time_symbol_var(R),function(time_function_var(R))));
+    add(body_literal(time_body_literal_var(R),"pos",symbolic_atom(time_symbol_var(R))));
+    add(body_literals(B,MAX+1,body_literal(time_body_literal_var(R))))
     )
 :- rule(R,_,body_literals(B)), max_lit_index(B,MAX).
 
@@ -105,7 +104,7 @@ ast_operation(
     add(literal(init_literal,"pos",symbolic_atom(init_symbol)));
     add(rule(init_rule,literal(init_literal),body_literals(init_body_literals)))).
 
-ast_operation(add(statements(S,X+horizon+2,rule(init_rule))))
+ast_operation(add(statements(S,X+2,rule(init_rule))))
     :- program("base",_,statements(S)), max_statement_index(S,X).
 
 
@@ -119,7 +118,7 @@ ast_operation(
     add(literal(final_literal,"pos",symbolic_atom(final_symbol)));
     add(rule(final_rule,literal(final_literal),body_literals(final_body_literals)))).
 
-ast_operation(add(statements(S,X+horizon+3,rule(final_rule))))
+ast_operation(add(statements(S,X+3,rule(final_rule))))
     :- program("base",_,statements(S)), max_statement_index(S,X).
 
 

@@ -36,7 +36,12 @@ edge((binary_operation(Id),Right)) :- binary_operation(Id,Operator,Left,Right).
 attr(edge,(binary_operation(Id),Right),label,right) :- binary_operation(Id,Operator,Left,Right).
 
 
-% node(interval(Id)) :- interval(Id,Left,Right).
+node(interval(Id)) :- interval(Id,Left,Right).
+attr(node,interval(Id),shape,trapezium) :- interval(Id,Left,Right).
+edge((interval(Id),Left)) :- interval(Id,Left,Right).
+attr(edge,(interval(Id),Left),label,left) :- interval(Id,Left,Right).
+edge((interval(Id),Right)) :- interval(Id,Left,Right).
+attr(edge,(interval(Id),Right),label,right) :- interval(Id,Left,Right).
 
 node(terms(Id)) :- terms(Id,Pos,Element).
 attr(node,terms(Id),shape,tab) :- node(terms(Id)).
