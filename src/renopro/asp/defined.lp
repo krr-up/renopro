@@ -7,6 +7,12 @@
 #defined terms/3.
 #defined function/3.
 #defined pool/2.
+#defined theory_terms/3.
+#defined theory_sequence/3.
+#defined theory_function/3.
+#defined theory_operators/3.
+#defined theory_unparsed_term_elements/4.
+#defined theory_unparsed_term/2.
 #defined guard/3.
 #defined guards/3.
 #defined comparison/2.
@@ -17,6 +23,9 @@
 #defined conditional_literal/3.
 #defined agg_elements/3.
 #defined aggregate/4.
+#defined theory_atom_elements/4.
+#defined theory_guard/3.
+#defined theory_atom/4.
 #defined body_agg_elements/4.
 #defined body_aggregate/4.
 #defined body_literal/3.

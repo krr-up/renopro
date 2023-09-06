@@ -8,6 +8,12 @@ ast(interval(Id,Left,Right)) :- interval(Id,Left,Right).
 ast(terms(Id,Pos,Element)) :- terms(Id,Pos,Element).
 ast(function(Id,Name,Args)) :- function(Id,Name,Args).
 ast(pool(Id,Args)) :- pool(Id,Args).
+ast(theory_terms(Id,Pos,Element)) :- theory_terms(Id,Pos,Element).
+ast(theory_sequence(Id,SeqType,Terms)) :- theory_sequence(Id,SeqType,Terms).
+ast(theory_function(Id,Name,Args)) :- theory_function(Id,Name,Args).
+ast(theory_operators(Id,Pos,Operator)) :- theory_operators(Id,Pos,Operator).
+ast(theory_unparsed_term_elements(Id,Pos,Operators,Term)) :- theory_unparsed_term_elements(Id,Pos,Operators,Term).
+ast(theory_unparsed_term(Id,Elements)) :- theory_unparsed_term(Id,Elements).
 ast(guard(Id,Op,Term)) :- guard(Id,Op,Term).
 ast(guards(Id,Pos,Element))  :- guards(Id,Pos,Element).
 ast(comparison(Id,Guards)) :- comparison(Id,Guards).
@@ -18,6 +24,9 @@ ast(literals(Id,Pos,Element)) :- literals(Id,Pos,Element).
 ast(conditional_literal(Id,Literal,Condition)) :- conditional_literal(Id,Literal,Condition).
 ast(agg_elements(Id,Pos,Element)) :- agg_elements(Id,Pos,Element).
 ast(aggregate(Id,LGuard,Elements,RGuard)) :- aggregate(Id,LGuard,Elements,RGuard).
+ast(theory_atom_elements(Id,Pos,TheoryTerms,Condition)) :- theory_atom_elements(Id,Pos,TheoryTerms,Condition).
+ast(theory_guard(Id,OpName,Term)) :- theory_guard(Id,OpName,Term).
+ast(theory_atom(Id,Atom,Elements,TheoryGuard)) :- theory_atom(Id,Atom,Elements,TheoryGuard).
 ast(body_agg_elements(Id,Pos,Terms,Condition)) :- body_agg_elements(Id,Pos,Terms,Condition).
 ast(body_aggregate(Id,LGuard,Elements,RGuard)) :- body_aggregate(Id,LGuard,Elements,RGuard).
 ast(body_literal(Id,Sign,Atom)) :- body_literal(Id,Sign,Atom).

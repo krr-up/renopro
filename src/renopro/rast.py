@@ -376,6 +376,59 @@ class ReifiedAST:
         self._reify_ast_seqence(node.arguments, pool.arguments.id, preds.Terms)
         return pool1
 
+    @reify_node.register(ASTType.TheorySequence)
+    def _reify_theory_sequence(self, node):
+        theory_seq1 = preds.Theory_Sequence1()
+        clorm_theory_seq_type = preds.convert_enum(
+            ast.TheorySequenceType(node.sequence_type), preds.TheorySequenceType
+        )
+        theory_seq = preds.Theory_Sequence(
+            id=theory_seq1.id,
+            sequence_type=clorm_theory_seq_type,
+            terms=preds.Theory_Terms1(),
+        )
+        self._reified.add(theory_seq)
+        self._reify_ast_seqence(node.terms, theory_seq.terms.id, preds.Theory_Terms)
+        return theory_seq1
+
+    @reify_node.register(ASTType.TheoryFunction)
+    def _reify_theory_function(self, node):
+        theory_func1 = preds.Theory_Function1()
+        theory_func = preds.Theory_Function(
+            id=theory_func1.id, name=node.name, arguments=preds.Theory_Terms1()
+        )
+        self._reified.add(theory_func)
+        self._reify_ast_seqence(
+            seq=node.arguments,
+            tup_id=theory_func.arguments.id,
+            tup_pred=preds.Theory_Terms,
+        )
+        return theory_func1
+
+    @reify_node.register(ASTType.TheoryUnparsedTerm)
+    def _reify_unparsed_theory_term(self, node):
+        reified_unparsed_theory_term1 = preds.Theory_Unparsed_Term1()
+        # reified_unparsed_theory_term = preds.Theory_Unparsed_Term(
+        #     id=reified_unparsed_theory_term1.id,
+        #     elements=preds.Theory_Unparsed_Term_Elements1(),
+        # )
+        for pos, element in enumerate(node.elements):
+            operators = preds.Theory_Operators1()
+            reified_operators = [
+                preds.Theory_Operators(id=operators.id, position=p, operator=op)
+                for p, op in enumerate(element.operators)
+            ]
+            self._reified.add(reified_operators)
+            reified_theory_term1 = self.reify_node(element.term)
+            reified_unparsed_theory_term = preds.Theory_Unparsed_Term(
+                id=reified_unparsed_theory_term1.id,
+                position=pos,
+                operators=operators,
+                term=reified_theory_term1,
+            )
+            self._reified.add(reified_unparsed_theory_term)
+        return reified_unparsed_theory_term1
+
     @reify_node.register(ASTType.Guard)
     def _reify_guard(self, node):
         guard1 = preds.Guard1()
@@ -449,11 +502,9 @@ class ReifiedAST:
         )
         elements1 = preds.Agg_Elements1()
         self._reify_ast_seqence(node.elements, elements1.id, preds.Agg_Elements)
-        right_guard = (
-            preds.Guard1()
-            if node.right_guard is None
-            else self.reify_node(node.right_guard)
-        )
+        right_guard = preds.Guard1()
+        if node.right_guard is not None:
+            self.reify_node(node.right_guard)
         count_agg = preds.Aggregate(
             id=count_agg1.id,
             left_guard=left_guard,
@@ -462,6 +513,44 @@ class ReifiedAST:
         )
         self._reified.add(count_agg)
         return count_agg1
+
+    @reify_node.register(ASTType.TheoryAtom)
+    def _reify_theory_atom(self, node) -> preds.Theory_Atom1:
+        theory_atom1 = preds.Theory_Atom1()
+        # we make a slight modification in the reified representation
+        # vs the AST, wrapping the function into a symbolic atom, as
+        # that's what it really is IMO.
+        theory_symbolic_atom1 = self.reify_node(ast.SymbolicAtom(node.term))
+        theory_atom_elements1 = preds.Theory_Atom_Elements1()
+        reified_elements = []
+        for pos, element in enumerate(node.elements):
+            theory_terms1 = preds.Theory_Terms1()
+            self._reify_ast_seqence(element.terms, theory_terms1.id, preds.Theory_Terms)
+            literals1 = preds.Literals1()
+            self._reify_ast_seqence(element.condition, literals1.id, preds.Literals)
+            reified_element = preds.Theory_Atom_Elements(
+                id=theory_atom_elements1.id,
+                position=pos,
+                terms=theory_terms1,
+                condition=literals1,
+            )
+            reified_elements.append(reified_element)
+        self._reified.add(reified_elements)
+        theory_guard1 = preds.Theory_Guard1()
+        if node.guard is not None:
+            guard_theory_term = self.reify_node(node.guard.term)
+            theory_guard = preds.Theory_Guard(
+                id=theory_guard1.id, operator_name=node.guard.operator_name, term=guard_theory_term
+            )
+            self._reified.add(theory_guard)
+        theory_atom = preds.Theory_Atom(
+            id=theory_atom1.id,
+            atom=theory_symbolic_atom1,
+            elements=theory_atom_elements1,
+            guard=theory_guard1,
+        )
+        self._reified.add(theory_atom)
+        return theory_atom1
 
     @reify_node.register(ASTType.BodyAggregate)
     def _reify_body_aggregate(self, node) -> preds.Body_Aggregate1:
@@ -647,7 +736,7 @@ class ReifiedAST:
             raise ChildQueryError(msg)
         raise RuntimeError("Code should be unreachable.")  # nocoverage
 
-    def get_child_facts(self, parent_fact, children_id_fact):
+    def _get_child_facts(self, parent_fact, children_id_fact):
         """Query factbase to retrieve all tuple facts identified by children_id_fact."""
         identifier = children_id_fact.id
         child_ast_pred = getattr(preds, type(children_id_fact).__name__.rstrip("1"))
@@ -674,7 +763,7 @@ class ReifiedAST:
         child facts.
 
         """
-        child_facts = self.get_child_facts(parent_fact, children_id_fact)
+        child_facts = self._get_child_facts(parent_fact, children_id_fact)
         child_nodes = []
         for fact in child_facts:
             child_nodes.append(self._reflect_child_pred(fact, fact.element))
@@ -767,6 +856,51 @@ class ReifiedAST:
         return ast.Pool(location=DUMMY_LOC, arguments=arg_nodes)
 
     @reflect_predicate.register
+    def _reflect_theory_sequence(self, theory_seq: preds.Theory_Sequence) -> AST:
+        clingo_theory_sequence_type = preds.convert_enum(
+            preds.TheorySequenceType(theory_seq.sequence_type), ast.TheorySequenceType
+        )
+        theory_term_nodes = self._reflect_child_preds(theory_seq, theory_seq.terms)
+        return ast.TheorySequence(
+            location=DUMMY_LOC,
+            sequence_type=clingo_theory_sequence_type,
+            terms=theory_term_nodes,
+        )
+
+    @reflect_predicate.register
+    def _reflect_theory_function(self, theory_func: preds.Theory_Function) -> AST:
+        arguments = self._reflect_child_preds(theory_func, theory_func.arguments)
+        return ast.TheoryFunction(
+            location=DUMMY_LOC, name=theory_func.name, arguments=arguments
+        )
+
+    @reflect_predicate.register
+    def _reflect_theory_unparsed_term(
+        self, theory_unparsed_term: preds.Theory_Unparsed_Term
+    ) -> AST:
+        # child_elements = self._get_child_facts(
+        #     theory_unparsed_term, theory_unparsed_term.elements
+        # )
+        # if len(child_elements) == 0:
+        #     msg = (
+        #         f"Error finding child facts of predicate '{theory_unparsed_term}'.\n"
+        #         "Found no child 'theory_unparsed_term_elements' facts with identifier "
+        #         f"matching {theory_unparsed_term.elements}, expected at least one."
+        #     )
+        #     raise ChildQueryError(msg)
+        # reflected_elements = []
+        # for element in child_elements:
+        #     child_operators = self._get_child_facts(element, element.ope)
+        #     reflected_operators = [operator.operator for operator in child_operators]
+        #     reflected_term = self._reflect_child_pred(element, element.term)
+        #     reflected_element = ast.TheoryUnparsedTermElement(
+        #         operators=reflected_operators, term=reflected_term
+        #     )
+        #     reflected_elements.append(reflected_element)
+        # return ast.TheoryUnparsedTerm(location=DUMMY_LOC, elements=reflected_elements)
+        pass
+
+    @reflect_predicate.register
     def _reflect_guard(self, guard: preds.Guard) -> AST:
         clingo_operator = preds.convert_enum(
             preds.ComparisonOperator(guard.comparison), ast.ComparisonOperator
@@ -834,6 +968,38 @@ class ReifiedAST:
         )
 
     @reflect_predicate.register
+    def _reflect_theory_guard(self, theory_guard: preds.Theory_Guard) -> AST:
+        reflected_operator_name = theory_guard.operator_name
+        reflected_theory_term = self._reflect_child_pred(
+            theory_guard, theory_guard.term
+        )
+        return ast.TheoryGuard(
+            operator_name=reflected_operator_name, term=reflected_theory_term
+        )
+
+    @reflect_predicate.register
+    def _reflect_theory_atom(self, theory_atom: preds.Theory_Atom) -> AST:
+        reflected_syb_atom = self._reflect_child_pred(theory_atom, theory_atom.atom)
+        reflected_elements = []
+        elements = self._get_child_facts(theory_atom, theory_atom.elements)
+        for e in elements:
+            reflected_terms = self._reflect_child_preds(e, e.terms)
+            reflected_condition = self._reflect_child_preds(e, e.condition)
+            reflected_element = ast.TheoryAtomElement(
+                terms=reflected_terms, condition=reflected_condition
+            )
+            reflected_elements.append(reflected_element)
+        reflected_guard = self._reflect_child_pred(
+            theory_atom, theory_atom.guard, optional=True
+        )
+        return ast.TheoryAtom(
+            location=DUMMY_LOC,
+            term=reflected_syb_atom.symbol,
+            elements=reflected_elements,
+            guard=reflected_guard,
+        )
+
+    @reflect_predicate.register
     def _reflect_body_aggregate(self, aggregate: preds.Body_Aggregate) -> AST:
         reflected_left_guard = self._reflect_child_pred(
             aggregate, aggregate.left_guard, optional=True
@@ -841,7 +1007,7 @@ class ReifiedAST:
         reflected_agg_function = preds.convert_enum(
             preds.AggregateFunction(aggregate.function), ast.AggregateFunction
         )
-        elements = self.get_child_facts(aggregate, aggregate.elements)
+        elements = self._get_child_facts(aggregate, aggregate.elements)
         reflected_elements = []
         for e in elements:
             reflected_terms = self._reflect_child_preds(e, e.terms)
@@ -874,7 +1040,7 @@ class ReifiedAST:
         reflected_agg_function = preds.convert_enum(
             preds.AggregateFunction(aggregate.function), ast.AggregateFunction
         )
-        elements = self.get_child_facts(aggregate, aggregate.elements)
+        elements = self._get_child_facts(aggregate, aggregate.elements)
         reflected_elements = []
         for e in elements:
             reflected_terms = self._reflect_child_preds(e, e.terms)
@@ -979,13 +1145,15 @@ class ReifiedAST:
             for meta_file in meta_files:
                 with meta_file.open() as f:
                     meta_prog += f.read()
-        logger.debug("Applying transformation defined in following meta-encoding:\n%s", meta_prog)
+        logger.debug(
+            "Applying transformation defined in following meta-encoding:\n%s", meta_prog
+        )
         clingo_logger = get_clingo_logger_callback(logger)
         clingo_options = [] if clingo_options is None else clingo_options
         ctl = Control(clingo_options, logger=clingo_logger)
         logger.debug(
             "Reified facts before applying transformation:\n%s", self.reified_string
-            )
+        )
         control_add_facts(ctl, self._reified)
         ctl.add(meta_prog)
         ctl.load("./src/renopro/asp/transform.lp")

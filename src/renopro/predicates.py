@@ -140,6 +140,30 @@ ComparisonOperatorField = define_enum_field(
 )
 
 
+class TheorySequenceType(str, enum.Enum):
+    """String enum of theory sequence types."""
+
+    List = "[]"
+    """
+    For sequences enclosed in brackets.
+    """
+    Set = "{}"
+    """
+    For sequences enclosed in braces.
+    """
+    Tuple = "()"
+    """
+    For sequences enclosed in parenthesis.
+    """
+
+
+TheorySequenceTypeField = define_enum_field(
+    parent_field=StringField,
+    enum_class=TheorySequenceType,
+    name="TheorySequenceTypeField",
+)
+
+
 class Sign(str, enum.Enum):
     """String enum of possible sign of a literal."""
 
@@ -380,13 +404,119 @@ TermField.fields.extend(
 )
 
 
+TheoryTermField = combine_fields_lazily(
+    [String1.Field, Number1.Field, Function1.Field, Variable1.Field], name="TheoryTermField"
+)
+
+
+class Theory_Terms(Predicate):
+    """Predicate representing an element of a tuple of theory terms.
+
+    id: Identifier of the tuple of theory terms.
+    position: Integer representing position of the element the tuple, ordered by <.
+    element: Term identifying the element.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    element = TheoryTermField
+
+
+class Theory_Terms1(ComplexTerm, name="theory_terms"):
+    "Term identifying a child tuple of theory terms."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Theory_Sequence(Predicate):
+    """Predicate representing a sequence of theory terms.
+
+    id: The identifier of the theory sequence.
+    sequence_type: The type of the theory sequence.
+    terms: The tuple of terms forming the sequence.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    sequence_type = TheorySequenceTypeField
+    terms = Theory_Terms1.Field
+
+
+class Theory_Sequence1(ComplexTerm, name="theory_sequence"):
+    "Term identifying a child theory sequence fact."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Theory_Function(Predicate):
+    """Predicate representing a theory function term.
+
+    id: The identifier of the theory function.
+    name: The name of the theory function.
+    terms: The tuple of theory terms forming the arguments of
+           the theory function.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    name = ConstantField
+    arguments = Theory_Terms1.Field
+
+
+class Theory_Function1(ComplexTerm, name="theory_function"):
+    "Term identifying a child theory function fact."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Theory_Operators(Predicate):
+    """Predicate representing an element of tuple of theory operators.
+
+    id: The identifier of the tuple of theory operators.
+    position: Integer representing position of the element the tuple, ordered by <.
+    operator: A theory operator, represented as a string.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    operator = StringField
+
+
+class Theory_Operators1(ComplexTerm, name="theory_operators"):
+    "Term identifying a child tuple of theory operators"
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Theory_Unparsed_Term(Predicate):
+    """An unparsed theory term is a tuple, each element of which
+    consists of a tuple of theory operators and a theory term. This
+    predicate represents an element of an unparsed theory term.
+
+    id: The identifier of the unparsed theory term.
+    position: Integer representing position of the element
+              of the theory tuple, ordered by <.
+    operators: A tuple of theory operators.
+    term: The theory term.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    operators = Theory_Operators1.Field
+    term = TheoryTermField
+
+
+class Theory_Unparsed_Term1(ComplexTerm, name="theory_unparsed_term"):
+    "Term identifying a child unparsed theory term fact."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+TheoryTermField.fields.extend(
+    [Theory_Sequence1.Field, Theory_Function1.Field, Theory_Unparsed_Term1.Field]
+)
+
+
 # Literals
 
 
 class Guard(Predicate):
     """Predicate representing a guard for a comparison or aggregate atom.
 
-    id: identifier of the
+    id: identifier of the guard.
 
     """
 
@@ -551,7 +681,7 @@ class Agg_Elements1(ComplexTerm, name="agg_elements"):
 
 
 class Aggregate(Predicate):
-    """Predicate representing an (implicit) count aggregate atom with
+    """Predicate representing an simple (count) aggregate atom with
     conditional literal elements.
 
     id: Identifier of the count aggregate.
@@ -574,13 +704,78 @@ class Aggregate1(ComplexTerm, name="aggregate"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
+class Theory_Atom_Elements(Predicate):
+    """Predicate representing an element of a tuple forming a theory atom's
+    aggregate-like part.
+
+    id: Identifier of the tuple of theory atom elements.
+    position: Integer representing position of the element in the tuple,
+              ordered by <.
+    terms: The tuple of theory terms which form an element to be conditionally
+           aggregated in the theory atom.
+    condition: The tuple of literals forming a conjunction on which the
+               tuple of theory terms is conditioned.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    terms = Theory_Terms1.Field
+    condition = Literals1.Field
+
+
+class Theory_Atom_Elements1(ComplexTerm, name="theory_atom_elements"):
+    "Term identifying a child tuple of of theory atom element facts."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Theory_Guard(Predicate):
+    """Predicate representing a theory guard.
+
+    id: The identifier of the theory guard.
+    operator_name: The name of the binary theory operator applied to
+                   the aggregated elements of the theory atom and the theory term.
+    term: The theory term to which the theory operator is applied.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    operator_name = StringField
+    term = TheoryTermField
+
+
+class Theory_Guard1(ComplexTerm, name="theory_guard"):
+    "Term identifying a child theory guard fact."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Theory_Atom(Predicate):
+    """Predicate representing a theory atom.
+
+    id: Identifier of the theory atom.
+    atom: The atom forming the symbolic part of the theory atom.
+    elements: The tuple of elements aggregated in the theory atom.
+    guard: The (optional) theory guard applied the aggregated elements
+           of the theory atom.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    atom = Symbolic_Atom1.Field
+    elements = Theory_Atom_Elements1.Field
+    guard = Theory_Guard1.Field
+
+
+class Theory_Atom1(ComplexTerm, name="theory_atom"):
+    "Term identifying a child theory atom fact."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
 class Body_Agg_Elements(Predicate, name="body_agg_elements"):
     """Predicate representing an element of a body aggregate.
 
     id: Identifier of the tuple of body aggregate elements.
-    position: Integer representing position of the element the tuple, ordered by <.
+    position: Integer representing position of the element in the tuple, ordered by <.
     terms: The tuple of terms to which the aggregate function will be applied.
-    condition: The tuple of literals on which the tuple of terms is conditioned.
+    condition: The tuple of literals forming a conjunction on which the
+               tuple of terms is conditioned.
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
@@ -620,7 +815,8 @@ class Body_Aggregate1(Predicate, name="body_aggregate"):
 
 
 BodyAtomField = combine_fields_lazily(
-    AtomField.fields + [Aggregate1.Field, Body_Aggregate1.Field], name="BodyAtomField"
+    AtomField.fields + [Aggregate1.Field, Body_Aggregate1.Field, Theory_Atom1.Field],
+    name="BodyAtomField",
 )
 
 
@@ -720,9 +916,11 @@ class Disjunction(Predicate):
     """Predicate representing a disjunction of (conditional) literals.
 
     id: Identifier of the disjunction.
-    elements: The conditional literals constituting the disjunction.
-              Literals occurring in the disjunction are represented
-              as a conditional literal with an empty condition.
+    position: Integer representing position of the element the disjunction,
+              ordered by <.
+    element: The element of the disjunction, a conditional literal.
+             A literal in a disjunction is represented as a conditional literal
+             with an empty condition.
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
@@ -736,7 +934,13 @@ class Disjunction1(ComplexTerm, name="disjunction"):
 
 
 HeadField = combine_fields(
-    [Literal1.Field, Aggregate1.Field, Head_Aggregate1.Field, Disjunction1.Field],
+    [
+        Literal1.Field,
+        Aggregate1.Field,
+        Head_Aggregate1.Field,
+        Disjunction1.Field,
+        Theory_Atom1.Field,
+    ],
     name="HeadField",
 )
 
@@ -848,6 +1052,11 @@ AstPredicate = Union[
     Terms,
     Function,
     Pool,
+    Theory_Terms,
+    Theory_Sequence,
+    Theory_Function,
+    Theory_Operators,
+    Theory_Unparsed_Term,
     Guard,
     Guards,
     Comparison,
@@ -858,6 +1067,9 @@ AstPredicate = Union[
     Conditional_Literal,
     Agg_Elements,
     Aggregate,
+    Theory_Atom_Elements,
+    Theory_Guard,
+    Theory_Atom,
     Body_Agg_Elements,
     Body_Aggregate,
     Body_Literal,
@@ -882,6 +1094,11 @@ AstPredicates = [
     Terms,
     Function,
     Pool,
+    Theory_Terms,
+    Theory_Sequence,
+    Theory_Function,
+    Theory_Operators,
+    Theory_Unparsed_Term,
     Guard,
     Guards,
     Comparison,
@@ -892,6 +1109,9 @@ AstPredicates = [
     Conditional_Literal,
     Agg_Elements,
     Aggregate,
+    Theory_Atom_Elements,
+    Theory_Guard,
+    Theory_Atom,
     Body_Agg_Elements,
     Body_Aggregate,
     Body_Literal,

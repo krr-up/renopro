@@ -271,6 +271,38 @@ class TestReifyReflectAggTheory(TestReifyReflect):
         with self.subTest(operation="reflect"):
             self.assertReflectEqual("1 <= { a: b; c }.", ["aggregate.lp"])
 
+    def test_rast_simple_theory_atom(self):
+        """Test reification and reflection of simple theory atoms
+        consisting only of symbolic part."""
+        with self.subTest(operation="reify"):
+            self.assertReifyEqual("&a.", ["theory_atom_simple.lp"])
+        with self.subTest(operation="reflect"):
+            self.assertReflectEqual("&a { }.", ["theory_atom_simple.lp"])
+        self.setUp()
+        self.assertReifyReflectEqual('&a("b") { }.', ["theory_atom_simple_arg.lp"])
+        self.setUp()
+        self.assertReifyReflectEqual('&a { } | b.', ["theory_atom_simple_guard.lp"])
+
+    def test_rast_theory_sequence(self):
+        "Test reification and reflection of a theory sequence."
+        self.assertReifyReflectEqual("&a { [1,b] }.", ["theory_sequence.lp"])
+
+    def test_rast_theory_sequence_type(self):
+        "Test that all theory sequence types are accepted in reified representation."
+        pass
+
+    def test_rast_theory_function(self):
+        "Test reification and reflection of a theory function."
+        self.assertReifyReflectEqual("&a { f(1) }.", ["theory_function.lp"])
+
+    def test_rast_theory_term(self):
+        "Test that all theory terms are accepted in reified representation."
+        pass
+
+    def test_rast_theory_unparsed_term(self):
+        "Test reification and reflection of an unparsed theory term."
+        self.assertReifyReflectEqual('&a { +1!-"b" }.', ["theory_unparsed_term.lp"])
+
     def test_rast_head_aggregate(self):
         "Test reification and reflection of a head aggregate."
         with self.subTest(operation="reify"):
