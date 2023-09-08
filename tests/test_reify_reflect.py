@@ -79,7 +79,9 @@ class TestReifiedASTInterface(TestReifiedAST):
         """Test adding of reified facts from files to reified facts of a ReifiedAST."""
         rast = ReifiedAST()
         rast.add_reified_files([malformed_ast_files / "ast_fact.lp"])
-        fb = FactBase([preds.Symbolic_Atom(id=12, symbol=preds.Function1(id=13))])
+        fb = FactBase(
+            [preds.Symbolic_Atom(id=12, symbol=preds.id_terms.Function(id=13))]
+        )
         self.assertSetEqual(rast.reified_facts, fb)
 
 

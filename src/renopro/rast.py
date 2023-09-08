@@ -22,7 +22,6 @@ from clingo.symbol import Symbol, SymbolType
 from clorm import (
     BaseField,
     FactBase,
-    Predicate,
     Unifier,
     UnifierNoMatchError,
     control_add_facts,
@@ -32,6 +31,7 @@ from clorm import (
 from thefuzz import process  # type: ignore
 
 import renopro.predicates as preds
+from renopro.predicates import id_terms
 from renopro.utils import assert_never
 from renopro.utils.logger import get_clingo_logger_callback
 
@@ -283,19 +283,19 @@ class ReifiedAST:
 
     @reify_node.register(SymbolType.String)
     def _reify_symbol_string(self, symb):
-        string1 = preds.String1()
+        string1 = preds.id_terms.String()
         self._reified.add(preds.String(id=string1.id, value=symb.string))
         return string1
 
     @reify_node.register(SymbolType.Number)
     def _reify_symbol_number(self, symb):
-        number1 = preds.Number1()
+        number1 = id_terms.Number()
         self._reified.add(preds.Number(id=number1.id, value=symb.number))
         return number1
 
     @reify_node.register(ASTType.Variable)
     def _reify_variable(self, node):
-        variable1 = preds.Variable1()
+        variable1 = id_terms.Variable()
         self._reified.add(preds.Variable(id=variable1.id, name=node.name))
         return variable1
 
@@ -304,7 +304,7 @@ class ReifiedAST:
         clorm_operator = preds.convert_enum(
             ast.UnaryOperator(node.operator_type), preds.UnaryOperator
         )
-        unop1 = preds.Unary_Operation1()
+        unop1 = id_terms.Unary_Operation()
         unop = preds.Unary_Operation(
             id=unop1.id,
             operator=clorm_operator,
@@ -318,7 +318,7 @@ class ReifiedAST:
         clorm_operator = preds.convert_enum(
             ast.BinaryOperator(node.operator_type), preds.BinaryOperator
         )
-        binop1 = preds.Binary_Operation1()
+        binop1 = id_terms.Binary_Operation()
         binop = preds.Binary_Operation(
             id=binop1.id,
             operator=clorm_operator,
@@ -330,7 +330,7 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.Interval)
     def _reify_interval(self, node):
-        interval1 = preds.Interval1()
+        interval1 = id_terms.Interval()
         left = self.reify_node(node.left)
         right = self.reify_node(node.right)
         interval = preds.Interval(id=interval1.id, left=left, right=right)
@@ -345,9 +345,9 @@ class ReifiedAST:
         clingo.Symbol.Function with empty argument list.
 
         """
-        func1 = preds.Function1()
+        func1 = id_terms.Function()
         self._reified.add(
-            preds.Function(id=func1.id, name=symb.name, arguments=preds.Terms1())
+            preds.Function(id=func1.id, name=symb.name, arguments=id_terms.Terms())
         )
         return func1
 
@@ -361,9 +361,9 @@ class ReifiedAST:
         to create the correct clorm predicate.
 
         """
-        function1 = preds.Function1()
+        function1 = id_terms.Function()
         function = preds.Function(
-            id=function1.id, name=node.name, arguments=preds.Terms1()
+            id=function1.id, name=node.name, arguments=id_terms.Terms()
         )
         self._reified.add(function)
         self._reify_ast_seqence(node.arguments, function.arguments.id, preds.Terms)
@@ -371,22 +371,22 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.Pool)
     def _reify_pool(self, node):
-        pool1 = preds.Pool1()
-        pool = preds.Pool(id=pool1.id, arguments=preds.Terms1())
+        pool1 = id_terms.Pool()
+        pool = preds.Pool(id=pool1.id, arguments=id_terms.Terms())
         self._reified.add(pool)
         self._reify_ast_seqence(node.arguments, pool.arguments.id, preds.Terms)
         return pool1
 
     @reify_node.register(ASTType.TheorySequence)
     def _reify_theory_sequence(self, node):
-        theory_seq1 = preds.Theory_Sequence1()
+        theory_seq1 = id_terms.Theory_Sequence()
         clorm_theory_seq_type = preds.convert_enum(
             ast.TheorySequenceType(node.sequence_type), preds.TheorySequenceType
         )
         theory_seq = preds.Theory_Sequence(
             id=theory_seq1.id,
             sequence_type=clorm_theory_seq_type,
-            terms=preds.Theory_Terms1(),
+            terms=id_terms.Theory_Terms(),
         )
         self._reified.add(theory_seq)
         self._reify_ast_seqence(node.terms, theory_seq.terms.id, preds.Theory_Terms)
@@ -394,9 +394,9 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.TheoryFunction)
     def _reify_theory_function(self, node):
-        theory_func1 = preds.Theory_Function1()
+        theory_func1 = id_terms.Theory_Function()
         theory_func = preds.Theory_Function(
-            id=theory_func1.id, name=node.name, arguments=preds.Theory_Terms1()
+            id=theory_func1.id, name=node.name, arguments=id_terms.Theory_Terms()
         )
         self._reified.add(theory_func)
         self._reify_ast_seqence(
@@ -408,14 +408,14 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.TheoryUnparsedTerm)
     def _reify_theory_unparsed_term(self, node):
-        reified_unparsed_theory_term1 = preds.Theory_Unparsed_Term1()
-        reified_unparsed_elements1 = preds.Theory_Unparsed_Term_Elements1()
+        reified_unparsed_theory_term1 = id_terms.Theory_Unparsed_Term()
+        reified_unparsed_elements1 = id_terms.Theory_Unparsed_Term_Elements()
         # reified_unparsed_theory_term = preds.Theory_Unparsed_Term(
         #     id=reified_unparsed_theory_term1.id,
-        #     elements=preds.Theory_Unparsed_Term_Elements1(),
+        #     elements=id_terms.Theory_Unparsed_Term_Elements(),
         # )
         for pos, element in enumerate(node.elements):
-            operators = preds.Theory_Operators1()
+            operators = id_terms.Theory_Operators()
             reified_operators = [
                 preds.Theory_Operators(id=operators.id, position=p, operator=op)
                 for p, op in enumerate(element.operators)
@@ -437,7 +437,7 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.Guard)
     def _reify_guard(self, node):
-        guard1 = preds.Guard1()
+        guard1 = id_terms.Guard()
         clorm_operator = preds.convert_enum(
             ast.ComparisonOperator(node.comparison), preds.ComparisonOperator
         )
@@ -449,9 +449,11 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.Comparison)
     def _reify_comparison(self, node):
-        comparison1 = preds.Comparison1()
+        comparison1 = id_terms.Comparison()
         comparison = preds.Comparison(
-            id=comparison1.id, term=self.reify_node(node.term), guards=preds.Guards1()
+            id=comparison1.id,
+            term=self.reify_node(node.term),
+            guards=id_terms.Guards(),
         )
         self._reified.add(comparison)
         self._reify_ast_seqence(node.guards, comparison.guards.id, preds.Guards)
@@ -459,7 +461,7 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.BooleanConstant)
     def _reify_boolean_constant(self, node):
-        bool_const1 = preds.Boolean_Constant1()
+        bool_const1 = id_terms.Boolean_Constant()
         bool_str = ""
         if node.value == 1:
             bool_str = "true"
@@ -473,7 +475,7 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.SymbolicAtom)
     def _reify_symbolic_atom(self, node):
-        atom1 = preds.Symbolic_Atom1()
+        atom1 = id_terms.Symbolic_Atom()
         atom = preds.Symbolic_Atom(id=atom1.id, symbol=self.reify_node(node.symbol))
         self._reified.add(atom)
         return atom1
@@ -481,35 +483,35 @@ class ReifiedAST:
     @reify_node.register(ASTType.Literal)
     def _reify_literal(self, node):
         clorm_sign = preds.convert_enum(ast.Sign(node.sign), preds.Sign)
-        lit1 = preds.Literal1()
+        lit1 = id_terms.Literal()
         lit = preds.Literal(id=lit1.id, sig=clorm_sign, atom=self.reify_node(node.atom))
         self._reified.add(lit)
         return lit1
 
     @reify_node.register(ASTType.ConditionalLiteral)
-    def _reify_conditional_literal(self, node) -> preds.Conditional_Literal1:
-        cond_lit1 = preds.Conditional_Literal1()
+    def _reify_conditional_literal(self, node):
+        cond_lit1 = id_terms.Conditional_Literal()
         cond_lit = preds.Conditional_Literal(
             id=cond_lit1.id,
             literal=self.reify_node(node.literal),
-            condition=preds.Literals1(),
+            condition=id_terms.Literals(),
         )
         self._reified.add(cond_lit)
         self._reify_ast_seqence(node.condition, cond_lit.condition.id, preds.Literals)
         return cond_lit1
 
     @reify_node.register(ASTType.Aggregate)
-    def _reify_aggregate(self, node) -> preds.Aggregate1:
-        count_agg1 = preds.Aggregate1()
+    def _reify_aggregate(self, node):
+        count_agg1 = id_terms.Aggregate()
         left_guard = (
-            preds.Guard1()
+            id_terms.Guard()
             if node.left_guard is None
             else self.reify_node(node.left_guard)
         )
-        elements1 = preds.Agg_Elements1()
+        elements1 = id_terms.Agg_Elements()
         self._reify_ast_seqence(node.elements, elements1.id, preds.Agg_Elements)
         right_guard = (
-            preds.Guard1()
+            id_terms.Guard()
             if node.right_guard is None
             else self.reify_node(node.right_guard)
         )
@@ -523,18 +525,18 @@ class ReifiedAST:
         return count_agg1
 
     @reify_node.register(ASTType.TheoryAtom)
-    def _reify_theory_atom(self, node) -> preds.Theory_Atom1:
-        theory_atom1 = preds.Theory_Atom1()
+    def _reify_theory_atom(self, node):
+        theory_atom1 = id_terms.Theory_Atom()
         # we make a slight modification in the reified representation
         # vs the AST, wrapping the function into a symbolic atom, as
         # that's what it really is IMO.
         theory_symbolic_atom1 = self.reify_node(ast.SymbolicAtom(node.term))
-        theory_atom_elements1 = preds.Theory_Atom_Elements1()
+        theory_atom_elements1 = id_terms.Theory_Atom_Elements()
         reified_elements = []
         for pos, element in enumerate(node.elements):
-            theory_terms1 = preds.Theory_Terms1()
+            theory_terms1 = id_terms.Theory_Terms()
             self._reify_ast_seqence(element.terms, theory_terms1.id, preds.Theory_Terms)
-            literals1 = preds.Literals1()
+            literals1 = id_terms.Literals()
             self._reify_ast_seqence(element.condition, literals1.id, preds.Literals)
             reified_element = preds.Theory_Atom_Elements(
                 id=theory_atom_elements1.id,
@@ -544,7 +546,7 @@ class ReifiedAST:
             )
             reified_elements.append(reified_element)
         self._reified.add(reified_elements)
-        theory_guard1 = preds.Theory_Guard1()
+        theory_guard1 = id_terms.Theory_Guard()
         if node.guard is not None:
             guard_theory_term = self.reify_node(node.guard.term)
             theory_guard = preds.Theory_Guard(
@@ -563,22 +565,22 @@ class ReifiedAST:
         return theory_atom1
 
     @reify_node.register(ASTType.BodyAggregate)
-    def _reify_body_aggregate(self, node) -> preds.Body_Aggregate1:
-        agg1 = preds.Body_Aggregate1()
+    def _reify_body_aggregate(self, node):
+        agg1 = id_terms.Body_Aggregate()
         left_guard = (
-            preds.Guard1()
+            id_terms.Guard()
             if node.left_guard is None
             else self.reify_node(node.left_guard)
         )
         clorm_agg_func = preds.convert_enum(
             ast.AggregateFunction(node.function), preds.AggregateFunction
         )
-        elements1 = preds.Body_Agg_Elements1()
+        elements1 = id_terms.Body_Agg_Elements()
         reified_elements = []
         for pos, element in enumerate(node.elements):
-            terms1 = preds.Terms1()
+            terms1 = id_terms.Terms()
             self._reify_ast_seqence(element.terms, terms1.id, preds.Terms)
-            literals1 = preds.Literals1()
+            literals1 = id_terms.Literals()
             self._reify_ast_seqence(element.condition, literals1.id, preds.Literals)
             reified_element = preds.Body_Agg_Elements(
                 id=elements1.id, position=pos, terms=terms1, condition=literals1
@@ -586,7 +588,7 @@ class ReifiedAST:
             reified_elements.append(reified_element)
         self._reified.add(reified_elements)
         right_guard = (
-            preds.Guard1()
+            id_terms.Guard()
             if node.right_guard is None
             else self.reify_node(node.right_guard)
         )
@@ -611,7 +613,7 @@ class ReifiedAST:
                     )
                 )
             else:
-                body_lit1 = preds.Body_Literal1()
+                body_lit1 = id_terms.Body_Literal()
                 reified_body_lits.append(
                     preds.Body_Literals(
                         id=body_id, position=pos, body_literal=body_lit1
@@ -625,20 +627,20 @@ class ReifiedAST:
         self._reified.add(reified_body_lits)
 
     @reify_node.register(ASTType.HeadAggregate)
-    def _reify_head_aggregate(self, node) -> preds.Head_Aggregate1:
-        agg1 = preds.Head_Aggregate1()
+    def _reify_head_aggregate(self, node):
+        agg1 = id_terms.Head_Aggregate()
         left_guard = (
-            preds.Guard1()
+            id_terms.Guard()
             if node.left_guard is None
             else self.reify_node(node.left_guard)
         )
         clorm_agg_func = preds.convert_enum(
             ast.AggregateFunction(node.function), preds.AggregateFunction
         )
-        elements1 = preds.Head_Agg_Elements1()
+        elements1 = id_terms.Head_Agg_Elements()
         reified_elements = []
         for pos, element in enumerate(node.elements):
-            terms1 = preds.Terms1()
+            terms1 = id_terms.Terms()
             self._reify_ast_seqence(element.terms, terms1.id, preds.Terms)
             cond_lit1 = self.reify_node(element.condition)
             reified_element = preds.Head_Agg_Elements(
@@ -647,7 +649,7 @@ class ReifiedAST:
             reified_elements.append(reified_element)
         self._reified.add(reified_elements)
         right_guard = (
-            preds.Guard1()
+            id_terms.Guard()
             if node.right_guard is None
             else self.reify_node(node.right_guard)
         )
@@ -662,9 +664,9 @@ class ReifiedAST:
         return agg1
 
     @reify_node.register(ASTType.Disjunction)
-    def _reify_disjunction(self, node) -> preds.Disjunction1:
-        disj1 = preds.Disjunction1()
-        cond_lits1 = preds.Conditional_Literals1()
+    def _reify_disjunction(self, node):
+        disj1 = id_terms.Disjunction()
+        cond_lits1 = id_terms.Conditional_Literals()
         self._reify_ast_seqence(
             node.elements, cond_lits1.id, preds.Conditional_Literals
         )
@@ -674,9 +676,9 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.Rule)
     def _reify_rule(self, node):
-        rule1 = preds.Rule1()
+        rule1 = id_terms.Rule()
         head = self.reify_node(node.head)
-        rule = preds.Rule(id=rule1.id, head=head, body=preds.Body_Literals1())
+        rule = preds.Rule(id=rule1.id, head=head, body=id_terms.Body_Literals())
         self._reified.add(rule)
         statement_tup = preds.Statements(
             id=self._statement_tup_id, position=self._statement_pos, statement=rule1
@@ -687,17 +689,17 @@ class ReifiedAST:
 
     @reify_node.register(ASTType.Program)
     def _reify_program(self, node):
-        const_tup_id = preds.Constants1()
+        const_tup_id = id_terms.Constants()
         for pos, param in enumerate(node.parameters, start=0):
             const_tup = preds.Constants(
-                id=const_tup_id.id, position=pos, constant=preds.Function1()
+                id=const_tup_id.id, position=pos, constant=id_terms.Function()
             )
             const = preds.Function(
-                id=const_tup.constant.id, name=param.name, arguments=preds.Terms1()
+                id=const_tup.constant.id, name=param.name, arguments=id_terms.Terms()
             )
             self._reified.add([const_tup, const])
         program = preds.Program(
-            name=node.name, parameters=const_tup_id, statements=preds.Statements1()
+            name=node.name, parameters=const_tup_id, statements=id_terms.Statements()
         )
         self._reified.add(program)
         self._statement_tup_id = program.statements.id
@@ -706,11 +708,11 @@ class ReifiedAST:
     @reify_node.register(ASTType.External)
     def _reify_external(self, node):
         ext_type = node.external_type.symbol.name
-        external1 = preds.External1()
+        external1 = id_terms.External()
         external = preds.External(
             id=external1.id,
             atom=self.reify_node(node.atom),
-            body=preds.Body_Literals1(),
+            body=id_terms.Body_Literals(),
             external_type=ext_type,
         )
         self._reified.add(external)
@@ -781,26 +783,25 @@ class ReifiedAST:
             num_child_facts = len(child_facts)
             if num_child_facts == 1:
                 return self.reflect_predicate(child_facts[0])
-            else:
-                msg = (
-                    f"Expected 1 child fact for identifier '{child_id_fact}'"
-                    f", found {num_child_facts}."
-                )
-                raise ChildQueryError(base_msg + msg)
-        elif expected_children_num == "?":
+            msg = (
+                f"Expected 1 child fact for identifier '{child_id_fact}'"
+                f", found {num_child_facts}."
+            )
+            raise ChildQueryError(base_msg + msg)
+        if expected_children_num == "?":
             child_facts = list(query.all())
             num_child_facts = len(child_facts)
             if num_child_facts == 0:
                 return None
-            elif num_child_facts == 1:
+            if num_child_facts == 1:
                 return self.reflect_predicate(child_facts[0])
-            else:
-                msg = (
-                    f"Expected 0 or 1 child fact for identifier "
-                    f"'{child_id_fact}', found {num_child_facts}."
-                )
-                raise ChildQueryError(base_msg + msg)
-        elif expected_children_num == "*" or expected_children_num == "+":
+            msg = (
+                f"Expected 0 or 1 child fact for identifier "
+                f"'{child_id_fact}', found {num_child_facts}."
+            )
+            raise ChildQueryError(base_msg + msg)
+        #  pylint: disable=consider-using-in
+        if expected_children_num == "*" or expected_children_num == "+":
             query = query.order_by(child_ast_pred.position)
             child_facts = list(query.all())
             num_child_facts = len(child_facts)

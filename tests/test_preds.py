@@ -14,7 +14,9 @@ class TestPredUtils(TestCase):
         """Combining a non BaseField (sub)class should raise error"""
         message = "{preds.Function1} is not a BaseField or a sub-class."
         with self.assertRaises(TypeError, msg=message):
-            preds.combine_fields_lazily([preds.Variable1.Field, preds.Function1])
+            preds.combine_fields_lazily(
+                [preds.id_terms.Variable.Field, preds.id_terms.Function]
+            )
 
     def test_combine_fields_lazily_no_combined_pytocl_error(self):
         """If python data cannot be converted to clingo data by any of
