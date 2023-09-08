@@ -71,7 +71,7 @@ class TryUnify(AbstractContextManager):
         """
         unmatched = error.symbol
         name2arity2pred = {
-            pred.meta.name: {pred.meta.arity: pred} for pred in preds.AstPredicates
+            pred.meta.name: {pred.meta.arity: pred} for pred in preds.AstPreds
         }
         candidate = name2arity2pred.get(unmatched.name, {}).get(
             len(unmatched.arguments)
@@ -159,9 +159,9 @@ class ReifiedAST:
         self._statement_pos = 0
         self._program_string = ""
 
-    def add_reified_facts(self, reified_facts: Iterator[preds.AstPredicate]) -> None:
+    def add_reified_facts(self, reified_facts: Iterator[preds.AstPred]) -> None:
         """Add iterator of reified AST facts to internal factbase."""
-        unifier = Unifier(preds.AstPredicates)
+        unifier = Unifier(preds.AstPreds)
         # couldn't find a way in clorm to directly add a set of facts
         # while checking unification, so we have to unify against the
         # underlying symbols
@@ -173,7 +173,7 @@ class ReifiedAST:
 
     def add_reified_string(self, reified_string: str) -> None:
         """Add string of reified facts into internal factbase."""
-        unifier = preds.AstPredicates
+        unifier = preds.AstPreds
         with TryUnify():
             facts = parse_fact_string(
                 reified_string, unifier=unifier, raise_nomatch=True, raise_nonfact=True
@@ -186,7 +186,7 @@ class ReifiedAST:
         with TryUnify():
             facts = parse_fact_files(
                 reified_files_str,
-                unifier=preds.AstPredicates,
+                unifier=preds.AstPreds,
                 raise_nomatch=True,
                 raise_nonfact=True,
             )
@@ -260,7 +260,7 @@ class ReifiedAST:
         raise TypeError(f"Nodes should be of type AST or Symbol, got: {type(node)}")
 
     def _reify_ast_seqence(
-        self, seq: ASTSequence, tup_id: BaseField, tup_pred: Type[preds.AstPredicate]
+        self, seq: ASTSequence, tup_id: BaseField, tup_pred: Type[preds.AstPred]
     ):
         """Reify ast sequence into a tuple of predicates of type
         tup_pred with identifier tup_id."""
@@ -726,7 +726,7 @@ class ReifiedAST:
     @overload
     def _reflect_child(
         self,
-        parent_fact: preds.AstPredicate,
+        parent_fact: preds.AstPred,
         child_id_fact,
         expected_children_num: Literal["1"],
     ) -> AST:  # nocoverage
@@ -735,13 +735,15 @@ class ReifiedAST:
     # for handling the default argument "1"
 
     @overload
-    def _reflect_child(self, parent_fact: preds.AstPredicate, child_id_fact) -> AST:  #nocoverage
+    def _reflect_child(
+        self, parent_fact: preds.AstPred, child_id_fact
+    ) -> AST:  # nocoverage
         ...
 
     @overload
     def _reflect_child(
         self,
-        parent_fact: preds.AstPredicate,
+        parent_fact: preds.AstPred,
         child_id_fact,
         expected_children_num: Literal["?"],
     ) -> Optional[AST]:  # nocoverage
@@ -750,7 +752,7 @@ class ReifiedAST:
     @overload
     def _reflect_child(
         self,
-        parent_fact: preds.AstPredicate,
+        parent_fact: preds.AstPred,
         child_id_fact,
         expected_children_num: Literal["*", "+"],
     ) -> Sequence[AST]:  # nocoverage
@@ -758,7 +760,7 @@ class ReifiedAST:
 
     def _reflect_child(
         self,
-        parent_fact: preds.AstPredicate,
+        parent_fact: preds.AstPred,
         child_id_fact,
         expected_children_num: ExpectedNum = "1",
     ) -> Union[None, AST, Sequence[AST]]:
@@ -820,7 +822,7 @@ class ReifiedAST:
         assert_never(expected_children_num)
 
     @singledispatchmethod
-    def reflect_predicate(self, pred: preds.AstPredicate):  # nocoverage
+    def reflect_predicate(self, pred: preds.AstPred):  # nocoverage
         """Convert the input AST element's reified fact representation
         back into a the corresponding member of clingo's abstract
         syntax tree, recursively reflecting all child facts.
@@ -937,8 +939,8 @@ class ReifiedAST:
     @reflect_predicate.register
     def _reflect_theory_operators(
         self, theory_operators: preds.Theory_Operators
-    ) -> AST:
-        return theory_operators.operator
+    ) -> str:
+        return str(theory_operators.operator)
 
     @reflect_predicate.register
     def _reflect_theory_unparsed_term_elements(
@@ -1234,7 +1236,7 @@ class ReifiedAST:
             model_iterator = iter(handle)
             model = next(model_iterator)
             ast_symbols = [final.arguments[0] for final in model.symbols(shown=True)]
-            unifier = Unifier(preds.AstPredicates)
+            unifier = Unifier(preds.AstPreds)
             with TryUnify():
                 ast_facts = unifier.iter_unify(ast_symbols, raise_nomatch=True)
                 self._reified = FactBase(ast_facts)

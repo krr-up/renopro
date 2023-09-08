@@ -252,7 +252,9 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
         """Reflection of a child facts where one or more facts are expected
         should fail with an informative error message when zero are found."""
         rast = ReifiedAST()
-        rast.add_reified_files([malformed_ast_files / "one_or_more_expected_found_zero.lp"])
+        rast.add_reified_files(
+            [malformed_ast_files / "one_or_more_expected_found_zero.lp"]
+        )
         regex = (
             r"(?s).*comparison\(4,number\(5\),guards\(6\)\).*"
             r".*Expected 1 or more.*guards\(6\).*."
@@ -264,7 +266,9 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
         """Reflection of a child fact where zero or one fact is expected
         should fail with an informative error message when multiple are found."""
         rast = ReifiedAST()
-        rast.add_reified_files([malformed_ast_files / "zero_or_more_expected_multiple_found.lp"])
+        rast.add_reified_files(
+            [malformed_ast_files / "zero_or_more_expected_multiple_found.lp"]
+        )
         regex = (
             r"(?s).*aggregate\(3,guard\(4\),agg_elements\(7\),guard\(8\)\).*"
             r".*Expected 0 or 1.*guard\(4\).*found 2."
