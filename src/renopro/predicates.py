@@ -346,7 +346,7 @@ class Terms(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = TermField
+    term = TermField
 
 
 class Terms1(ComplexTerm, name="terms"):
@@ -405,7 +405,8 @@ TermField.fields.extend(
 
 
 TheoryTermField = combine_fields_lazily(
-    [String1.Field, Number1.Field, Function1.Field, Variable1.Field], name="TheoryTermField"
+    [String1.Field, Number1.Field, Function1.Field, Variable1.Field],
+    name="TheoryTermField",
 )
 
 
@@ -419,7 +420,7 @@ class Theory_Terms(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = TheoryTermField
+    theory_term = TheoryTermField
 
 
 class Theory_Terms1(ComplexTerm, name="theory_terms"):
@@ -540,7 +541,7 @@ class Guards(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = Guard1.Field
+    guard = Guard1.Field
 
 
 class Guards1(ComplexTerm, name="guards"):
@@ -636,7 +637,7 @@ class Literals(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField  # should we keep track of position?
-    element = Literal1.Field
+    literal = Literal1.Field
 
 
 class Literals1(ComplexTerm, name="literals"):
@@ -857,7 +858,7 @@ class Body_Literals(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = BodyLiteralField
+    body_literal = BodyLiteralField
 
 
 class Body_Literals1(ComplexTerm, name="body_literals"):
@@ -925,7 +926,7 @@ class Disjunction(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = Conditional_Literal1.Field
+    conditional_literal = Conditional_Literal1.Field
 
 
 class Disjunction1(ComplexTerm, name="disjunction"):
@@ -1003,7 +1004,7 @@ class Statements(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = StatementField
+    statement = StatementField
 
 
 class Statements1(ComplexTerm, name="statements"):
@@ -1021,7 +1022,7 @@ class Constants(Predicate):
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
-    element = Function1.Field
+    constant = Function1.Field
 
 
 class Constants1(ComplexTerm, name="constants"):
