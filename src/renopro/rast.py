@@ -1,13 +1,12 @@
 # pylint: disable=too-many-lines
 """Module implementing reification and de-reification of non-ground programs"""
-import enum
 import inspect
 import logging
 import re
 from contextlib import AbstractContextManager
 from functools import singledispatchmethod
 from pathlib import Path
-from typing import Iterator, List, Optional, Sequence, Type, Union
+from typing import Iterator, List, Literal, Optional, Sequence, Type, Union, overload
 
 from clingo import Control, ast, symbol
 from clingo.ast import (
@@ -33,6 +32,7 @@ from clorm import (
 from thefuzz import process  # type: ignore
 
 import renopro.predicates as preds
+from renopro.utils import assert_never
 from renopro.utils.logger import get_clingo_logger_callback
 
 logger = logging.getLogger(__name__)
@@ -260,7 +260,7 @@ class ReifiedAST:
         raise TypeError(f"Nodes should be of type AST or Symbol, got: {type(node)}")
 
     def _reify_ast_seqence(
-        self, seq: ASTSequence, tup_id: BaseField, tup_pred: Type[Predicate]
+        self, seq: ASTSequence, tup_id: BaseField, tup_pred: Type[preds.AstPredicate]
     ):
         """Reify ast sequence into a tuple of predicates of type
         tup_pred with identifier tup_id."""
@@ -407,8 +407,9 @@ class ReifiedAST:
         return theory_func1
 
     @reify_node.register(ASTType.TheoryUnparsedTerm)
-    def _reify_unparsed_theory_term(self, node):
+    def _reify_theory_unparsed_term(self, node):
         reified_unparsed_theory_term1 = preds.Theory_Unparsed_Term1()
+        reified_unparsed_elements1 = preds.Theory_Unparsed_Term_Elements1()
         # reified_unparsed_theory_term = preds.Theory_Unparsed_Term(
         #     id=reified_unparsed_theory_term1.id,
         #     elements=preds.Theory_Unparsed_Term_Elements1(),
@@ -421,13 +422,17 @@ class ReifiedAST:
             ]
             self._reified.add(reified_operators)
             reified_theory_term1 = self.reify_node(element.term)
-            reified_unparsed_theory_term = preds.Theory_Unparsed_Term(
-                id=reified_unparsed_theory_term1.id,
+            reified_unparsed_elements = preds.Theory_Unparsed_Term_Elements(
+                id=reified_unparsed_elements1.id,
                 position=pos,
                 operators=operators,
                 term=reified_theory_term1,
             )
-            self._reified.add(reified_unparsed_theory_term)
+            self._reified.add(reified_unparsed_elements)
+        reified_unparsed = preds.Theory_Unparsed_Term(
+            id=reified_unparsed_theory_term1.id, elements=reified_unparsed_elements1
+        )
+        self._reified.add(reified_unparsed)
         return reified_unparsed_theory_term1
 
     @reify_node.register(ASTType.Guard)
@@ -503,9 +508,11 @@ class ReifiedAST:
         )
         elements1 = preds.Agg_Elements1()
         self._reify_ast_seqence(node.elements, elements1.id, preds.Agg_Elements)
-        right_guard = preds.Guard1()
-        if node.right_guard is not None:
-            self.reify_node(node.right_guard)
+        right_guard = (
+            preds.Guard1()
+            if node.right_guard is None
+            else self.reify_node(node.right_guard)
+        )
         count_agg = preds.Aggregate(
             id=count_agg1.id,
             left_guard=left_guard,
@@ -593,6 +600,30 @@ class ReifiedAST:
         self._reified.add(agg)
         return agg1
 
+    def _reify_body_literals(self, body_lits: Sequence[ast.AST], body_id):
+        reified_body_lits = []
+        for pos, lit in enumerate(body_lits, start=0):
+            if lit.ast_type is ast.ASTType.ConditionalLiteral:
+                cond_lit1 = self.reify_node(lit)
+                reified_body_lits.append(
+                    preds.Body_Literals(
+                        id=body_id, position=pos, body_literal=cond_lit1
+                    )
+                )
+            else:
+                body_lit1 = preds.Body_Literal1()
+                reified_body_lits.append(
+                    preds.Body_Literals(
+                        id=body_id, position=pos, body_literal=body_lit1
+                    )
+                )
+                clorm_sign = preds.convert_enum(ast.Sign(lit.sign), preds.Sign)
+                body_lit = preds.Body_Literal(
+                    id=body_lit1.id, sig=clorm_sign, atom=self.reify_node(lit.atom)
+                )
+                self._reified.add(body_lit)
+        self._reified.add(reified_body_lits)
+
     @reify_node.register(ASTType.HeadAggregate)
     def _reify_head_aggregate(self, node) -> preds.Head_Aggregate1:
         agg1 = preds.Head_Aggregate1()
@@ -630,37 +661,25 @@ class ReifiedAST:
         self._reified.add(agg)
         return agg1
 
-    def _reify_body_literals(self, body_lits: Sequence[ast.AST], body_id):
-        reified_body_lits = []
-        for pos, lit in enumerate(body_lits, start=0):
-            if lit.ast_type is ast.ASTType.ConditionalLiteral:
-                cond_lit1 = self.reify_node(lit)
-                reified_body_lits.append(
-                    preds.Body_Literals(id=body_id, position=pos, body_literal=cond_lit1)
-                )
-            else:
-                body_lit1 = preds.Body_Literal1()
-                reified_body_lits.append(
-                    preds.Body_Literals(id=body_id, position=pos, body_literal=body_lit1)
-                )
-                clorm_sign = preds.convert_enum(ast.Sign(lit.sign), preds.Sign)
-                body_lit = preds.Body_Literal(
-                    id=body_lit1.id, sig=clorm_sign, atom=self.reify_node(lit.atom)
-                )
-                self._reified.add(body_lit)
-        self._reified.add(reified_body_lits)
+    @reify_node.register(ASTType.Disjunction)
+    def _reify_disjunction(self, node) -> preds.Disjunction1:
+        disj1 = preds.Disjunction1()
+        cond_lits1 = preds.Conditional_Literals1()
+        self._reify_ast_seqence(
+            node.elements, cond_lits1.id, preds.Conditional_Literals
+        )
+        disj = preds.Disjunction(id=disj1.id, elements=cond_lits1)
+        self._reified.add(disj)
+        return disj1
 
     @reify_node.register(ASTType.Rule)
     def _reify_rule(self, node):
         rule1 = preds.Rule1()
-        if node.head.ast_type is ASTType.Disjunction:
-            head = preds.Disjunction1()
-            self._reify_ast_seqence(node.head.elements, head.id, preds.Disjunction)
-        else:
-            head = self.reify_node(node.head)
+        head = self.reify_node(node.head)
         rule = preds.Rule(id=rule1.id, head=head, body=preds.Body_Literals1())
         self._reified.add(rule)
-        statement_tup = preds.Statements(id=self._statement_tup_id, position=self._statement_pos, statement=rule1
+        statement_tup = preds.Statements(
+            id=self._statement_tup_id, position=self._statement_pos, statement=rule1
         )
         self._reified.add(statement_tup)
         self._statement_pos += 1
@@ -674,7 +693,7 @@ class ReifiedAST:
                 id=const_tup_id.id, position=pos, constant=preds.Function1()
             )
             const = preds.Function(
-                id=const_tup.element.id, name=param.name, arguments=preds.Terms1()
+                id=const_tup.constant.id, name=param.name, arguments=preds.Terms1()
             )
             self._reified.add([const_tup, const])
         program = preds.Program(
@@ -702,18 +721,46 @@ class ReifiedAST:
         self._statement_pos += 1
         self._reify_body_literals(node.body, external.body.id)
 
-    class ExpectedNumberOfChilden(str, enum.Enum):
-        "String symbols representing expected number of child facts."
-        One = "1"
-        ZeroOrOne = "?"
-        ZeroOrMore = "*"
-        OneOrMore = "+"
+    ExpectedNum = Literal["1", "?", "+", "*"]
 
-    def reflect_child(
+    @overload
+    def _reflect_child(
         self,
         parent_fact: preds.AstPredicate,
         child_id_fact,
-        expected_children_num: ExpectedNumberOfChilden = "1",
+        expected_children_num: Literal["1"],
+    ) -> AST:  # nocoverage
+        ...
+
+    # for handling the default argument "1"
+
+    @overload
+    def _reflect_child(self, parent_fact: preds.AstPredicate, child_id_fact) -> AST:  #nocoverage
+        ...
+
+    @overload
+    def _reflect_child(
+        self,
+        parent_fact: preds.AstPredicate,
+        child_id_fact,
+        expected_children_num: Literal["?"],
+    ) -> Optional[AST]:  # nocoverage
+        ...
+
+    @overload
+    def _reflect_child(
+        self,
+        parent_fact: preds.AstPredicate,
+        child_id_fact,
+        expected_children_num: Literal["*", "+"],
+    ) -> Sequence[AST]:  # nocoverage
+        ...
+
+    def _reflect_child(
+        self,
+        parent_fact: preds.AstPredicate,
+        child_id_fact,
+        expected_children_num: ExpectedNum = "1",
     ) -> Union[None, AST, Sequence[AST]]:
         """Utility function that takes a unary ast predicate
         identifying a child predicate, queries reified factbase for
@@ -751,7 +798,7 @@ class ReifiedAST:
                     f"'{child_id_fact}', found {num_child_facts}."
                 )
                 raise ChildQueryError(base_msg + msg)
-        elif expected_children_num in ["*", "+"]:
+        elif expected_children_num == "*" or expected_children_num == "+":
             query = query.order_by(child_ast_pred.position)
             child_facts = list(query.all())
             num_child_facts = len(child_facts)
@@ -767,14 +814,10 @@ class ReifiedAST:
                     f"Expected 1 or more child facts for identifier "
                     f"'{child_id_fact}', found 0."
                 )
-                raise ChildQueryError(base_msg + msg)
+                raise ChildrenQueryError(base_msg + msg)
             child_nodes = [self.reflect_predicate(fact) for fact in child_facts]
             return child_nodes
-        else:
-            raise RuntimeError(
-                "Invalid expected_children_num argument. Value must be one of "
-                f"{[e.value for e in self.ExpectedNumberOfChilden]}."
-            )  # nocoverage
+        assert_never(expected_children_num)
 
     @singledispatchmethod
     def reflect_predicate(self, pred: preds.AstPredicate):  # nocoverage
@@ -816,7 +859,7 @@ class ReifiedAST:
         return ast.UnaryOperation(
             location=DUMMY_LOC,
             operator_type=clingo_operator,
-            argument=self.reflect_child(operation, operation.argument),
+            argument=self._reflect_child(operation, operation.argument),
         )
 
     @reflect_predicate.register
@@ -825,8 +868,8 @@ class ReifiedAST:
         clingo_operator = preds.convert_enum(
             preds.BinaryOperator(operation.operator), ast.BinaryOperator
         )
-        reflected_left = self.reflect_child(operation, operation.left)
-        reflected_right = self.reflect_child(operation, operation.right)
+        reflected_left = self._reflect_child(operation, operation.left)
+        reflected_right = self._reflect_child(operation, operation.right)
         return ast.BinaryOperation(
             location=DUMMY_LOC,
             operator_type=clingo_operator,
@@ -836,15 +879,15 @@ class ReifiedAST:
 
     @reflect_predicate.register
     def _reflect_interval(self, interval: preds.Interval) -> AST:
-        reflected_left = self.reflect_child(interval, interval.left)
-        reflected_right = self.reflect_child(interval, interval.right)
+        reflected_left = self._reflect_child(interval, interval.left)
+        reflected_right = self._reflect_child(interval, interval.right)
         return ast.Interval(
             location=DUMMY_LOC, left=reflected_left, right=reflected_right
         )
 
     @reflect_predicate.register
     def _reflect_terms(self, terms: preds.Terms) -> AST:
-        return self.reflect_child(terms, terms.term)
+        return self._reflect_child(terms, terms.term)
 
     @reflect_predicate.register
     def _reflect_function(self, func: preds.Function) -> AST:
@@ -858,26 +901,26 @@ class ReifiedAST:
         to handle them differently when reifying.
 
         """
-        arg_nodes = self.reflect_child(func, func.arguments, "*")
+        arg_nodes = self._reflect_child(func, func.arguments, "*")
         return ast.Function(
             location=DUMMY_LOC, name=str(func.name), arguments=arg_nodes, external=0
         )
 
     @reflect_predicate.register
     def _reflect_pool(self, pool: preds.Pool) -> AST:
-        arg_nodes = self.reflect_child(pool, pool.arguments, "*")
+        arg_nodes = self._reflect_child(pool, pool.arguments, "*")
         return ast.Pool(location=DUMMY_LOC, arguments=arg_nodes)
 
     @reflect_predicate.register
     def _reflect_theory_terms(self, theory_terms: preds.Theory_Terms) -> AST:
-        return self.reflect_child(theory_terms, theory_terms.theory_term)
+        return self._reflect_child(theory_terms, theory_terms.theory_term)
 
     @reflect_predicate.register
     def _reflect_theory_sequence(self, theory_seq: preds.Theory_Sequence) -> AST:
         clingo_theory_sequence_type = preds.convert_enum(
             preds.TheorySequenceType(theory_seq.sequence_type), ast.TheorySequenceType
         )
-        theory_term_nodes = self.reflect_child(theory_seq, theory_seq.terms, "*")
+        theory_term_nodes = self._reflect_child(theory_seq, theory_seq.terms, "*")
         return ast.TheorySequence(
             location=DUMMY_LOC,
             sequence_type=clingo_theory_sequence_type,
@@ -886,7 +929,7 @@ class ReifiedAST:
 
     @reflect_predicate.register
     def _reflect_theory_function(self, theory_func: preds.Theory_Function) -> AST:
-        arguments = self.reflect_child(theory_func, theory_func.arguments, "*")
+        arguments = self._reflect_child(theory_func, theory_func.arguments, "*")
         return ast.TheoryFunction(
             location=DUMMY_LOC, name=str(theory_func.name), arguments=arguments
         )
@@ -895,50 +938,43 @@ class ReifiedAST:
     def _reflect_theory_operators(
         self, theory_operators: preds.Theory_Operators
     ) -> AST:
-        return self.reflect_child(theory_operators, theory_operators.operator)
+        return theory_operators.operator
+
+    @reflect_predicate.register
+    def _reflect_theory_unparsed_term_elements(
+        self, elements: preds.Theory_Unparsed_Term_Elements
+    ) -> AST:
+        reflected_operators = self._reflect_child(elements, elements.operators, "*")
+        reflected_term = self._reflect_child(elements, elements.term)
+        return ast.TheoryUnparsedTermElement(
+            operators=reflected_operators, term=reflected_term
+        )
 
     @reflect_predicate.register
     def _reflect_theory_unparsed_term(
         self, theory_unparsed_term: preds.Theory_Unparsed_Term
     ) -> AST:
-        # child_elements = self._get_child_facts(
-        #     theory_unparsed_term, theory_unparsed_term.elements
-        # )
-        # if len(child_elements) == 0:
-        #     msg = (
-        #         f"Error finding child facts of predicate '{theory_unparsed_term}'.\n"
-        #         "Found no child 'theory_unparsed_term_elements' facts with identifier "
-        #         f"matching {theory_unparsed_term.elements}, expected at least one."
-        #     )
-        #     raise ChildQueryError(msg)
-        # reflected_elements = []
-        # for element in child_elements:
-        #     child_operators = self._get_child_facts(element, element.ope)
-        #     reflected_operators = [operator.operator for operator in child_operators]
-        #     reflected_term = self._reflect_child_pred(element, element.term)
-        #     reflected_element = ast.TheoryUnparsedTermElement(
-        #         operators=reflected_operators, term=reflected_term
-        #     )
-        #     reflected_elements.append(reflected_element)
-        # return ast.TheoryUnparsedTerm(location=DUMMY_LOC, elements=reflected_elements)
-        pass
+        reflected_elements = self._reflect_child(
+            theory_unparsed_term, theory_unparsed_term.elements, "*"
+        )
+        return ast.TheoryUnparsedTerm(location=DUMMY_LOC, elements=reflected_elements)
 
     @reflect_predicate.register
     def _reflect_guard(self, guard: preds.Guard) -> AST:
         clingo_operator = preds.convert_enum(
             preds.ComparisonOperator(guard.comparison), ast.ComparisonOperator
         )
-        reflected_guard = self.reflect_child(guard, guard.term)
+        reflected_guard = self._reflect_child(guard, guard.term)
         return ast.Guard(comparison=clingo_operator, term=reflected_guard)
 
     @reflect_predicate.register
     def _reflect_guards(self, guards: preds.Guards) -> AST:
-        return self.reflect_child(guards, guards.guard)
+        return self._reflect_child(guards, guards.guard)
 
     @reflect_predicate.register
     def _reflect_comparison(self, comparison: preds.Comparison) -> AST:
-        term_node = self.reflect_child(comparison, comparison.term)
-        guard_nodes = self.reflect_child(comparison, comparison.guards, "+")
+        term_node = self._reflect_child(comparison, comparison.term)
+        guard_nodes = self._reflect_child(comparison, comparison.guards, "+")
         return ast.Comparison(term=term_node, guards=guard_nodes)
 
     @reflect_predicate.register
@@ -954,42 +990,38 @@ class ReifiedAST:
 
     @reflect_predicate.register
     def _reflect_symbolic_atom(self, atom: preds.Symbolic_Atom) -> AST:
-        reflected_symbol = self.reflect_child(atom, atom.symbol)
+        reflected_symbol = self._reflect_child(atom, atom.symbol)
         return ast.SymbolicAtom(symbol=reflected_symbol)
 
     @reflect_predicate.register
     def _reflect_literal(self, lit: preds.Literal) -> AST:
         clingo_sign = preds.convert_enum(preds.Sign(lit.sig), ast.Sign)
-        reflected_atom = self.reflect_child(lit, lit.atom)
+        reflected_atom = self._reflect_child(lit, lit.atom)
         return ast.Literal(location=DUMMY_LOC, sign=clingo_sign, atom=reflected_atom)
 
     @reflect_predicate.register
     def _reflect_literals(self, literals: preds.Literals) -> AST:
-        self.reflect_child(literals, literals.literal)
+        return self._reflect_child(literals, literals.literal)
 
     @reflect_predicate.register
     def _reflect_conditional_literal(self, cond_lit: preds.Conditional_Literal) -> AST:
-        reflected_literal = self.reflect_child(cond_lit, cond_lit.literal)
-        reflected_condition = self.reflect_child(
-            cond_lit, cond_lit.condition, "*"
-        )
+        reflected_literal = self._reflect_child(cond_lit, cond_lit.literal)
+        reflected_condition = self._reflect_child(cond_lit, cond_lit.condition, "*")
         return ast.ConditionalLiteral(
             location=DUMMY_LOC, literal=reflected_literal, condition=reflected_condition
         )
 
     @reflect_predicate.register
     def _reflect_agg_elements(self, agg_elements: preds.Agg_Elements) -> AST:
-        return self.reflect_child(agg_elements, agg_elements.element)
+        return self._reflect_child(agg_elements, agg_elements.element)
 
     @reflect_predicate.register
     def _reflect_aggregate(self, aggregate: preds.Aggregate) -> AST:
-        reflected_left_guard = self.reflect_child(
-            aggregate, aggregate.left_guard, "?"
+        reflected_left_guard = self._reflect_child(aggregate, aggregate.left_guard, "?")
+        reflected_right_guard = self._reflect_child(
+            aggregate, aggregate.right_guard, "?"
         )
-        reflected_right_guard = (
-            self.reflect_child(aggregate, aggregate.right_guard, "?"),
-        )
-        reflected_elements = self.reflect_child(aggregate, aggregate.elements, "*")
+        reflected_elements = self._reflect_child(aggregate, aggregate.elements, "*")
         return ast.Aggregate(
             location=DUMMY_LOC,
             left_guard=reflected_left_guard,
@@ -1000,9 +1032,7 @@ class ReifiedAST:
     @reflect_predicate.register
     def _reflect_theory_guard(self, theory_guard: preds.Theory_Guard) -> AST:
         reflected_operator_name = theory_guard.operator_name
-        reflected_theory_term = self.reflect_child(
-            theory_guard, theory_guard.term
-        )
+        reflected_theory_term = self._reflect_child(theory_guard, theory_guard.term)
         return ast.TheoryGuard(
             operator_name=str(reflected_operator_name), term=reflected_theory_term
         )
@@ -1011,21 +1041,17 @@ class ReifiedAST:
     def _reflect_theory_atom_elements(
         self, elements: preds.Theory_Atom_Elements
     ) -> AST:
-        reflected_terms = self.reflect_child(elements, elements.terms, "*")
-        reflected_condition = self.reflect_child(
-            elements, elements.condition, "*"
-        )
+        reflected_terms = self._reflect_child(elements, elements.terms, "*")
+        reflected_condition = self._reflect_child(elements, elements.condition, "*")
         return ast.TheoryAtomElement(
             terms=reflected_terms, condition=reflected_condition
         )
 
     @reflect_predicate.register
     def _reflect_theory_atom(self, theory_atom: preds.Theory_Atom) -> AST:
-        reflected_syb_atom = self.reflect_child(theory_atom, theory_atom.atom)
-        reflected_elements = self.reflect_child(
-            theory_atom, theory_atom.elements, "*"
-        )
-        reflected_guard = self.reflect_child(theory_atom, theory_atom.guard, "?")
+        reflected_syb_atom = self._reflect_child(theory_atom, theory_atom.atom)
+        reflected_elements = self._reflect_child(theory_atom, theory_atom.elements, "*")
+        reflected_guard = self._reflect_child(theory_atom, theory_atom.guard, "?")
         return ast.TheoryAtom(
             location=DUMMY_LOC,
             term=reflected_syb_atom.symbol,
@@ -1035,26 +1061,20 @@ class ReifiedAST:
 
     @reflect_predicate.register
     def _reflect_body_agg_elements(self, elements: preds.Body_Agg_Elements) -> AST:
-        reflected_terms = self.reflect_child(elements, elements.terms, "*")
-        reflected_condition = self.reflect_child(
-            elements, elements.condition, "*"
-        )
+        reflected_terms = self._reflect_child(elements, elements.terms, "*")
+        reflected_condition = self._reflect_child(elements, elements.condition, "*")
         return ast.BodyAggregateElement(
             terms=reflected_terms, condition=reflected_condition
         )
 
     @reflect_predicate.register
     def _reflect_body_aggregate(self, aggregate: preds.Body_Aggregate) -> AST:
-        reflected_left_guard = self.reflect_child(
-            aggregate, aggregate.left_guard, "?"
-        )
+        reflected_left_guard = self._reflect_child(aggregate, aggregate.left_guard, "?")
         reflected_agg_function = preds.convert_enum(
             preds.AggregateFunction(aggregate.function), ast.AggregateFunction
         )
-        reflected_elements = self.reflect_child(
-            aggregate, aggregate.elements, "*"
-        )
-        reflected_right_guard = self.reflect_child(
+        reflected_elements = self._reflect_child(aggregate, aggregate.elements, "*")
+        reflected_right_guard = self._reflect_child(
             aggregate, aggregate.right_guard, "?"
         )
         return ast.BodyAggregate(
@@ -1067,34 +1087,28 @@ class ReifiedAST:
 
     @reflect_predicate.register
     def _reflect_body_literals(self, body_literals: preds.Body_Literals) -> AST:
-        return self.reflect_child(body_literals, body_literals.body_literal)
-    
+        return self._reflect_child(body_literals, body_literals.body_literal)
+
     @reflect_predicate.register
     def _reflect_body_literal(self, body_lit: preds.Body_Literal) -> AST:
         return self._reflect_literal(body_lit)
 
     @reflect_predicate.register
     def _reflect_head_agg_elements(self, elements: preds.Head_Agg_Elements) -> AST:
-        reflected_terms = self.reflect_child(elements, elements.terms, "*")
-        reflected_condition = self.reflect_child(
-            elements, elements.condition
-        )
+        reflected_terms = self._reflect_child(elements, elements.terms, "*")
+        reflected_condition = self._reflect_child(elements, elements.condition)
         return ast.HeadAggregateElement(
             terms=reflected_terms, condition=reflected_condition
         )
 
     @reflect_predicate.register
     def _reflect_head_aggregate(self, aggregate: preds.Head_Aggregate) -> AST:
-        reflected_left_guard = self.reflect_child(
-            aggregate, aggregate.left_guard, "?"
-        )
+        reflected_left_guard = self._reflect_child(aggregate, aggregate.left_guard, "?")
         reflected_agg_function = preds.convert_enum(
             preds.AggregateFunction(aggregate.function), ast.AggregateFunction
         )
-        reflected_elements = self.reflect_child(
-            aggregate, aggregate.elements, "*"
-        )
-        reflected_right_guard = self.reflect_child(
+        reflected_elements = self._reflect_child(aggregate, aggregate.elements, "*")
+        reflected_right_guard = self._reflect_child(
             aggregate, aggregate.right_guard, "?"
         )
         return ast.HeadAggregate(
@@ -1106,29 +1120,30 @@ class ReifiedAST:
         )
 
     @reflect_predicate.register
+    def _reflect_conditional_literals(
+        self, cond_lits: preds.Conditional_Literals
+    ) -> AST:
+        return self._reflect_child(cond_lits, cond_lits.conditional_literal)
+
+    @reflect_predicate.register
     def _reflect_disjunction(self, disjunction: preds.Disjunction) -> AST:
-        return self.reflect_child(disjunction, disjunction.conditional_literal)
+        reflected_elements = self._reflect_child(disjunction, disjunction.elements, "*")
+        return ast.Disjunction(location=DUMMY_LOC, elements=reflected_elements)
 
     @reflect_predicate.register
     def _reflect_rule(self, rule: preds.Rule) -> AST:
         """Reflect a Rule fact into a Rule node."""
-        if isinstance(rule.head, preds.Disjunction1):
-            head_node = ast.Disjunction(
-                location=DUMMY_LOC,
-                elements=self.reflect_child(rule, rule.head, "*"),
-            )
-        else:
-            head_node = self.reflect_child(rule, rule.head)
-        body_nodes = self.reflect_child(rule, rule.body, "*")
-        return ast.Rule(location=DUMMY_LOC, head=head_node, body=body_nodes)
+        reflected_head = self._reflect_child(rule, rule.head)
+        reflected_body = self._reflect_child(rule, rule.body, "*")
+        return ast.Rule(location=DUMMY_LOC, head=reflected_head, body=reflected_body)
 
     @reflect_predicate.register
     def _reflect_statements(self, statements: preds.Statements) -> AST:
-        return self.reflect_child(statements, statements.statement)
+        return self._reflect_child(statements, statements.statement)
 
     @reflect_predicate.register
     def _reflect_constants(self, constants: preds.Constants) -> AST:
-        return self.reflect_child(constants, constants.constant)
+        return self._reflect_child(constants, constants.constant)
 
     @reflect_predicate.register
     def _reflect_program(self, program: preds.Program) -> Sequence[AST]:
@@ -1137,21 +1152,21 @@ class ReifiedAST:
 
         """
         subprogram = []
-        parameter_nodes = self.reflect_child(program, program.parameters, "*")
+        parameter_nodes = self._reflect_child(program, program.parameters, "*")
         subprogram.append(
             ast.Program(
                 location=DUMMY_LOC, name=str(program.name), parameters=parameter_nodes
             )
         )
-        statement_nodes = self.reflect_child(program, program.statements, "*")
+        statement_nodes = self._reflect_child(program, program.statements, "*")
         subprogram.extend(statement_nodes)
         return subprogram
 
     @reflect_predicate.register
     def _reflect_external(self, external: preds.External) -> AST:
         """Reflect an External fact into an External node."""
-        symb_atom_node = self.reflect_child(external, external.atom)
-        body_nodes = self.reflect_child(external, external.body, "*")
+        symb_atom_node = self._reflect_child(external, external.atom)
+        body_nodes = self._reflect_child(external, external.body, "*")
         ext_type = ast.SymbolicTerm(
             location=DUMMY_LOC,
             symbol=symbol.Function(name=str(external.external_type), arguments=[]),

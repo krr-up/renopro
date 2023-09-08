@@ -33,6 +33,7 @@ ast(body_literal(Id,Sign,Atom)) :- body_literal(Id,Sign,Atom).
 ast(body_literals(Id,Pos,Element)) :- body_literals(Id,Pos,Element).
 ast(head_agg_elements(Id,Pos,Terms,Condition)) :- head_agg_elements(Id,Pos,Terms,Condition).
 ast(head_aggregate(Id,LGuard,Elements,RGuard)) :- head_aggregate(Id,LGuard,Elements,RGuard).
+ast(conditional_literals(Id,Pos,CondLit)) :- conditional_literals(Id,Pos,CondLit).
 ast(disjunction(Id,Pos,Element)) :- disjunction(Id,Pos,Element).
 ast(rule(Id,Head,Body)) :- rule(Id,Head,Body).
 ast(statements(Id,Pos,Element)) :- statements(Id,Pos,Element).

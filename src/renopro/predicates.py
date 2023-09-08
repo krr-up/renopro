@@ -483,12 +483,10 @@ class Theory_Operators1(ComplexTerm, name="theory_operators"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-class Theory_Unparsed_Term(Predicate):
-    """An unparsed theory term is a tuple, each element of which
-    consists of a tuple of theory operators and a theory term. This
-    predicate represents an element of an unparsed theory term.
+class Theory_Unparsed_Term_Elements(Predicate):
+    """Predicate representing an element of an unparsed theory term.
 
-    id: The identifier of the unparsed theory term.
+    id: Identifier of the tuple of elements.
     position: Integer representing position of the element
               of the theory tuple, ordered by <.
     operators: A tuple of theory operators.
@@ -499,6 +497,26 @@ class Theory_Unparsed_Term(Predicate):
     position = IntegerField
     operators = Theory_Operators1.Field
     term = TheoryTermField
+
+
+class Theory_Unparsed_Term_Elements1(ComplexTerm, name="theory_unparsed_term_elements"):
+    "Term identifying a child tuple element of an unparsed theory term."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Theory_Unparsed_Term(Predicate):
+    """Predicate representing an unparsed theory term.
+    An unparsed theory term consists of a tuple, each element of which
+    consists of a tuple of theory operators and a theory term. This
+    predicate represents an element of an unparsed theory term.
+
+    id: The identifier of the unparsed theory term.
+    elements: The tuple of aforementioned elements
+              forming the unparsed theory term.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    elements = Theory_Unparsed_Term_Elements1.Field
 
 
 class Theory_Unparsed_Term1(ComplexTerm, name="theory_unparsed_term"):
@@ -628,7 +646,7 @@ class Literal1(ComplexTerm, name="literal"):
 
 
 class Literals(Predicate):
-    """Predicate representing an element of a tuple of (conditional) literals.
+    """Predicate representing an element of a tuple of literals.
 
     id: Identifier of the tuple.
     position: Integer representing position of the element the tuple, ordered by <.
@@ -636,7 +654,7 @@ class Literals(Predicate):
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
-    position = IntegerField  # should we keep track of position?
+    position = IntegerField
     literal = Literal1.Field
 
 
@@ -913,20 +931,35 @@ class Head_Aggregate1(Predicate, name="head_aggregate"):
     id = Identifier_Field(default=lambda: next(id_count))
 
 
-class Disjunction(Predicate):
-    """Predicate representing a disjunction of (conditional) literals.
+class Conditional_Literals(Predicate):
+    """Predicate representing an element of a tuple of conditional literals.
 
-    id: Identifier of the disjunction.
-    position: Integer representing position of the element the disjunction,
-              ordered by <.
-    element: The element of the disjunction, a conditional literal.
-             A literal in a disjunction is represented as a conditional literal
-             with an empty condition.
+    id: Identifier of the tuple of conditional literals.
+    position: Integer representing position of the element the tuple, ordered by <.
+    conditional_literal: Term identifying the conditional literal element.
     """
 
     id = Identifier_Field(default=lambda: next(id_count))
     position = IntegerField
     conditional_literal = Conditional_Literal1.Field
+
+
+class Conditional_Literals1(ComplexTerm, name="conditional_literals"):
+    "Term identifying a child tuple of conditional literals."
+    id = Identifier_Field(default=lambda: next(id_count))
+
+
+class Disjunction(Predicate):
+    """Predicate representing a disjunction of (conditional) literals.
+
+    id: Identifier of the disjunction.
+    elements: The elements of the disjunction, a tuple of conditional literals.
+             A literal in a disjunction is represented as a conditional literal
+             with an empty condition.
+    """
+
+    id = Identifier_Field(default=lambda: next(id_count))
+    elements = Conditional_Literals1.Field
 
 
 class Disjunction1(ComplexTerm, name="disjunction"):
@@ -1057,6 +1090,7 @@ AstPredicate = Union[
     Theory_Sequence,
     Theory_Function,
     Theory_Operators,
+    Theory_Unparsed_Term_Elements,
     Theory_Unparsed_Term,
     Guard,
     Guards,
@@ -1077,6 +1111,7 @@ AstPredicate = Union[
     Body_Literals,
     Head_Agg_Elements,
     Head_Aggregate,
+    Conditional_Literals,
     Disjunction,
     Rule,
     Statements,
@@ -1099,6 +1134,7 @@ AstPredicates = [
     Theory_Sequence,
     Theory_Function,
     Theory_Operators,
+    Theory_Unparsed_Term_Elements,
     Theory_Unparsed_Term,
     Guard,
     Guards,
@@ -1119,6 +1155,7 @@ AstPredicates = [
     Body_Literals,
     Head_Agg_Elements,
     Head_Aggregate,
+    Conditional_Literals,
     Disjunction,
     Rule,
     Statements,

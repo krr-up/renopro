@@ -32,6 +32,7 @@
 #defined body_literals/3.
 #defined head_agg_elements/4.
 #defined head_aggregate/4.
+#defined conditional_literals/3.
 #defined disjunction/3.
 #defined rule/3.
 #defined statements/3.

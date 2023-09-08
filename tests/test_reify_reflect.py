@@ -213,25 +213,25 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
         with self.assertRaisesRegex(TypeError, expected_regex=regex):
             rast.reify_node(not_node)
 
-    def test_child_query_error_none_found(self):
+    def test_child_query_error_one_expected_zero_found(self):
         """Reflection of a parent fact that expects a singe child fact
         but finds none should fail with an informative error message.
 
         """
         rast = ReifiedAST()
-        rast.add_reified_files([malformed_ast_files / "missing_child.lp"])
+        rast.add_reified_files([malformed_ast_files / "one_expected_zero_found.lp"])
         regex = r"(?s).*atom\(4,function\(5\)\).*function\(5\).*found 0.*"
         with self.assertRaisesRegex(ChildQueryError, expected_regex=regex):
             rast.reflect()
 
-    def test_child_query_error_multiple_found(self):
+    def test_child_query_error_one_expected_multiple_found(self):
         """Reflection of a parent fact that expects a singe child fact
         but finds multiple should fail with an informative error
         message.
 
         """
         rast = ReifiedAST()
-        rast.add_reified_files([malformed_ast_files / "multiple_child.lp"])
+        rast.add_reified_files([malformed_ast_files / "one_expected_multiple_found.lp"])
         regex = r"(?s).*atom\(4,function\(5\)\).*function\(5\).*found 2.*"
         with self.assertRaisesRegex(ChildQueryError, expected_regex=regex):
             rast.reflect()
@@ -248,15 +248,28 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
         with self.assertRaisesRegex(ChildrenQueryError, expected_regex=regex):
             rast.reflect()
 
-    def test_comparison_no_guard_found(self):
-        """Reflection of a comparison fact with an empty guard tuple should fail."""
+    def test_children_query_error_one_or_more_expected_zero_found(self):
+        """Reflection of a child facts where one or more facts are expected
+        should fail with an informative error message when zero are found."""
         rast = ReifiedAST()
-        rast.add_reified_files([malformed_ast_files / "missing_guard_in_comparison.lp"])
+        rast.add_reified_files([malformed_ast_files / "one_or_more_expected_found_zero.lp"])
         regex = (
             r"(?s).*comparison\(4,number\(5\),guards\(6\)\).*"
-            # r".*Expected 1 or more.*guards\(6\).*."
+            r".*Expected 1 or more.*guards\(6\).*."
         )
         with self.assertRaisesRegex(ChildrenQueryError, expected_regex=regex):
+            rast.reflect()
+
+    def test_child_query_error_zero_or_one_expected_multiple_found(self):
+        """Reflection of a child fact where zero or one fact is expected
+        should fail with an informative error message when multiple are found."""
+        rast = ReifiedAST()
+        rast.add_reified_files([malformed_ast_files / "zero_or_more_expected_multiple_found.lp"])
+        regex = (
+            r"(?s).*aggregate\(3,guard\(4\),agg_elements\(7\),guard\(8\)\).*"
+            r".*Expected 0 or 1.*guard\(4\).*found 2."
+        )
+        with self.assertRaisesRegex(ChildQueryError, expected_regex=regex):
             rast.reflect()
 
 
@@ -270,6 +283,8 @@ class TestReifyReflectAggTheory(TestReifyReflect):
             self.assertReifyEqual("1 {a: b; c}.", ["aggregate.lp"])
         with self.subTest(operation="reflect"):
             self.assertReflectEqual("1 <= { a: b; c }.", ["aggregate.lp"])
+        self.setUp()
+        self.assertReifyReflectEqual("1 <= { a } < 3.", ["aggregate2.lp"])
 
     def test_rast_simple_theory_atom(self):
         """Test reification and reflection of simple theory atoms
@@ -299,7 +314,9 @@ class TestReifyReflectAggTheory(TestReifyReflect):
 
     def test_rast_theory_unparsed_term(self):
         "Test reification and reflection of an unparsed theory term."
-        self.assertReifyReflectEqual('&a { +1!-"b" }.', ["theory_unparsed_term.lp"])
+        self.assertReifyReflectEqual(
+            '&a { (+ 1 !- > "b") }.', ["theory_unparsed_term.lp"]
+        )
 
     def test_rast_head_aggregate(self):
         "Test reification and reflection of a head aggregate."
