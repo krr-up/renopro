@@ -39,3 +39,8 @@
 #defined constants/3.
 #defined program/3.
 #defined external/3.
+#defined theory_operator_definitions/5.
+#defined theory_term_definitions/5.
+#defined theory_guard_definition/3.
+#defined theory_atom_definitions/7.
+#defined theory_definition/4.

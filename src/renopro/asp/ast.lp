@@ -40,4 +40,9 @@ ast(statements(Id,Pos,Element)) :- statements(Id,Pos,Element).
 ast(constants(Id,Pos,Element)) :- constants(Id,Pos,Element).
 ast(program(Name,Params,Statements)) :- program(Name,Params,Statements).
 ast(external(Atom,Body,Type)) :- external(Atom,Body,Type).
+ast(theory_operator_definitions(Id,Pos,Name,Priority,OpType)) :- theory_operator_definitions(Id,Pos,Name,Priority,OpType).
+ast(theory_term_definitions(Id,Pos,Name,Operators)) :- theory_term_definitions(Id,Pos,Name,Operators).
+ast(theory_guard_definition(Id,Operators,Term)) :- theory_guard_definition(Id,Operators,Term).
+ast(theory_atom_definitions(Id,Pos,AtomType,Name,Arity,Term,Guard)) :- theory_atom_definitions(Id,Pos,AtomType,Name,Arity,Term,Guard).
+ast(theory_definition(Id,Name,Terms,Atoms)) :- theory_definition(Id,Name,Terms,Atoms).
 

@@ -451,9 +451,7 @@ class ReifiedAST:
     def _reify_comparison(self, node):
         comparison1 = id_terms.Comparison()
         comparison = preds.Comparison(
-            id=comparison1.id,
-            term=self.reify_node(node.term),
-            guards=id_terms.Guards(),
+            id=comparison1.id, term=self.reify_node(node.term), guards=id_terms.Guards()
         )
         self._reified.add(comparison)
         self._reify_ast_seqence(node.guards, comparison.guards.id, preds.Guards)
@@ -725,6 +723,59 @@ class ReifiedAST:
 
     ExpectedNum = Literal["1", "?", "+", "*"]
 
+    def _get_children(
+        self,
+        parent_fact: preds.AstPred,
+        child_id_fact,
+        expected_children_num: ExpectedNum = "1",
+    ) -> Sequence[AST]:
+        identifier = child_id_fact.id
+        child_ast_pred = getattr(preds, type(child_id_fact).__name__.rstrip("1"))
+        query = self._reified.query(child_ast_pred).where(
+            child_ast_pred.id == identifier
+        )
+        base_msg = f"Error finding child fact of fact '{parent_fact}':\n"
+        if expected_children_num == "1":
+            child_facts = list(query.all())
+            num_child_facts = len(child_facts)
+            if num_child_facts == 1:
+                return child_facts
+            msg = (
+                f"Expected 1 child fact for identifier '{child_id_fact}'"
+                f", found {num_child_facts}."
+            )
+            raise ChildQueryError(base_msg + msg)
+        if expected_children_num == "?":
+            child_facts = list(query.all())
+            num_child_facts = len(child_facts)
+            if num_child_facts in [0, 1]:
+                return child_facts
+            msg = (
+                f"Expected 0 or 1 child fact for identifier "
+                f"'{child_id_fact}', found {num_child_facts}."
+            )
+            raise ChildQueryError(base_msg + msg)
+        #  pylint: disable=consider-using-in
+        if expected_children_num == "*" or expected_children_num == "+":
+            query = query.order_by(child_ast_pred.position)
+            child_facts = list(query.all())
+            num_child_facts = len(child_facts)
+            # check that there are no tuple elements in the same position
+            if num_child_facts != len(set(tup.position for tup in child_facts)):
+                msg = (
+                    "Found multiple child facts in the same position for "
+                    f"identifier '{child_id_fact}'."
+                )
+                raise ChildrenQueryError(base_msg + msg)
+            if expected_children_num == "+" and num_child_facts == 0:
+                msg = (
+                    f"Expected 1 or more child facts for identifier "
+                    f"'{child_id_fact}', found 0."
+                )
+                raise ChildrenQueryError(base_msg + msg)
+            return child_facts
+        assert_never(expected_children_num)
+
     @overload
     def _reflect_child(
         self,
@@ -772,52 +823,16 @@ class ReifiedAST:
         reflecting the child predicate.
 
         """
-        identifier = child_id_fact.id
-        child_ast_pred = getattr(preds, type(child_id_fact).__name__.rstrip("1"))
-        query = self._reified.query(child_ast_pred).where(
-            child_ast_pred.id == identifier
+        child_facts = self._get_children(
+            parent_fact, child_id_fact, expected_children_num
         )
-        base_msg = f"Error finding child fact of fact '{parent_fact}':\n"
-        if expected_children_num == "1":
-            child_facts = list(query.all())
-            num_child_facts = len(child_facts)
-            if num_child_facts == 1:
-                return self.reflect_predicate(child_facts[0])
-            msg = (
-                f"Expected 1 child fact for identifier '{child_id_fact}'"
-                f", found {num_child_facts}."
-            )
-            raise ChildQueryError(base_msg + msg)
-        if expected_children_num == "?":
-            child_facts = list(query.all())
-            num_child_facts = len(child_facts)
-            if num_child_facts == 0:
-                return None
-            if num_child_facts == 1:
-                return self.reflect_predicate(child_facts[0])
-            msg = (
-                f"Expected 0 or 1 child fact for identifier "
-                f"'{child_id_fact}', found {num_child_facts}."
-            )
-            raise ChildQueryError(base_msg + msg)
+        num_child_facts = len(child_facts)
         #  pylint: disable=consider-using-in
-        if expected_children_num == "*" or expected_children_num == "+":
-            query = query.order_by(child_ast_pred.position)
-            child_facts = list(query.all())
-            num_child_facts = len(child_facts)
-            # check that there are no tuple elements in the same position
-            if num_child_facts != len(set(tup.position for tup in child_facts)):
-                msg = (
-                    "Found multiple child facts in the same position for "
-                    f"identifier '{child_id_fact}'."
-                )
-                raise ChildrenQueryError(base_msg + msg)
-            if expected_children_num == "+" and num_child_facts == 0:
-                msg = (
-                    f"Expected 1 or more child facts for identifier "
-                    f"'{child_id_fact}', found 0."
-                )
-                raise ChildrenQueryError(base_msg + msg)
+        if expected_children_num == "1" or expected_children_num == "?":
+            if expected_children_num == "?" and num_child_facts == 0:
+                return None
+            return self.reflect_predicate(child_facts[0])
+        if expected_children_num == "+" or expected_children_num == "*":
             child_nodes = [self.reflect_predicate(fact) for fact in child_facts]
             return child_nodes
         assert_never(expected_children_num)
@@ -947,7 +962,10 @@ class ReifiedAST:
     def _reflect_theory_unparsed_term_elements(
         self, elements: preds.Theory_Unparsed_Term_Elements
     ) -> AST:
-        reflected_operators = self._reflect_child(elements, elements.operators, "*")
+        operator_facts = self._get_children(elements, elements.operators, "*")
+        reflected_operators = [
+            self._reflect_theory_operators(op) for op in operator_facts
+        ]
         reflected_term = self._reflect_child(elements, elements.term)
         return ast.TheoryUnparsedTermElement(
             operators=reflected_operators, term=reflected_term

@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Definitions of AST elements as clorm predicates."""
 import enum
 import inspect
@@ -41,7 +42,7 @@ class LazilyCombinedField(BaseField):  # nocoverage
 
 
 def combine_fields_lazily(
-    fields: Sequence[Type[BaseField]], *, name: str = ""
+    fields: Sequence[BaseField], *, name: str = ""
 ) -> Type[LazilyCombinedField]:
     """Factory function that returns a field sub-class that combines
     other fields lazily.
@@ -218,6 +219,19 @@ TheoryOperatorTypeField = define_enum_field(
 )
 
 
+class TheoryAtomType(str, enum.Enum):
+    "String enum of clingo's theory atom types."
+    Any = "any"
+    Body = "body"
+    Directive = "directive"
+    Head = "head"
+
+
+TheoryAtomTypeField = define_enum_field(
+    parent_field=StringField, enum_class=TheoryAtomType, name="TheoryAtomTypeField"
+)
+
+
 A = TypeVar("A", bound=enum.Enum)
 B = TypeVar("B", bound=enum.Enum)
 
@@ -244,10 +258,19 @@ def convert_enum(enum_member: A, other_enum: Type[B]) -> B:
 # which are used to identify child AST facts
 
 
-# use class namespace to store dynamically generated identifier terms
-
+# pylint: disable=too-few-public-methods
 class id_terms:
-    pass
+    """A namespace to store dynamically generated identifier predicate
+    definitions.
+
+    For each defined AstPredicate P, a predicate definition is
+    generated in this namespace with the same name, and arity of 1,
+    the single argument of which is an identifier I. This unary
+    predicate is used as a term in further predicate definitions to
+    identify a child fact (representing a child node) of type P with
+    identifier I.
+
+    """
 
 
 class _AstPredicateMeta(_PredicateMeta):
@@ -263,7 +286,7 @@ class _AstPredicateMeta(_PredicateMeta):
 
 
 class AstPredicate(Predicate, metaclass=_AstPredicateMeta):
-    pass
+    """A predicate representing an AST node."""
 
 
 # Terms
@@ -876,30 +899,7 @@ class Rule(AstPredicate):
     body = id_terms.Body_Literals.Field
 
 
-# note that clingo's parser actually allows arbitrary constant as the external_type
-# argument of External, but any other value than true or false results in the external
-# statement having no effect
-
-
-class External(AstPredicate):
-    """Predicate representing an external statement.
-
-    id: Identifier of the external statement.
-    atom: The external atom.
-    body: The tuple of literals the external statement is conditioned on.
-    external_type: The default value of the external statement.
-                   May be the constant 'true' or 'false'.
-    """
-
-    id = Identifier_Field(default=lambda: next(id_count))
-    atom = id_terms.Symbolic_Atom.Field
-    body = id_terms.Body_Literals.Field
-    external_type = BoolField
-
-
-StatementField = combine_fields(
-    [id_terms.Rule.Field, id_terms.External.Field], name="StatementField"
-)
+StatementField = combine_fields_lazily([id_terms.Rule.Field], name="StatementField")
 
 
 class Statements(AstPredicate):
@@ -941,16 +941,68 @@ class Program(AstPredicate):
     statements = id_terms.Statements.Field
 
 
-class Theory_Operator_Definition(AstPredicate):
+# note that clingo's parser actually allows arbitrary constant as the external_type
+# argument of External, but any other value than true or false results in the external
+# statement having no effect
+
+
+class External(AstPredicate):
+    """Predicate representing an external statement.
+
+    id: Identifier of the external statement.
+    atom: The external atom.
+    body: The tuple of literals the external statement is conditioned on.
+    external_type: The default value of the external statement.
+                   May be the constant 'true' or 'false'.
+    """
+
     id = Identifier_Field(default=lambda: next(id_count))
+    atom = id_terms.Symbolic_Atom.Field
+    body = id_terms.Body_Literals.Field
+    external_type = BoolField
+
+
+class Theory_Operator_Definitions(AstPredicate):
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
     name = StringField
     priority = IntegerField
     operator_type = TheoryOperatorTypeField
 
 
-class Theory_Term_Definition(AstPredicate):
+class Theory_Term_Definitions(AstPredicate):
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    name = StringField
+    operators = id_terms.Theory_Operator_Definitions.Field
+
+
+class Theory_Guard_Definition(AstPredicate):
+    id = Identifier_Field(default=lambda: next(id_count))
+    operators = id_terms.Theory_Operators.Field
+    term = StringField
+
+
+class Theory_Atom_Definitions(AstPredicate):
+    id = Identifier_Field(default=lambda: next(id_count))
+    position = IntegerField
+    atom_type = TheoryAtomTypeField
+    name = StringField
+    arity = IntegerField
+    term = StringField
+    guard = id_terms.Theory_Guard_Definition.Field
+
+
+class Theory_Definition(AstPredicate):
     id = Identifier_Field(default=lambda: next(id_count))
     name = StringField
+    terms = id_terms.Theory_Term_Definitions.Field
+    atoms = id_terms.Theory_Atom_Definitions.Field
+
+
+StatementField.fields.extend(
+    [id_terms.External.Field, id_terms.Theory_Definition.Field]
+)
 
 
 AstPred = Union[
@@ -995,6 +1047,11 @@ AstPred = Union[
     Constants,
     Program,
     External,
+    Theory_Operator_Definitions,
+    Theory_Term_Definitions,
+    Theory_Guard_Definition,
+    Theory_Atom_Definitions,
+    Theory_Definition,
 ]
 
 AstPreds = [
@@ -1039,6 +1096,11 @@ AstPreds = [
     Constants,
     Program,
     External,
+    Theory_Operator_Definitions,
+    Theory_Term_Definitions,
+    Theory_Guard_Definition,
+    Theory_Atom_Definitions,
+    Theory_Definition,
 ]
 
 # Predicates for AST transformation
