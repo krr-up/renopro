@@ -721,6 +721,62 @@ class ReifiedAST:
         self._statement_pos += 1
         self._reify_body_literals(node.body, external.body.id)
 
+    @reify_node.register(ASTType.TheoryDefinition)
+    def _reify_theory_definition(self, node):
+        theorydef1 = id_terms.Theory_Definition()
+        termdefs1 = id_terms.Theory_Term_Definitions()
+        reified_termdefs = []
+        for tp, termdef in enumerate(node.terms):
+            opdefs1 = id_terms.Theory_Operator_Definitions()
+            reified_opdefs = []
+            for op, opdef in enumerate(termdef.operators):
+                clorm_op_type = preds.convert_enum(
+                    ast.TheoryOperatorType(opdef.operator_type),
+                    preds.TheoryOperatorType,
+                )
+                reified_opdef = preds.Theory_Operator_Definitions(
+                    opdefs1.id, op, opdef.name, opdef.priority, clorm_op_type
+                )
+                reified_opdefs.append(reified_opdef)
+            self._reified.add(reified_opdef)
+            reified_termdef = preds.Theory_Term_Definitions(
+                termdefs1.id, tp, termdef.name, opdefs1
+            )
+            reified_termdefs.append(reified_termdef)
+        self._reified.add(reified_termdefs)
+        atomdefs1 = id_terms.Theory_Atom_Definitions()
+        reified_atomdefs = []
+        for ap, atomdef in enumerate(node.atoms):
+            clorm_atom_type = preds.convert_enum(
+                ast.TheoryAtomType(atomdef.atom_type), preds.TheoryAtomType
+            )
+            guard1 = preds.Theory_Guard_Definition()
+            if atomdef.guard is not None:
+                operators1 = id_terms.Theory_Operators()
+                self._reify_ast_seqence(
+                    atomdef.guard.operators, operators1.id, preds.Theory_Operators
+                )
+                reified_guarddef = preds.Theory_Guard_Definition(
+                    guard1.id, operators1, atomdef.guard.term
+                )
+                self._reified.add(reified_guarddef)
+            reified_atomdef = preds.Theory_Atom_Definitions(
+                atomdefs1.id,
+                ap,
+                clorm_atom_type,
+                atomdef.name,
+                atomdef.arity,
+                atomdef.term,
+                guard1,
+            )
+            reified_atomdefs.append(reified_atomdef)
+        self._reified.add(reified_atomdefs)
+        reifed_theorydef = preds.Theory_Definition(
+            theorydef1.id, node.name, termdefs1, atomdefs1
+        )
+        self.reified.add(reifed_theorydef)
+        return theorydef1
+
     ExpectedNum = Literal["1", "?", "+", "*"]
 
     def _get_children(
