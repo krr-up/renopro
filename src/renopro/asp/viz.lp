@@ -76,9 +76,9 @@ edge((literals(Id),Element)) :- literals(Id,Pos,Element).
 attr(edge,(literals(Id),Element),label,pos) :- literals(Id,Pos,Element).
 
 % node(conditional_literal(Id)) :- conditional_literal(Id,Literal,Condition).
-% node(agg_elements(Id)) :- agg_elements(Id,Pos,Element).
+% node(aggregate_elements(Id)) :- aggregate_elements(Id,Pos,Element).
 % node(aggregate(Id)) :- aggregate(Id,LGuard,Elements,RGuard).
-% node(body_agg_elements(Id)) :- body_agg_elements(Id,Pos,Terms,Condition).
+% node(body_aggregate_elements(Id)) :- body_aggregate_elements(Id,Pos,Terms,Condition).
 % node(body_aggregate(Id)) :- body_aggregate(Id,LGuard,Elements,RGuard).
 
 node(body_literal(Id)) :- body_literal(Id,Sign,Atom).
@@ -93,7 +93,7 @@ edge((body_literals(Id),Element)) :- body_literals(Id,Pos,Element).
 attr(edge,(body_literals(Id),Element),label,Pos) :- body_literals(Id,Pos,Element).
 
 
-% node(head_agg_elements(Id)) :- head_agg_elements(Id,Pos,Terms,Condition).
+% node(head_aggregate_elements(Id)) :- head_aggregate_elements(Id,Pos,Terms,Condition).
 % node(head_aggregate(Id)) :- head_aggregate(Id,LGuard,Elements,RGuard).
 % node(disjunction(Id)) :- disjunction(Id,Pos,Element).
 

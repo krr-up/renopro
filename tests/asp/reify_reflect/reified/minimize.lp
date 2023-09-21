@@ -1,0 +1,13 @@
+program(0,"base",constants(1),statements(2)).
+statements(2,0,minimize(3)).
+minimize(3,number(4),number(5),terms(6),body_literals(9)).
+number(4,1).
+number(5,0).
+terms(6,0,string(7)).
+string(7,"a").
+terms(6,1,number(8)).
+number(8,3).
+body_literals(9,0,body_literal(10)).
+body_literal(10,"pos",symbolic_atom(11)).
+symbolic_atom(11,function(12)).
+function(12,b,terms(13)).

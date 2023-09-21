@@ -1,0 +1,16 @@
+program(0,"base",constants(1),statements(2)).
+statements(2,0,heuristic(3)).
+heuristic(3,symbolic_atom(4),body_literals(7),number(16),number(17),function(18)).
+symbolic_atom(4,function(5)).
+function(5,a,terms(6)).
+body_literals(7,0,body_literal(8)).
+body_literal(8,"pos",symbolic_atom(9)).
+symbolic_atom(9,function(10)).
+function(10,b,terms(11)).
+body_literals(7,1,body_literal(12)).
+body_literal(12,"pos",symbolic_atom(13)).
+symbolic_atom(13,function(14)).
+function(14,c,terms(15)).
+number(16,1).
+number(17,2).
+function(18,sign,terms(19)).

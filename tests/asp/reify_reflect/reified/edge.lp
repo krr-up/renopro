@@ -1,0 +1,9 @@
+program(0,"base",constants(1),statements(2)).
+statements(2,0,edge(3)).
+edge(3,function(4),function(6),body_literals(8)).
+function(4,a,terms(5)).
+function(6,b,terms(7)).
+body_literals(8,0,body_literal(9)).
+body_literal(9,"pos",symbolic_atom(10)).
+symbolic_atom(10,function(11)).
+function(11,c,terms(12)).

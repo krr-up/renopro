@@ -1,0 +1,26 @@
+% reified fact representation of program:
+% #program base.
+% a; b : c, not d.
+
+program(0,"base",constants(1),statements(2)).
+statements(2,0,rule(3)).
+rule(3,disjunction(4),body_literals(26)).
+disjunction(4,conditional_literals(5)).
+conditional_literals(5,0,conditional_literal(6)).
+conditional_literal(6,literal(7),literals(11)).
+literal(7,"pos",symbolic_atom(8)).
+symbolic_atom(8,function(9)).
+function(9,a,terms(10)).
+conditional_literals(5,1,conditional_literal(12)).
+conditional_literal(12,literal(13),literals(17)).
+literal(13,"pos",symbolic_atom(14)).
+symbolic_atom(14,function(15)).
+function(15,b,terms(16)).
+literals(17,0,literal(18)).
+literal(18,"pos",symbolic_atom(19)).
+symbolic_atom(19,function(20)).
+function(20,c,terms(21)).
+literals(17,1,literal(22)).
+literal(22,"not",symbolic_atom(23)).
+symbolic_atom(23,function(24)).
+function(24,d,terms(25)).
