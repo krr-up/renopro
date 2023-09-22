@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import (
     Callable,
     Iterator,
-    List,
     Literal,
     Optional,
     Sequence,
@@ -27,11 +26,13 @@ from clingo.ast import (
     ASTType,
     Location,
     Position,
+    StrSequence,
     parse_files,
     parse_string,
 )
 from clingo.symbol import Symbol, SymbolType
 from clorm import (
+    BaseField,
     FactBase,
     Unifier,
     UnifierNoMatchError,
@@ -50,6 +51,7 @@ logger = logging.getLogger(__name__)
 DUMMY_LOC = Location(Position("<string>", 1, 1), Position("<string>", 1, 1))
 
 NodeConstructor = Callable[..., Union[AST, Symbol]]
+NodeAttr = Union[AST, Symbol, Sequence[Symbol], ASTSequence, str, int, StrSequence]
 
 
 class ChildQueryError(Exception):
@@ -129,13 +131,13 @@ class ReifiedAST:
     representation of ASP programs.
     """
 
-    def __init__(self):
+    def __init__(self, parse_theory_atoms: bool = False):
         self._reified = FactBase()
-        self._program_ast = []
-        self._current_statement = (None, None)
-        self._program_string = ""
-        self._tuple_pos = None
+        self._program_ast: Sequence[AST] = []
+        self._current_statement: Tuple[int, int] = (0, 0)
+        self._tuple_pos: count = count()
         self._init_overrides()
+        self.parse_theory_atoms = parse_theory_atoms
 
     def add_reified_facts(self, reified_facts: Iterator[preds.AstPred]) -> None:
         """Add iterator of reified AST facts to internal factbase."""
@@ -173,30 +175,35 @@ class ReifiedAST:
     def reify_string(self, prog_str: str) -> None:
         """Reify input program string, adding reified facts to the
         internal factbase."""
-        parse_string(prog_str, self.reify_node)
+        self._program_ast = []
+        parse_string(prog_str, self._program_ast.append)
+        self.reify_ast(self._program_ast)
 
     def reify_files(self, files: Sequence[Path]) -> None:
         """Reify input program files, adding reified facts to the
         internal factbase."""
+        self._program_ast = []
         for f in files:
             if not f.is_file():  # nocoverage
                 raise IOError(f"File {f} does not exist.")
         files_str = [str(f) for f in files]
-        parse_files(files_str, self.reify_node)
+        parse_files(files_str, self.program_ast.append)
+        self.reify_ast(self._program_ast)
 
     def reify_ast(self, asts: Sequence[AST]) -> None:
         """Reify input sequence of AST nodes, adding reified facts to
         the internal factbase."""
-        for node in asts:
-            self.reify_node(node)
+        self._program_ast = asts
+        for statement in self._program_ast:
+            self.reify_node(statement)
 
     @property
     def program_string(self) -> str:
         """String representation of reflected AST facts."""
-        return self._program_string
+        return "\n".join([str(statement) for statement in self._program_ast])
 
     @property
-    def program_ast(self) -> List[AST]:
+    def program_ast(self) -> Sequence[AST]:
         """AST nodes attained via reflection of AST facts."""
         return self._program_ast
 
@@ -338,7 +345,9 @@ class ReifiedAST:
         }
 
     def _reify_ast_sequence(
-        self, ast_seq: ASTSequence, tuple_predicate: Type[preds.AstPredicate]
+        self,
+        ast_seq: Union[ASTSequence, Sequence[Symbol]],
+        tuple_predicate: Type[preds.AstPredicate],
     ):
         "Reify an ast sequence into a list of facts of type tuple_predicate."
         tuple_unary_fact = tuple_predicate.unary()
@@ -375,6 +384,25 @@ class ReifiedAST:
             symbol_constructor: NodeConstructor = getattr(ast, symbol_type.name)
             return symbol_type, symbol_constructor
         raise TypeError(f"Node must be of type AST or Symbol, got: {type(node)}")
+
+    def _reify_attr(self, annotation: Type, attr: NodeAttr, field: BaseField):
+        """Reify an AST node's attribute attr based on the type hint
+        for the respective argument in the AST node's constructor.
+        This default behavior is overridden in certain cases; see reify_node."""
+        if annotation in [AST, Symbol, Optional[AST], Optional[Symbol]]:
+            if annotation in [Optional[AST], Optional[Symbol]] and attr is None:
+                return field.complex()
+            return self.reify_node(attr)  # type: ignore
+        if annotation in [Sequence[Symbol], Sequence[AST]]:
+            return self._reify_ast_sequence(
+                attr, field.complex.non_unary  # type: ignore
+            )
+        if hasattr(field, "enum"):
+            ast_enum = getattr(ast, field.enum.__name__)
+            return preds.convert_enum(ast_enum(attr), field.enum)
+        if annotation in [str, int]:
+            return attr
+        raise RuntimeError("Code should be unreachable.")  # nocoverage
 
     def reify_node(self, node: Union[AST, Symbol], predicate=None, id_term=None):
         """Reify the input ast node by adding it's clorm fact
@@ -413,25 +441,8 @@ class ReifiedAST:
                 annotation = annotations.get(key)
                 attr = getattr(node, key)
             field = getattr(predicate, key).meta.field
-            if annotation in [AST, Symbol, Optional[AST], Optional[Symbol]]:
-                if annotation in [Optional[AST], Optional[Symbol]] and attr is None:
-                    kwargs_dict.update({key: field.complex()})
-                    continue
-                child_fact_unary = self.reify_node(attr)
-                kwargs_dict.update({key: child_fact_unary})
-            elif annotation in [Sequence[Symbol], Sequence[AST]]:
-                child_tuple_fact_unary = self._reify_ast_sequence(
-                    attr, field.complex.non_unary
-                )
-                kwargs_dict.update({key: child_tuple_fact_unary})
-            elif hasattr(field, "enum"):
-                ast_enum = getattr(ast, field.enum.__name__)
-                clorm_enum_member = preds.convert_enum(ast_enum(attr), field.enum)
-                kwargs_dict.update({key: clorm_enum_member})
-            elif annotation in [str, int]:
-                kwargs_dict.update({key: attr})
-            else:  # nocoverage
-                raise RuntimeError("Code should be unreachable.")
+            reified_attr = self._reify_attr(annotation, attr, field)
+            kwargs_dict.update({key: reified_attr})
         reified_fact = predicate(**kwargs_dict)
         self._reified.add(reified_fact)
         if predicate is preds.Program:
@@ -724,9 +735,6 @@ class ReifiedAST:
         for prog in self._reified.query(preds.Program).all():
             subprogram = self.reflect_fact(prog)
             self._program_ast.extend(subprogram)
-        self._program_string = "\n".join(
-            [str(statement) for statement in self._program_ast]
-        )
         logger.debug("Reflected program string:\n%s", self.program_string)
 
     def transform(

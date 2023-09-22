@@ -1,7 +1,3 @@
-% reified fact representation of program:
-% #program base.
-% 1 <= { a } < 3.
-
 program(0,"base",constants(1),statements(2)).
 statements(2,0,rule(3)).
 rule(3,aggregate(4),body_literals(16)).

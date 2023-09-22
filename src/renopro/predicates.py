@@ -129,6 +129,7 @@ def define_enum_field(
 # by default we use integer identifiers, but allow arbitrary symbols as well
 # for flexibility when these are user generated
 IdentifierField = combine_fields([IntegerField, RawField], name="IdentifierField")
+IdentifierField = IdentifierField(default=lambda: next(id_count))  # type: ignore
 
 
 # Enum field definitions
@@ -305,7 +306,7 @@ class _AstPredicateMeta(_PredicateMeta):
         underscore_lower_cls_name = pattern.sub("_", cls_name).lower()
 
         def id_body(ns):
-            ns.update({"id": IdentifierField(default=lambda: next(id_count))})
+            ns.update({"id": IdentifierField})
 
         unary = new_class(
             cls_name,
@@ -335,7 +336,7 @@ class String(AstPredicate):
     string: Value of string term, a string term itself.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     string = StringField
 
 
@@ -346,7 +347,7 @@ class Number(AstPredicate):
     number: Value of integer term, an integer term itself.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     number = IntegerField
 
 
@@ -357,7 +358,7 @@ class Variable(AstPredicate):
     value: Value of variable term, a string term.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = StringField
 
 
@@ -374,7 +375,7 @@ class UnaryOperation(AstPredicate):
     argument: The term argument the unary operator is applied to.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     operator_type = UnaryOperatorField
     argument = TermField
 
@@ -388,7 +389,7 @@ class BinaryOperation(AstPredicate):
     right: Predicate identifying the term that is the right operand of the operation.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     operator_type = BinaryOperatorField
     left = TermField
     right = TermField
@@ -402,7 +403,7 @@ class Interval(AstPredicate):
     right: Right bound of the interval.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     left = TermField
     right = TermField
 
@@ -415,7 +416,7 @@ class Terms(AstPredicate):
     element: Term identifying the element.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     term = TermField
 
@@ -433,7 +434,7 @@ class Function(AstPredicate):
 
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = ConstantField
     arguments = Terms.unary.Field
 
@@ -447,7 +448,7 @@ class ExternalFunction(AstPredicate):
     arguments: Term  identifying the function's arguments.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = ConstantField
     arguments = Terms.unary.Field
 
@@ -460,7 +461,7 @@ class Pool(AstPredicate):
     arguments: Terms forming the pool.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     arguments = Terms.unary.Field
 
 
@@ -495,7 +496,7 @@ class TheoryTerms(AstPredicate):
     element: Term identifying the element.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     theory_term = TheoryTermField
 
@@ -508,7 +509,7 @@ class TheorySequence(AstPredicate):
     terms: The tuple of terms forming the sequence.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     sequence_type = TheorySequenceTypeField
     terms = TheoryTerms.unary.Field
 
@@ -522,7 +523,7 @@ class TheoryFunction(AstPredicate):
            the theory function.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = ConstantField
     arguments = TheoryTerms.unary.Field
 
@@ -535,7 +536,7 @@ class TheoryOperators(AstPredicate):
     operator: A theory operator, represented as a string.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     operator = StringField
 
@@ -550,7 +551,7 @@ class TheoryUnparsedTermElements(AstPredicate):
     term: The theory term.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     operators = TheoryOperators.unary.Field
     term = TheoryTermField
@@ -567,7 +568,7 @@ class TheoryUnparsedTerm(AstPredicate):
               forming the unparsed theory term.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     elements = TheoryUnparsedTermElements.unary.Field
 
 
@@ -590,7 +591,7 @@ class Guard(AstPredicate):
 
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     comparison = ComparisonOperatorField
     term = TermField
 
@@ -603,7 +604,7 @@ class Guards(AstPredicate):
     element: Term identifying the element.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     guard = Guard.unary.Field
 
@@ -616,7 +617,7 @@ class Comparison(AstPredicate):
     guards: tuple of guard predicates
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     term = TermField
     guards = Guards.unary.Field
 
@@ -632,7 +633,7 @@ class BooleanConstant(AstPredicate):
     terms 'true' and 'false'.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     value = BoolField
 
 
@@ -643,7 +644,7 @@ class SymbolicAtom(AstPredicate):
     symbol: The function symbol constituting the atom.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     symbol = Function.unary.Field
 
 
@@ -662,7 +663,7 @@ class Literal(AstPredicate):
     atom: The atom constituting the literal.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     sign_ = SignField
     atom = AtomField
 
@@ -675,7 +676,7 @@ class Literals(AstPredicate):
     element: Term identifying the element.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     literal = Literal.unary.Field
 
@@ -688,7 +689,7 @@ class ConditionalLiteral(AstPredicate):
     condition: the tuple of literals forming the condition
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     literal = Literal.unary.Field
     condition = Literals.unary.Field
 
@@ -701,7 +702,7 @@ class AggregateElements(AstPredicate):
     element: The conditional literal constituting the element of the aggregate.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     element = ConditionalLiteral.unary.Field
 
@@ -717,7 +718,7 @@ class Aggregate(AstPredicate):
     right_guard: The (optional) right guard of the aggregate.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     left_guard = Guard.unary.Field
     elements = AggregateElements.unary.Field
     right_guard = Guard.unary.Field
@@ -736,7 +737,7 @@ class TheoryAtomElements(AstPredicate):
                tuple of theory terms is conditioned.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     terms = TheoryTerms.unary.Field
     condition = Literals.unary.Field
@@ -751,7 +752,7 @@ class TheoryGuard(AstPredicate):
     term: The theory term to which the theory operator is applied.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     operator_name = StringField
     term = TheoryTermField
 
@@ -766,7 +767,7 @@ class TheoryAtom(AstPredicate):
            of the theory atom.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     term = Function.unary.Field
     elements = TheoryAtomElements.unary.Field
     guard = TheoryGuard.unary.Field
@@ -782,7 +783,7 @@ class BodyAggregateElements(AstPredicate):
                tuple of terms is conditioned.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     terms = Terms.unary.Field
     condition = Literals.unary.Field
@@ -799,7 +800,7 @@ class BodyAggregate(AstPredicate):
     right_guard: The (optional) right guard of the aggregate.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     left_guard = Guard.unary.Field
     function = AggregateFunctionField
     elements = BodyAggregateElements.unary.Field
@@ -828,7 +829,7 @@ class BodyLiteral(AstPredicate):
 
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     sign_ = SignField
     atom = BodyAtomField
 
@@ -847,7 +848,7 @@ class BodyLiterals(AstPredicate):
     element:  Term identifying the element.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     body_literal = BodyLiteralField
 
@@ -863,7 +864,7 @@ class HeadAggregateElements(AstPredicate):
                holds, the head of the conditional literal is also derived.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     terms = Terms.unary.Field
     condition = ConditionalLiteral.unary.Field
@@ -880,7 +881,7 @@ class HeadAggregate(AstPredicate):
     right_guard: The (optional) right guard of the aggregate.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     left_guard = Guard.unary.Field
     function = AggregateFunctionField
     elements = HeadAggregateElements.unary.Field
@@ -895,7 +896,7 @@ class ConditionalLiterals(AstPredicate):
     conditional_literal: Term identifying the conditional literal element.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     conditional_literal = ConditionalLiteral.unary.Field
 
@@ -909,7 +910,7 @@ class Disjunction(AstPredicate):
              with an empty condition.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     elements = ConditionalLiterals.unary.Field
 
 
@@ -933,7 +934,7 @@ class Rule(AstPredicate):
     body: The body of the rule, a tuple of body literals.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     head = HeadField
     body = BodyLiterals.unary.Field
 
@@ -947,7 +948,7 @@ class Definition(AstPredicate):
     is_default: true if the statement gives the default value of the
                 constant, false if it's overriding it."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = ConstantField
     # the term in reality must not contain variables, pools or intervals
     # this should probably be encoded in the clorm representation.
@@ -963,7 +964,7 @@ class ShowSignature(AstPredicate):
     arity: Arity of the predicate.
     positive: true if predicate is positive, false if strongly negated."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = ConstantField
     arity = IntegerField
     positive = BoolField
@@ -977,7 +978,7 @@ class Defined(AstPredicate):
     arity: Arity of the predicate.
     positive: true if predicate is positive, false if strongly negated."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = ConstantField
     arity = IntegerField
     positive = BoolField
@@ -990,7 +991,7 @@ class ShowTerm(AstPredicate):
     term: The term to be shown.
     body: The body literals the term is conditioned on."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     term = TermField
     body = BodyLiterals.unary.Field
 
@@ -1006,7 +1007,7 @@ class Minimize(AstPredicate):
            minimize statements) can only contribute a weight once (as in a set).
     body: The body literals on which the tuple of terms are conditioned."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     weight = TermField
     priority = TermField
     terms = Terms.unary.Field
@@ -1020,7 +1021,7 @@ class Script(AstPredicate):
     name: Name of the embedded script.
     code: The code of the script."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = ConstantField
     code = StringField
 
@@ -1047,7 +1048,7 @@ class Statements(AstPredicate):
     element: Predicate identifying the element.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     statement = StatementField
 
@@ -1060,7 +1061,7 @@ class Constants(AstPredicate):
     element: Predicate identifying the element.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     constant = Function.unary.Field
 
@@ -1074,7 +1075,7 @@ class Program(AstPredicate):
     statements: The tuple of statements comprising the subprogram.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = StringField
     parameters = Constants.unary.Field
     statements = Statements.unary.Field
@@ -1095,7 +1096,7 @@ class External(AstPredicate):
                    May be the constant 'true' or 'false'.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     atom = SymbolicAtom.unary.Field
     body = BodyLiterals.unary.Field
     external_type = BoolField
@@ -1111,7 +1112,7 @@ class Edge(AstPredicate):
     v: The term forming the second element of the directed edge.
     body: The body on which the directed edge is conditioned."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     node_u = TermField
     node_v = TermField
     body = BodyLiterals.unary.Field
@@ -1136,7 +1137,7 @@ class Heuristic(AstPredicate):
     priority: The priority of the heuristic (higher overrides lower).
     modifier: The heuristic modifier to be applied."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     atom = SymbolicAtom.unary.Field
     body = BodyLiterals.unary.Field
     bias = TermField
@@ -1151,7 +1152,7 @@ class ProjectAtom(AstPredicate):
     atom: The atom to be projected onto.
     body: The body literals on which the projection is conditioned."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     atom = SymbolicAtom.unary.Field
     body = BodyLiterals.unary.Field
 
@@ -1164,7 +1165,7 @@ class ProjectSignature(AstPredicate):
     arity: Arity of the predicate to be projected.
     positive: True if predicate is positive, false if strongly negated."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = ConstantField
     arity = IntegerField
     positive = BoolField
@@ -1180,7 +1181,7 @@ class TheoryOperatorDefinitions(AstPredicate):
     priority: The precedence of the operator, determining implicit parentheses.
     operator type: The type of the operator."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     name = StringField
     priority = IntegerField
@@ -1195,7 +1196,7 @@ class TheoryTermDefinitions(AstPredicate):
     name: Name of the theory term to be defined.
     operators: The theory operators defined over the theory term."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     name = ConstantField
     operators = TheoryOperatorDefinitions.unary.Field
@@ -1208,7 +1209,7 @@ class TheoryGuardDefinition(AstPredicate):
     operators: The possible operators usable to form the guard.
     term: The theory term usable to form the guard."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     operators = TheoryOperators.unary.Field
     term = ConstantField
 
@@ -1227,7 +1228,7 @@ class TheoryAtomDefinitions(AstPredicate):
            atom's guard.
     """
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     position = IntegerField
     atom_type = TheoryAtomTypeField
     name = ConstantField
@@ -1244,7 +1245,7 @@ class TheoryDefinition(AstPredicate):
     terms: A tuple of theory term definitions.
     atoms: A tuple of theory atom definitions."""
 
-    id = IdentifierField(default=lambda: next(id_count))
+    id = IdentifierField
     name = ConstantField
     terms = TheoryTermDefinitions.unary.Field
     atoms = TheoryAtomDefinitions.unary.Field

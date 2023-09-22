@@ -1,14 +1,3 @@
-% Reification of a theory definition for difference constraints:
-%
-% #theory dc {
-%   constant { - : 0 , unary };
-%   diff_term { - : 0 , binary, left };
-%   domain_term { .. : 1 , binary, left };
-%   show_term { / : 1 , binary, left };
-%   &dom/0 : domain_term, {=} , diff_term, any;
-%   &diff/0 : diff_term, { <=} , constant, any;
-%   &show/0 : show_term, directive
-% }.
 program(0,"base",constants(1),statements(2)).
 statements(2,0,theory_definition(3)).
 % #theory dc {

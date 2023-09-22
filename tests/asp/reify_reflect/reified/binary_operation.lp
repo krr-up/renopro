@@ -1,7 +1,3 @@
-% reified fact representation of program:
-% #program base.
-% equal((1+1),2).
-
 program(0,"base",constants(1),statements(2)).
 statements(2,0,rule(3)).
 rule(3,literal(4),body_literals(12)).
