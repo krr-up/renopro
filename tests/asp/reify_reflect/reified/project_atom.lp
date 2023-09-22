@@ -1,0 +1,9 @@
+program(0,"base",constants(1),statements(2)).
+statements(2,0,project_atom(3)).
+project_atom(3,symbolic_atom(4),body_literals(7)).
+symbolic_atom(4,function(5)).
+function(5,a,terms(6)).
+body_literals(7,0,body_literal(8)).
+body_literal(8,"pos",symbolic_atom(9)).
+symbolic_atom(9,function(10)).
+function(10,b,terms(11)).

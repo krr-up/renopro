@@ -5,8 +5,19 @@ import logging
 import re
 from contextlib import AbstractContextManager
 from functools import singledispatchmethod
+from itertools import count
 from pathlib import Path
-from typing import Iterator, List, Literal, Optional, Sequence, Type, Union, overload
+from typing import (
+    Callable,
+    Iterator,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+    overload,
+)
 
 from clingo import Control, ast, symbol
 from clingo.ast import (
@@ -15,6 +26,7 @@ from clingo.ast import (
     ASTType,
     Location,
     Position,
+    StrSequence,
     parse_files,
     parse_string,
 )
@@ -22,7 +34,6 @@ from clingo.symbol import Symbol, SymbolType
 from clorm import (
     BaseField,
     FactBase,
-    Predicate,
     Unifier,
     UnifierNoMatchError,
     control_add_facts,
@@ -38,6 +49,9 @@ from renopro.utils.logger import get_clingo_logger_callback
 logger = logging.getLogger(__name__)
 
 DUMMY_LOC = Location(Position("<string>", 1, 1), Position("<string>", 1, 1))
+
+NodeConstructor = Callable[..., Union[AST, Symbol]]
+NodeAttr = Union[AST, Symbol, Sequence[Symbol], ASTSequence, str, int, StrSequence]
 
 
 class ChildQueryError(Exception):
@@ -71,7 +85,7 @@ class TryUnify(AbstractContextManager):
         """
         unmatched = error.symbol
         name2arity2pred = {
-            pred.meta.name: {pred.meta.arity: pred} for pred in preds.AstPredicates
+            pred.meta.name: {pred.meta.arity: pred} for pred in preds.AstPreds
         }
         candidate = name2arity2pred.get(unmatched.name, {}).get(
             len(unmatched.arguments)
@@ -112,56 +126,22 @@ class TryUnify(AbstractContextManager):
         raise RuntimeError("Code should be unreachable")  # nocoverage
 
 
-def dispatch_on_node_type(meth):
-    """ "Dispatch method on node.ast_type if node is of type AST
-    or dispatch on node.type if node is of type Symbol.
-
-    """
-    registry = {}
-
-    def dispatch(value):
-        try:
-            return registry[value]
-        except KeyError:
-            return meth
-
-    def register(value, func=None):
-        if func is None:
-            return lambda f: register(value, f)
-
-        registry[value] = func
-        return func
-
-    def wrapper(self, node, *args, **kw):
-        if isinstance(node, AST):
-            return dispatch(node.ast_type)(self, node, *args, **kw)
-        if isinstance(node, Symbol):
-            return dispatch(node.type)(self, node, *args, **kw)
-        return dispatch(type(node))(self, node, *args, **kw)
-
-    wrapper.register = register
-    wrapper.dispatch = dispatch
-    wrapper.registry = registry
-
-    return wrapper
-
-
 class ReifiedAST:
     """Class for converting between reified and non-reified
     representation of ASP programs.
     """
 
-    def __init__(self):
+    def __init__(self, parse_theory_atoms: bool = False):
         self._reified = FactBase()
-        self._program_ast = []
-        self._id_counter = -1
-        self._statement_tup_id = None
-        self._statement_pos = 0
-        self._program_string = ""
+        self._program_ast: Sequence[AST] = []
+        self._current_statement: Tuple[int, int] = (0, 0)
+        self._tuple_pos: count = count()
+        self._init_overrides()
+        self.parse_theory_atoms = parse_theory_atoms
 
-    def add_reified_facts(self, reified_facts: Iterator[preds.AstPredicate]) -> None:
+    def add_reified_facts(self, reified_facts: Iterator[preds.AstPred]) -> None:
         """Add iterator of reified AST facts to internal factbase."""
-        unifier = Unifier(preds.AstPredicates)
+        unifier = Unifier(preds.AstPreds)
         # couldn't find a way in clorm to directly add a set of facts
         # while checking unification, so we have to unify against the
         # underlying symbols
@@ -173,7 +153,7 @@ class ReifiedAST:
 
     def add_reified_string(self, reified_string: str) -> None:
         """Add string of reified facts into internal factbase."""
-        unifier = preds.AstPredicates
+        unifier = preds.AstPreds
         with TryUnify():
             facts = parse_fact_string(
                 reified_string, unifier=unifier, raise_nomatch=True, raise_nonfact=True
@@ -186,7 +166,7 @@ class ReifiedAST:
         with TryUnify():
             facts = parse_fact_files(
                 reified_files_str,
-                unifier=preds.AstPredicates,
+                unifier=preds.AstPreds,
                 raise_nomatch=True,
                 raise_nonfact=True,
             )
@@ -195,24 +175,35 @@ class ReifiedAST:
     def reify_string(self, prog_str: str) -> None:
         """Reify input program string, adding reified facts to the
         internal factbase."""
-        parse_string(prog_str, self.reify_node)
+        self._program_ast = []
+        parse_string(prog_str, self._program_ast.append)
+        self.reify_ast(self._program_ast)
 
     def reify_files(self, files: Sequence[Path]) -> None:
         """Reify input program files, adding reified facts to the
         internal factbase."""
+        self._program_ast = []
         for f in files:
             if not f.is_file():  # nocoverage
                 raise IOError(f"File {f} does not exist.")
         files_str = [str(f) for f in files]
-        parse_files(files_str, self.reify_node)
+        parse_files(files_str, self.program_ast.append)
+        self.reify_ast(self._program_ast)
+
+    def reify_ast(self, asts: Sequence[AST]) -> None:
+        """Reify input sequence of AST nodes, adding reified facts to
+        the internal factbase."""
+        self._program_ast = asts
+        for statement in self._program_ast:
+            self.reify_node(statement)
 
     @property
     def program_string(self) -> str:
         """String representation of reflected AST facts."""
-        return self._program_string
+        return "\n".join([str(statement) for statement in self._program_ast])
 
     @property
-    def program_ast(self) -> List[AST]:
+    def program_ast(self) -> Sequence[AST]:
         """AST nodes attained via reflection of AST facts."""
         return self._program_ast
 
@@ -236,538 +227,302 @@ class ReifiedAST:
         """
         return self._reified.asp_str(commented=True)
 
-    @dispatch_on_node_type
-    def reify_node(self, node):
+    def _init_overrides(self):
+        """Initialize override functions that change the default
+        behavior when reifying or reflecting"""
+        self._reify_overrides = {
+            "node": {
+                # we don't include this node in our reified representation
+                # as it doesn't add much from a knowledge representation standpoint.
+                ASTType.SymbolicTerm: lambda node: self.reify_node(node.symbol),
+                ASTType.Id: self._reify_id,
+                ASTType.Function: self._reify_function,
+            },
+            "attr": {
+                # body literals need special treatment, as we distinguish
+                # between them and regular literals while the clingo AST
+                # does not.
+                "body": lambda node: self._reify_body_literals(node.body),
+                "position": lambda none: next(self._tuple_pos),
+            },
+            "node_attr": {
+                ASTType.BooleanConstant: {
+                    "value": lambda node: self._reify_bool(node.value)
+                },
+                ASTType.Program: {"statements": lambda none: preds.Statements.unary()},
+                ASTType.Definition: {
+                    "is_default": lambda node: self._reify_bool(node.is_default)
+                },
+                ASTType.ShowSignature: {
+                    "positive": lambda node: self._reify_bool(node.positive)
+                },
+                ASTType.Defined: {
+                    "positive": lambda node: self._reify_bool(node.positive)
+                },
+                ASTType.External: {
+                    "external_type": lambda node: node.external_type.symbol.name
+                },
+                ASTType.ProjectSignature: {
+                    "positive": lambda node: self._reify_bool(node.positive)
+                },
+                ASTType.TheoryUnparsedTermElement: {
+                    "operators": lambda node: self._reify_theory_operators(
+                        node.operators
+                    )
+                },
+                ASTType.TheoryGuardDefinition: {
+                    "operators": lambda node: self._reify_theory_operators(
+                        node.operators
+                    )
+                },
+            },
+        }
+        self._reflect_overrides = {
+            "pred": {
+                preds.String: lambda fact: ast.SymbolicTerm(
+                    DUMMY_LOC, symbol.String(fact.string)
+                ),
+                preds.Number: lambda fact: ast.SymbolicTerm(
+                    DUMMY_LOC, symbol.Number(fact.number)
+                ),
+                preds.Terms: lambda fact: self._reflect_child(fact, fact.term),
+                preds.TheoryTerms: lambda fact: self._reflect_child(
+                    fact, fact.theory_term
+                ),
+                preds.TheoryOperators: lambda fact: fact.operator,
+                preds.Guards: lambda fact: self._reflect_child(fact, fact.guard),
+                preds.Literals: lambda fact: self._reflect_child(fact, fact.literal),
+                preds.AggregateElements: lambda fact: self._reflect_child(
+                    fact, fact.element
+                ),
+                preds.BodyLiterals: lambda fact: self._reflect_child(
+                    fact, fact.body_literal
+                ),
+                preds.ConditionalLiterals: lambda fact: self._reflect_child(
+                    fact, fact.conditional_literal
+                ),
+                preds.Statements: lambda fact: self._reflect_child(
+                    fact, fact.statement
+                ),
+                preds.Constants: lambda fact: self._reflect_child(fact, fact.constant),
+                preds.Program: self._reflect_program,
+            },
+            "attr": {"location": lambda none: DUMMY_LOC},
+            "pred_attr": {
+                preds.Comparison: {
+                    "guards": lambda fact: self._reflect_child(fact, fact.guards, "+")
+                },
+                preds.TheoryUnparsedTerm: {
+                    "elements": lambda fact: self._reflect_child(
+                        fact, fact.elements, "+"
+                    )
+                },
+                # we represent regular function and external (that is script functions)
+                # with different predicates.
+                preds.Function: {"external": lambda none: 0},
+                preds.ExternalFunction: {"external": lambda none: 1},
+                preds.BooleanConstant: {
+                    "value": lambda fact: self._reflect_bool(fact.value)
+                },
+                preds.Definition: {
+                    "is_default": lambda fact: self._reflect_bool(fact.is_default)
+                },
+                preds.ShowSignature: {
+                    "positive": lambda fact: self._reflect_bool(fact.positive)
+                },
+                preds.Defined: {
+                    "positive": lambda fact: self._reflect_bool(fact.positive)
+                },
+                preds.ProjectSignature: {
+                    "positive": lambda fact: self._reflect_bool(fact.positive)
+                },
+                preds.External: {
+                    "external_type": lambda fact: ast.SymbolicTerm(
+                        DUMMY_LOC, symbol.Function(fact.external_type, [])
+                    )
+                },
+            },
+        }
+
+    def _reify_ast_sequence(
+        self,
+        ast_seq: Union[ASTSequence, Sequence[Symbol]],
+        tuple_predicate: Type[preds.AstPredicate],
+    ):
+        "Reify an ast sequence into a list of facts of type tuple_predicate."
+        tuple_unary_fact = tuple_predicate.unary()
+        reified_facts = []
+        tmp = self._tuple_pos
+        self._tuple_pos = count()
+        if tuple_predicate in preds.FlattenedTuples:
+            for node in ast_seq:
+                self.reify_node(
+                    node, predicate=tuple_predicate, id_term=tuple_unary_fact
+                )
+        else:
+            for position, node in enumerate(ast_seq):
+                child_fact_unary = self.reify_node(node)
+                tuple_fact = tuple_predicate(
+                    tuple_unary_fact.id, position, child_fact_unary
+                )
+                reified_facts.append(tuple_fact)
+                self._reified.add(reified_facts)
+        self._tuple_pos = tmp
+        return tuple_unary_fact
+
+    @staticmethod
+    def _get_type_constructor_from_node(
+        node: Union[AST, Symbol]
+    ) -> Tuple[Union[ASTType, SymbolType], NodeConstructor]:
+        "Return the type and constructor of input ast node."
+        if isinstance(node, Symbol):
+            ast_type = node.type
+            ast_constructor: NodeConstructor = getattr(symbol, ast_type.name)
+            return ast_type, ast_constructor
+        if isinstance(node, AST):
+            symbol_type = node.ast_type
+            symbol_constructor: NodeConstructor = getattr(ast, symbol_type.name)
+            return symbol_type, symbol_constructor
+        raise TypeError(f"Node must be of type AST or Symbol, got: {type(node)}")
+
+    def _reify_attr(self, annotation: Type, attr: NodeAttr, field: BaseField):
+        """Reify an AST node's attribute attr based on the type hint
+        for the respective argument in the AST node's constructor.
+        This default behavior is overridden in certain cases; see reify_node."""
+        if annotation in [AST, Symbol, Optional[AST], Optional[Symbol]]:
+            if annotation in [Optional[AST], Optional[Symbol]] and attr is None:
+                return field.complex()
+            return self.reify_node(attr)  # type: ignore
+        if annotation in [Sequence[Symbol], Sequence[AST]]:
+            return self._reify_ast_sequence(
+                attr, field.complex.non_unary  # type: ignore
+            )
+        if hasattr(field, "enum"):
+            ast_enum = getattr(ast, field.enum.__name__)
+            return preds.convert_enum(ast_enum(attr), field.enum)
+        if annotation in [str, int]:
+            return attr
+        raise RuntimeError("Code should be unreachable.")  # nocoverage
+
+    def reify_node(self, node: Union[AST, Symbol], predicate=None, id_term=None):
         """Reify the input ast node by adding it's clorm fact
         representation to the internal fact base, and recursively
         reify child nodes.
 
         """
-        if hasattr(node, "ast_type"):  # nocoverage
-            raise NotImplementedError(
-                (
-                    "Reification not implemented for AST nodes of type: "
-                    f"{node.ast_type.name}."
-                )
-            )
-        if hasattr(node, "type"):  # nocoverage
-            raise NotImplementedError(
-                (
-                    "Reification not implemented for symbol of type: "
-                    f"{node.typle.name}."
-                )
-            )
-        raise TypeError(f"Nodes should be of type AST or Symbol, got: {type(node)}")
+        node_type, node_constructor = self._get_type_constructor_from_node(node)
 
-    def _reify_ast_seqence(
-        self, seq: ASTSequence, tup_id: BaseField, tup_pred: Type[preds.AstPredicate]
-    ):
-        """Reify ast sequence into a tuple of predicates of type
-        tup_pred with identifier tup_id."""
-        reified_seq = [
-            tup_pred(tup_id, pos, self.reify_node(item))
-            for pos, item in enumerate(seq, start=0)
+        if node_override_func := self._reify_overrides["node"].get(node_type):
+            return node_override_func(node)
+
+        annotations = node_constructor.__annotations__
+        predicate = getattr(preds, node_type.name) if predicate is None else predicate
+        id_term = predicate.unary() if id_term is None else id_term
+        kwargs_dict = {"id": id_term.id}
+
+        for key in predicate.meta.keys():
+            # the id field has no corresponding attribute in nodes to be reified
+            if key == "id":
+                continue
+            if (
+                node_attr_overrides := self._reify_overrides["node_attr"].get(node_type)
+            ) and (attr_override_func := node_attr_overrides.get(key)):
+                kwargs_dict.update({key: attr_override_func(node)})
+                continue
+            if attr_override_func := self._reify_overrides["attr"].get(key):
+                kwargs_dict.update({key: attr_override_func(node)})
+                continue
+            # sign is a reserved field name in clorm, so we had use
+            # sign_ instead
+            if key == "sign_":
+                annotation = annotations["sign"]
+                attr = getattr(node, "sign")
+            else:
+                annotation = annotations.get(key)
+                attr = getattr(node, key)
+            field = getattr(predicate, key).meta.field
+            reified_attr = self._reify_attr(annotation, attr, field)
+            kwargs_dict.update({key: reified_attr})
+        reified_fact = predicate(**kwargs_dict)
+        self._reified.add(reified_fact)
+        if predicate is preds.Program:
+            self._current_statement = (reified_fact.statements.id, 0)
+        if predicate in preds.SubprogramStatements:
+            id_, position = self._current_statement
+            statement_element = preds.Statements(
+                id=id_, position=position, statement=id_term
+            )
+            self._reified.add(statement_element)
+            self._current_statement = (id_, position + 1)
+        return id_term
+
+    def _reify_theory_operators(self, operators: Sequence[str]):
+        operators1 = preds.TheoryOperators.unary()
+        reified_operators = [
+            preds.TheoryOperators(id=operators1.id, position=p, operator=op)
+            for p, op in enumerate(operators)
         ]
-        self._reified.add(reified_seq)
+        self._reified.add(reified_operators)
+        return operators1
 
-    @reify_node.register(ASTType.SymbolicTerm)
-    def _reify_symbolic_term(self, node):
-        """Reify symbolic term.
-
-        Note that the only possible child of a symbolic term is a
-        clingo symbol denoting a number, variable, or constant, so we
-        don't represent this ast node in our reification.
-
-        """
-        return self.reify_node(node.symbol)
-
-    @reify_node.register(SymbolType.String)
-    def _reify_symbol_string(self, symb):
-        string1 = preds.String1()
-        self._reified.add(preds.String(id=string1.id, value=symb.string))
-        return string1
-
-    @reify_node.register(SymbolType.Number)
-    def _reify_symbol_number(self, symb):
-        number1 = preds.Number1()
-        self._reified.add(preds.Number(id=number1.id, value=symb.number))
-        return number1
-
-    @reify_node.register(ASTType.Variable)
-    def _reify_variable(self, node):
-        variable1 = preds.Variable1()
-        self._reified.add(preds.Variable(id=variable1.id, name=node.name))
-        return variable1
-
-    @reify_node.register(ASTType.UnaryOperation)
-    def _reify_unary_operation(self, node):
-        clorm_operator = preds.convert_enum(
-            ast.UnaryOperator(node.operator_type), preds.UnaryOperator
-        )
-        unop1 = preds.Unary_Operation1()
-        unop = preds.Unary_Operation(
-            id=unop1.id,
-            operator=clorm_operator,
-            argument=self.reify_node(node.argument),
-        )
-        self._reified.add(unop)
-        return unop1
-
-    @reify_node.register(ASTType.BinaryOperation)
-    def _reify_binary_operation(self, node):
-        clorm_operator = preds.convert_enum(
-            ast.BinaryOperator(node.operator_type), preds.BinaryOperator
-        )
-        binop1 = preds.Binary_Operation1()
-        binop = preds.Binary_Operation(
-            id=binop1.id,
-            operator=clorm_operator,
-            left=self.reify_node(node.left),
-            right=self.reify_node(node.right),
-        )
-        self._reified.add(binop)
-        return binop1
-
-    @reify_node.register(ASTType.Interval)
-    def _reify_interval(self, node):
-        interval1 = preds.Interval1()
-        left = self.reify_node(node.left)
-        right = self.reify_node(node.right)
-        interval = preds.Interval(id=interval1.id, left=left, right=right)
-        self._reified.add(interval)
-        return interval1
-
-    @reify_node.register(SymbolType.Function)
-    def _reify_symbol_function(self, symb):
-        """Reify constant term.
-
-        Note that clingo represents constant terms as a
-        clingo.Symbol.Function with empty argument list.
-
-        """
-        func1 = preds.Function1()
-        self._reified.add(
-            preds.Function(id=func1.id, name=symb.name, arguments=preds.Terms1())
-        )
-        return func1
-
-    @reify_node.register(ASTType.Function)
-    def _reify_function(self, node):
-        """Reify an ast node with node.ast_type of ASTType.Function.
-
-        Note that clingo's ast also represents propositional constants
-        as nodes with node.type of ASTType.Function and an empty
-        node.arguments list; thus some additional care must be taken
-        to create the correct clorm predicate.
-
-        """
-        function1 = preds.Function1()
-        function = preds.Function(
-            id=function1.id, name=node.name, arguments=preds.Terms1()
-        )
-        self._reified.add(function)
-        self._reify_ast_seqence(node.arguments, function.arguments.id, preds.Terms)
-        return function1
-
-    @reify_node.register(ASTType.Pool)
-    def _reify_pool(self, node):
-        pool1 = preds.Pool1()
-        pool = preds.Pool(id=pool1.id, arguments=preds.Terms1())
-        self._reified.add(pool)
-        self._reify_ast_seqence(node.arguments, pool.arguments.id, preds.Terms)
-        return pool1
-
-    @reify_node.register(ASTType.TheorySequence)
-    def _reify_theory_sequence(self, node):
-        theory_seq1 = preds.Theory_Sequence1()
-        clorm_theory_seq_type = preds.convert_enum(
-            ast.TheorySequenceType(node.sequence_type), preds.TheorySequenceType
-        )
-        theory_seq = preds.Theory_Sequence(
-            id=theory_seq1.id,
-            sequence_type=clorm_theory_seq_type,
-            terms=preds.Theory_Terms1(),
-        )
-        self._reified.add(theory_seq)
-        self._reify_ast_seqence(node.terms, theory_seq.terms.id, preds.Theory_Terms)
-        return theory_seq1
-
-    @reify_node.register(ASTType.TheoryFunction)
-    def _reify_theory_function(self, node):
-        theory_func1 = preds.Theory_Function1()
-        theory_func = preds.Theory_Function(
-            id=theory_func1.id, name=node.name, arguments=preds.Theory_Terms1()
-        )
-        self._reified.add(theory_func)
-        self._reify_ast_seqence(
-            seq=node.arguments,
-            tup_id=theory_func.arguments.id,
-            tup_pred=preds.Theory_Terms,
-        )
-        return theory_func1
-
-    @reify_node.register(ASTType.TheoryUnparsedTerm)
-    def _reify_theory_unparsed_term(self, node):
-        reified_unparsed_theory_term1 = preds.Theory_Unparsed_Term1()
-        reified_unparsed_elements1 = preds.Theory_Unparsed_Term_Elements1()
-        # reified_unparsed_theory_term = preds.Theory_Unparsed_Term(
-        #     id=reified_unparsed_theory_term1.id,
-        #     elements=preds.Theory_Unparsed_Term_Elements1(),
-        # )
-        for pos, element in enumerate(node.elements):
-            operators = preds.Theory_Operators1()
-            reified_operators = [
-                preds.Theory_Operators(id=operators.id, position=p, operator=op)
-                for p, op in enumerate(element.operators)
-            ]
-            self._reified.add(reified_operators)
-            reified_theory_term1 = self.reify_node(element.term)
-            reified_unparsed_elements = preds.Theory_Unparsed_Term_Elements(
-                id=reified_unparsed_elements1.id,
-                position=pos,
-                operators=operators,
-                term=reified_theory_term1,
-            )
-            self._reified.add(reified_unparsed_elements)
-        reified_unparsed = preds.Theory_Unparsed_Term(
-            id=reified_unparsed_theory_term1.id, elements=reified_unparsed_elements1
-        )
-        self._reified.add(reified_unparsed)
-        return reified_unparsed_theory_term1
-
-    @reify_node.register(ASTType.Guard)
-    def _reify_guard(self, node):
-        guard1 = preds.Guard1()
-        clorm_operator = preds.convert_enum(
-            ast.ComparisonOperator(node.comparison), preds.ComparisonOperator
-        )
-        guard = preds.Guard(
-            id=guard1.id, comparison=clorm_operator, term=self.reify_node(node.term)
-        )
-        self._reified.add(guard)
-        return guard1
-
-    @reify_node.register(ASTType.Comparison)
-    def _reify_comparison(self, node):
-        comparison1 = preds.Comparison1()
-        comparison = preds.Comparison(
-            id=comparison1.id, term=self.reify_node(node.term), guards=preds.Guards1()
-        )
-        self._reified.add(comparison)
-        self._reify_ast_seqence(node.guards, comparison.guards.id, preds.Guards)
-        return comparison1
-
-    @reify_node.register(ASTType.BooleanConstant)
-    def _reify_boolean_constant(self, node):
-        bool_const1 = preds.Boolean_Constant1()
-        bool_str = ""
-        if node.value == 1:
-            bool_str = "true"
-        elif node.value == 0:
-            bool_str = "false"
-        else:  # nocoverage
-            raise RuntimeError("Code should be unreachable")
-        bool_const = preds.Boolean_Constant(id=bool_const1.id, value=bool_str)
-        self._reified.add(bool_const)
-        return bool_const1
-
-    @reify_node.register(ASTType.SymbolicAtom)
-    def _reify_symbolic_atom(self, node):
-        atom1 = preds.Symbolic_Atom1()
-        atom = preds.Symbolic_Atom(id=atom1.id, symbol=self.reify_node(node.symbol))
-        self._reified.add(atom)
-        return atom1
-
-    @reify_node.register(ASTType.Literal)
-    def _reify_literal(self, node):
-        clorm_sign = preds.convert_enum(ast.Sign(node.sign), preds.Sign)
-        lit1 = preds.Literal1()
-        lit = preds.Literal(id=lit1.id, sig=clorm_sign, atom=self.reify_node(node.atom))
-        self._reified.add(lit)
-        return lit1
-
-    @reify_node.register(ASTType.ConditionalLiteral)
-    def _reify_conditional_literal(self, node) -> preds.Conditional_Literal1:
-        cond_lit1 = preds.Conditional_Literal1()
-        cond_lit = preds.Conditional_Literal(
-            id=cond_lit1.id,
-            literal=self.reify_node(node.literal),
-            condition=preds.Literals1(),
-        )
-        self._reified.add(cond_lit)
-        self._reify_ast_seqence(node.condition, cond_lit.condition.id, preds.Literals)
-        return cond_lit1
-
-    @reify_node.register(ASTType.Aggregate)
-    def _reify_aggregate(self, node) -> preds.Aggregate1:
-        count_agg1 = preds.Aggregate1()
-        left_guard = (
-            preds.Guard1()
-            if node.left_guard is None
-            else self.reify_node(node.left_guard)
-        )
-        elements1 = preds.Agg_Elements1()
-        self._reify_ast_seqence(node.elements, elements1.id, preds.Agg_Elements)
-        right_guard = (
-            preds.Guard1()
-            if node.right_guard is None
-            else self.reify_node(node.right_guard)
-        )
-        count_agg = preds.Aggregate(
-            id=count_agg1.id,
-            left_guard=left_guard,
-            elements=elements1,
-            right_guard=right_guard,
-        )
-        self._reified.add(count_agg)
-        return count_agg1
-
-    @reify_node.register(ASTType.TheoryAtom)
-    def _reify_theory_atom(self, node) -> preds.Theory_Atom1:
-        theory_atom1 = preds.Theory_Atom1()
-        # we make a slight modification in the reified representation
-        # vs the AST, wrapping the function into a symbolic atom, as
-        # that's what it really is IMO.
-        theory_symbolic_atom1 = self.reify_node(ast.SymbolicAtom(node.term))
-        theory_atom_elements1 = preds.Theory_Atom_Elements1()
-        reified_elements = []
-        for pos, element in enumerate(node.elements):
-            theory_terms1 = preds.Theory_Terms1()
-            self._reify_ast_seqence(element.terms, theory_terms1.id, preds.Theory_Terms)
-            literals1 = preds.Literals1()
-            self._reify_ast_seqence(element.condition, literals1.id, preds.Literals)
-            reified_element = preds.Theory_Atom_Elements(
-                id=theory_atom_elements1.id,
-                position=pos,
-                terms=theory_terms1,
-                condition=literals1,
-            )
-            reified_elements.append(reified_element)
-        self._reified.add(reified_elements)
-        theory_guard1 = preds.Theory_Guard1()
-        if node.guard is not None:
-            guard_theory_term = self.reify_node(node.guard.term)
-            theory_guard = preds.Theory_Guard(
-                id=theory_guard1.id,
-                operator_name=node.guard.operator_name,
-                term=guard_theory_term,
-            )
-            self._reified.add(theory_guard)
-        theory_atom = preds.Theory_Atom(
-            id=theory_atom1.id,
-            atom=theory_symbolic_atom1,
-            elements=theory_atom_elements1,
-            guard=theory_guard1,
-        )
-        self._reified.add(theory_atom)
-        return theory_atom1
-
-    @reify_node.register(ASTType.BodyAggregate)
-    def _reify_body_aggregate(self, node) -> preds.Body_Aggregate1:
-        agg1 = preds.Body_Aggregate1()
-        left_guard = (
-            preds.Guard1()
-            if node.left_guard is None
-            else self.reify_node(node.left_guard)
-        )
-        clorm_agg_func = preds.convert_enum(
-            ast.AggregateFunction(node.function), preds.AggregateFunction
-        )
-        elements1 = preds.Body_Agg_Elements1()
-        reified_elements = []
-        for pos, element in enumerate(node.elements):
-            terms1 = preds.Terms1()
-            self._reify_ast_seqence(element.terms, terms1.id, preds.Terms)
-            literals1 = preds.Literals1()
-            self._reify_ast_seqence(element.condition, literals1.id, preds.Literals)
-            reified_element = preds.Body_Agg_Elements(
-                id=elements1.id, position=pos, terms=terms1, condition=literals1
-            )
-            reified_elements.append(reified_element)
-        self._reified.add(reified_elements)
-        right_guard = (
-            preds.Guard1()
-            if node.right_guard is None
-            else self.reify_node(node.right_guard)
-        )
-        agg = preds.Body_Aggregate(
-            id=agg1.id,
-            left_guard=left_guard,
-            function=clorm_agg_func,
-            elements=elements1,
-            right_guard=right_guard,
-        )
-        self._reified.add(agg)
-        return agg1
-
-    def _reify_body_literals(self, body_lits: Sequence[ast.AST], body_id):
+    def _reify_body_literals(self, nodes: Sequence[ast.AST]):
+        body_lits1 = preds.BodyLiterals.unary()
         reified_body_lits = []
-        for pos, lit in enumerate(body_lits, start=0):
+        for pos, lit in enumerate(nodes, start=0):
             if lit.ast_type is ast.ASTType.ConditionalLiteral:
                 cond_lit1 = self.reify_node(lit)
                 reified_body_lits.append(
-                    preds.Body_Literals(
-                        id=body_id, position=pos, body_literal=cond_lit1
+                    preds.BodyLiterals(
+                        id=body_lits1.id, position=pos, body_literal=cond_lit1
                     )
                 )
             else:
-                body_lit1 = preds.Body_Literal1()
+                body_lit1 = preds.BodyLiteral.unary()
                 reified_body_lits.append(
-                    preds.Body_Literals(
-                        id=body_id, position=pos, body_literal=body_lit1
+                    preds.BodyLiterals(
+                        id=body_lits1.id, position=pos, body_literal=body_lit1
                     )
                 )
                 clorm_sign = preds.convert_enum(ast.Sign(lit.sign), preds.Sign)
-                body_lit = preds.Body_Literal(
-                    id=body_lit1.id, sig=clorm_sign, atom=self.reify_node(lit.atom)
+                body_lit = preds.BodyLiteral(
+                    id=body_lit1.id, sign_=clorm_sign, atom=self.reify_node(lit.atom)
                 )
                 self._reified.add(body_lit)
         self._reified.add(reified_body_lits)
+        return body_lits1
 
-    @reify_node.register(ASTType.HeadAggregate)
-    def _reify_head_aggregate(self, node) -> preds.Head_Aggregate1:
-        agg1 = preds.Head_Aggregate1()
-        left_guard = (
-            preds.Guard1()
-            if node.left_guard is None
-            else self.reify_node(node.left_guard)
-        )
-        clorm_agg_func = preds.convert_enum(
-            ast.AggregateFunction(node.function), preds.AggregateFunction
-        )
-        elements1 = preds.Head_Agg_Elements1()
-        reified_elements = []
-        for pos, element in enumerate(node.elements):
-            terms1 = preds.Terms1()
-            self._reify_ast_seqence(element.terms, terms1.id, preds.Terms)
-            cond_lit1 = self.reify_node(element.condition)
-            reified_element = preds.Head_Agg_Elements(
-                id=elements1.id, position=pos, terms=terms1, condition=cond_lit1
+    def _reify_function(self, node):
+        if node.external == 0:
+            pred = preds.Function
+            func1 = pred.unary()
+        else:
+            pred = preds.ExternalFunction
+            func1 = pred.unary()
+        self._reified.add(
+            pred(
+                func1.id,
+                node.name,
+                arguments=self._reify_ast_sequence(node.arguments, preds.Terms),
             )
-            reified_elements.append(reified_element)
-        self._reified.add(reified_elements)
-        right_guard = (
-            preds.Guard1()
-            if node.right_guard is None
-            else self.reify_node(node.right_guard)
         )
-        agg = preds.Head_Aggregate(
-            id=agg1.id,
-            left_guard=left_guard,
-            function=clorm_agg_func,
-            elements=elements1,
-            right_guard=right_guard,
-        )
-        self._reified.add(agg)
-        return agg1
+        return func1
 
-    @reify_node.register(ASTType.Disjunction)
-    def _reify_disjunction(self, node) -> preds.Disjunction1:
-        disj1 = preds.Disjunction1()
-        cond_lits1 = preds.Conditional_Literals1()
-        self._reify_ast_seqence(
-            node.elements, cond_lits1.id, preds.Conditional_Literals
+    def _reify_id(self, node):
+        const1 = preds.Function.unary()
+        self._reified.add(
+            preds.Function(id=const1.id, name=node.name, arguments=preds.Terms.unary())
         )
-        disj = preds.Disjunction(id=disj1.id, elements=cond_lits1)
-        self._reified.add(disj)
-        return disj1
+        return const1
 
-    @reify_node.register(ASTType.Rule)
-    def _reify_rule(self, node):
-        rule1 = preds.Rule1()
-        head = self.reify_node(node.head)
-        rule = preds.Rule(id=rule1.id, head=head, body=preds.Body_Literals1())
-        self._reified.add(rule)
-        statement_tup = preds.Statements(
-            id=self._statement_tup_id, position=self._statement_pos, statement=rule1
-        )
-        self._reified.add(statement_tup)
-        self._statement_pos += 1
-        self._reify_body_literals(node.body, rule.body.id)
+    def _reify_bool(self, boolean: int):
+        return "true" if boolean == 1 else "false"
 
-    @reify_node.register(ASTType.Program)
-    def _reify_program(self, node):
-        const_tup_id = preds.Constants1()
-        for pos, param in enumerate(node.parameters, start=0):
-            const_tup = preds.Constants(
-                id=const_tup_id.id, position=pos, constant=preds.Function1()
-            )
-            const = preds.Function(
-                id=const_tup.constant.id, name=param.name, arguments=preds.Terms1()
-            )
-            self._reified.add([const_tup, const])
-        program = preds.Program(
-            name=node.name, parameters=const_tup_id, statements=preds.Statements1()
-        )
-        self._reified.add(program)
-        self._statement_tup_id = program.statements.id
-        self._statement_pos = 0
-
-    @reify_node.register(ASTType.External)
-    def _reify_external(self, node):
-        ext_type = node.external_type.symbol.name
-        external1 = preds.External1()
-        external = preds.External(
-            id=external1.id,
-            atom=self.reify_node(node.atom),
-            body=preds.Body_Literals1(),
-            external_type=ext_type,
-        )
-        self._reified.add(external)
-        statement_tup = preds.Statements(
-            id=self._statement_tup_id, position=self._statement_pos, statement=external1
-        )
-        self._reified.add(statement_tup)
-        self._statement_pos += 1
-        self._reify_body_literals(node.body, external.body.id)
-
-    ExpectedNum = Literal["1", "?", "+", "*"]
-
-    @overload
-    def _reflect_child(
+    def _get_children(
         self,
-        parent_fact: preds.AstPredicate,
+        parent_fact: preds.AstPred,
         child_id_fact,
-        expected_children_num: Literal["1"],
-    ) -> AST:  # nocoverage
-        ...
-
-    # for handling the default argument "1"
-
-    @overload
-    def _reflect_child(self, parent_fact: preds.AstPredicate, child_id_fact) -> AST:  #nocoverage
-        ...
-
-    @overload
-    def _reflect_child(
-        self,
-        parent_fact: preds.AstPredicate,
-        child_id_fact,
-        expected_children_num: Literal["?"],
-    ) -> Optional[AST]:  # nocoverage
-        ...
-
-    @overload
-    def _reflect_child(
-        self,
-        parent_fact: preds.AstPredicate,
-        child_id_fact,
-        expected_children_num: Literal["*", "+"],
-    ) -> Sequence[AST]:  # nocoverage
-        ...
-
-    def _reflect_child(
-        self,
-        parent_fact: preds.AstPredicate,
-        child_id_fact,
-        expected_children_num: ExpectedNum = "1",
-    ) -> Union[None, AST, Sequence[AST]]:
-        """Utility function that takes a unary ast predicate
-        identifying a child predicate, queries reified factbase for
-        child predicate, and returns the child node obtained by
-        reflecting the child predicate.
-
-        """
+        expected_children_num: Literal["1", "?", "+", "*"] = "1",
+    ) -> Sequence[AST]:
         identifier = child_id_fact.id
         child_ast_pred = getattr(preds, type(child_id_fact).__name__.rstrip("1"))
         query = self._reified.query(child_ast_pred).where(
@@ -778,27 +533,24 @@ class ReifiedAST:
             child_facts = list(query.all())
             num_child_facts = len(child_facts)
             if num_child_facts == 1:
-                return self.reflect_predicate(child_facts[0])
-            else:
-                msg = (
-                    f"Expected 1 child fact for identifier '{child_id_fact}'"
-                    f", found {num_child_facts}."
-                )
-                raise ChildQueryError(base_msg + msg)
-        elif expected_children_num == "?":
+                return child_facts
+            msg = (
+                f"Expected 1 child fact for identifier '{child_id_fact}'"
+                f", found {num_child_facts}."
+            )
+            raise ChildQueryError(base_msg + msg)
+        if expected_children_num == "?":
             child_facts = list(query.all())
             num_child_facts = len(child_facts)
-            if num_child_facts == 0:
-                return None
-            elif num_child_facts == 1:
-                return self.reflect_predicate(child_facts[0])
-            else:
-                msg = (
-                    f"Expected 0 or 1 child fact for identifier "
-                    f"'{child_id_fact}', found {num_child_facts}."
-                )
-                raise ChildQueryError(base_msg + msg)
-        elif expected_children_num == "*" or expected_children_num == "+":
+            if num_child_facts in [0, 1]:
+                return child_facts
+            msg = (
+                f"Expected 0 or 1 child fact for identifier "
+                f"'{child_id_fact}', found {num_child_facts}."
+            )
+            raise ChildQueryError(base_msg + msg)
+        #  pylint: disable=consider-using-in
+        if expected_children_num == "*" or expected_children_num == "+":
             query = query.order_by(child_ast_pred.position)
             child_facts = list(query.all())
             num_child_facts = len(child_facts)
@@ -815,337 +567,147 @@ class ReifiedAST:
                     f"'{child_id_fact}', found 0."
                 )
                 raise ChildrenQueryError(base_msg + msg)
-            child_nodes = [self.reflect_predicate(fact) for fact in child_facts]
+            return child_facts
+        assert_never(expected_children_num)
+
+    @overload
+    def _reflect_child(
+        self,
+        parent_fact: preds.AstPred,
+        child_id_fact,
+        expected_children_num: Literal["1"],
+    ) -> AST:  # nocoverage
+        ...
+
+    # for handling the default argument "1"
+
+    @overload
+    def _reflect_child(
+        self, parent_fact: preds.AstPred, child_id_fact
+    ) -> AST:  # nocoverage
+        ...
+
+    @overload
+    def _reflect_child(
+        self,
+        parent_fact: preds.AstPred,
+        child_id_fact,
+        expected_children_num: Literal["?"],
+    ) -> Optional[AST]:  # nocoverage
+        ...
+
+    @overload
+    def _reflect_child(
+        self,
+        parent_fact: preds.AstPred,
+        child_id_fact,
+        expected_children_num: Literal["*", "+"],
+    ) -> Sequence[AST]:  # nocoverage
+        ...
+
+    def _reflect_child(
+        self,
+        parent_fact: preds.AstPred,
+        child_id_fact,
+        expected_children_num: Literal["1", "?", "+", "*"] = "1",
+    ) -> Union[None, AST, Sequence[AST]]:
+        """Utility function that takes a unary ast predicate
+        identifying a child predicate, queries reified factbase for
+        child predicate, and returns the child node obtained by
+        reflecting the child predicate.
+
+        """
+        child_facts = self._get_children(
+            parent_fact, child_id_fact, expected_children_num
+        )
+        num_child_facts = len(child_facts)
+        #  pylint: disable=consider-using-in
+        if expected_children_num == "1" or expected_children_num == "?":
+            if expected_children_num == "?" and num_child_facts == 0:
+                return None
+            return self.reflect_fact(child_facts[0])
+        if expected_children_num == "+" or expected_children_num == "*":
+            child_nodes = [self.reflect_fact(fact) for fact in child_facts]
             return child_nodes
         assert_never(expected_children_num)
 
+    @staticmethod
+    def _node_constructor_from_pred(ast_pred: Type[preds.AstPred]) -> NodeConstructor:
+        "Return the constructor function from clingo.ast corresponding to ast_pred."
+        type_name = ast_pred.__name__.rstrip("s")
+        if ast_pred is preds.ExternalFunction:
+            return ast.Function
+        if ast_pred is preds.BodyLiteral:
+            return ast.Literal
+        ast_constructor = getattr(ast, type_name, None)
+        if ast_constructor is not None:
+            return ast_constructor
+        # currently this never gets executed, as symbol predicates get overridden
+        symbol_constructor = getattr(symbol, type_name, None)  # nocoverage
+        if symbol_constructor is not None:  # nocoverage
+            return symbol_constructor
+        raise ValueError(
+            f"AST Predicate '{ast_pred}' has no associated node constructor."
+        )  # nocoverage
+
     @singledispatchmethod
-    def reflect_predicate(self, pred: preds.AstPredicate):  # nocoverage
+    def reflect_fact(self, fact: preds.AstPred):  # nocoverage
         """Convert the input AST element's reified fact representation
         back into a the corresponding member of clingo's abstract
         syntax tree, recursively reflecting all child facts.
 
         """
-        raise NotImplementedError(
-            f"Reflection not implemented for predicate of type {type(pred)}."
-        )
+        predicate = type(fact)
+        if pred_override_func := self._reflect_overrides["pred"].get(predicate):
+            return pred_override_func(fact)
+        node_constructor = self._node_constructor_from_pred(predicate)
 
-    @reflect_predicate.register
-    def _reflect_string(self, string: preds.String) -> AST:
-        """Reflect a String fact into a String symbol wrapped in SymbolicTerm."""
-        return ast.SymbolicTerm(
-            location=DUMMY_LOC, symbol=symbol.String(string=str(string.value))
-        )
+        annotations = node_constructor.__annotations__
+        kwargs_dict = {}
+        for key, child_type in annotations.items():
+            # sign is a reserved field name in clorm, so we had use
+            # sign_ instead
+            if key == "sign":
+                field_val = getattr(fact, "sign_")
+                field = getattr(predicate, "sign_").meta.field
+            else:
+                field_val = getattr(fact, key, None)
+                field = (
+                    getattr(predicate, key).meta.field
+                    if field_val is not None
+                    else None
+                )
+            if key == "return":
+                continue
+            if (
+                pred_attr_overrides := self._reflect_overrides["pred_attr"].get(
+                    predicate
+                )
+            ) and (attr_override_func := pred_attr_overrides.get(key)):
+                kwargs_dict.update({key: attr_override_func(fact)})
+            elif attr_override_func := self._reflect_overrides["attr"].get(key):
+                kwargs_dict.update({key: attr_override_func(fact)})
+            elif clorm_enum := getattr(field, "enum", None):
+                ast_enum = getattr(ast, clorm_enum.__name__)
+                ast_enum_member = preds.convert_enum(field_val, ast_enum)
+                kwargs_dict.update({key: ast_enum_member})
+            elif child_type in [str, int]:
+                kwargs_dict.update({key: field_val})
+            elif child_type in [AST, Symbol]:
+                child_node = self._reflect_child(fact, field_val, "1")
+                kwargs_dict.update({key: child_node})
+            elif child_type in [Optional[AST], Optional[Symbol]]:
+                optional_child_node = self._reflect_child(fact, field_val, "?")
+                kwargs_dict.update({key: optional_child_node})
+            elif child_type in [Sequence[AST], Sequence[Symbol], Sequence[str]]:
+                child_nodes = self._reflect_child(fact, field_val, "*")
+                kwargs_dict.update({key: child_nodes})
+        reflected_node = node_constructor(**kwargs_dict)
+        return reflected_node
 
-    @reflect_predicate.register
-    def _reflect_number(self, number: preds.Number) -> AST:
-        """Reflect a Number fact into a Number node."""
-        return ast.SymbolicTerm(
-            location=DUMMY_LOC,
-            symbol=symbol.Number(number=number.value),  # type: ignore
-        )
+    def _reflect_bool(self, boolean: Literal["true", "false"]):
+        return 1 if boolean == "true" else 0
 
-    @reflect_predicate.register
-    def _reflect_variable(self, var: preds.Variable) -> AST:
-        """Reflect a Variable fact into a Variable node."""
-        return ast.Variable(location=DUMMY_LOC, name=str(var.name))
-
-    @reflect_predicate.register
-    def _reflect_unary_operation(self, operation: preds.Unary_Operation) -> AST:
-        """Reflect a Unary_Operation fact into a UnaryOperation node."""
-        clingo_operator = preds.convert_enum(
-            preds.UnaryOperator(operation.operator), ast.UnaryOperator
-        )
-        return ast.UnaryOperation(
-            location=DUMMY_LOC,
-            operator_type=clingo_operator,
-            argument=self._reflect_child(operation, operation.argument),
-        )
-
-    @reflect_predicate.register
-    def _reflect_binary_operation(self, operation: preds.Binary_Operation) -> AST:
-        """Reflect a Binary_Operation fact into a BinaryOperation node."""
-        clingo_operator = preds.convert_enum(
-            preds.BinaryOperator(operation.operator), ast.BinaryOperator
-        )
-        reflected_left = self._reflect_child(operation, operation.left)
-        reflected_right = self._reflect_child(operation, operation.right)
-        return ast.BinaryOperation(
-            location=DUMMY_LOC,
-            operator_type=clingo_operator,
-            left=reflected_left,
-            right=reflected_right,
-        )
-
-    @reflect_predicate.register
-    def _reflect_interval(self, interval: preds.Interval) -> AST:
-        reflected_left = self._reflect_child(interval, interval.left)
-        reflected_right = self._reflect_child(interval, interval.right)
-        return ast.Interval(
-            location=DUMMY_LOC, left=reflected_left, right=reflected_right
-        )
-
-    @reflect_predicate.register
-    def _reflect_terms(self, terms: preds.Terms) -> AST:
-        return self._reflect_child(terms, terms.term)
-
-    @reflect_predicate.register
-    def _reflect_function(self, func: preds.Function) -> AST:
-        """Reflect a Function fact into a Function node.
-
-        Note that a Function fact is used to represent a propositional
-        constant, predicate, function symbol, or constant term. All of
-        these can be validly represented by a Function node in the
-        clingo AST and so we can return a Function node in each case.
-        Constant terms are parsed a Symbol by the parser, thus we need
-        to handle them differently when reifying.
-
-        """
-        arg_nodes = self._reflect_child(func, func.arguments, "*")
-        return ast.Function(
-            location=DUMMY_LOC, name=str(func.name), arguments=arg_nodes, external=0
-        )
-
-    @reflect_predicate.register
-    def _reflect_pool(self, pool: preds.Pool) -> AST:
-        arg_nodes = self._reflect_child(pool, pool.arguments, "*")
-        return ast.Pool(location=DUMMY_LOC, arguments=arg_nodes)
-
-    @reflect_predicate.register
-    def _reflect_theory_terms(self, theory_terms: preds.Theory_Terms) -> AST:
-        return self._reflect_child(theory_terms, theory_terms.theory_term)
-
-    @reflect_predicate.register
-    def _reflect_theory_sequence(self, theory_seq: preds.Theory_Sequence) -> AST:
-        clingo_theory_sequence_type = preds.convert_enum(
-            preds.TheorySequenceType(theory_seq.sequence_type), ast.TheorySequenceType
-        )
-        theory_term_nodes = self._reflect_child(theory_seq, theory_seq.terms, "*")
-        return ast.TheorySequence(
-            location=DUMMY_LOC,
-            sequence_type=clingo_theory_sequence_type,
-            terms=theory_term_nodes,
-        )
-
-    @reflect_predicate.register
-    def _reflect_theory_function(self, theory_func: preds.Theory_Function) -> AST:
-        arguments = self._reflect_child(theory_func, theory_func.arguments, "*")
-        return ast.TheoryFunction(
-            location=DUMMY_LOC, name=str(theory_func.name), arguments=arguments
-        )
-
-    @reflect_predicate.register
-    def _reflect_theory_operators(
-        self, theory_operators: preds.Theory_Operators
-    ) -> AST:
-        return theory_operators.operator
-
-    @reflect_predicate.register
-    def _reflect_theory_unparsed_term_elements(
-        self, elements: preds.Theory_Unparsed_Term_Elements
-    ) -> AST:
-        reflected_operators = self._reflect_child(elements, elements.operators, "*")
-        reflected_term = self._reflect_child(elements, elements.term)
-        return ast.TheoryUnparsedTermElement(
-            operators=reflected_operators, term=reflected_term
-        )
-
-    @reflect_predicate.register
-    def _reflect_theory_unparsed_term(
-        self, theory_unparsed_term: preds.Theory_Unparsed_Term
-    ) -> AST:
-        reflected_elements = self._reflect_child(
-            theory_unparsed_term, theory_unparsed_term.elements, "*"
-        )
-        return ast.TheoryUnparsedTerm(location=DUMMY_LOC, elements=reflected_elements)
-
-    @reflect_predicate.register
-    def _reflect_guard(self, guard: preds.Guard) -> AST:
-        clingo_operator = preds.convert_enum(
-            preds.ComparisonOperator(guard.comparison), ast.ComparisonOperator
-        )
-        reflected_guard = self._reflect_child(guard, guard.term)
-        return ast.Guard(comparison=clingo_operator, term=reflected_guard)
-
-    @reflect_predicate.register
-    def _reflect_guards(self, guards: preds.Guards) -> AST:
-        return self._reflect_child(guards, guards.guard)
-
-    @reflect_predicate.register
-    def _reflect_comparison(self, comparison: preds.Comparison) -> AST:
-        term_node = self._reflect_child(comparison, comparison.term)
-        guard_nodes = self._reflect_child(comparison, comparison.guards, "+")
-        return ast.Comparison(term=term_node, guards=guard_nodes)
-
-    @reflect_predicate.register
-    def _reflect_boolean_constant(self, bool_const: preds.Boolean_Constant) -> AST:
-        bool_const_term = bool_const.value
-        if bool_const_term == "true":
-            b = 1
-        elif bool_const_term == "false":
-            b = 0
-        else:  # nocoverage
-            raise RuntimeError("Code should be unreachable")
-        return ast.BooleanConstant(value=b)
-
-    @reflect_predicate.register
-    def _reflect_symbolic_atom(self, atom: preds.Symbolic_Atom) -> AST:
-        reflected_symbol = self._reflect_child(atom, atom.symbol)
-        return ast.SymbolicAtom(symbol=reflected_symbol)
-
-    @reflect_predicate.register
-    def _reflect_literal(self, lit: preds.Literal) -> AST:
-        clingo_sign = preds.convert_enum(preds.Sign(lit.sig), ast.Sign)
-        reflected_atom = self._reflect_child(lit, lit.atom)
-        return ast.Literal(location=DUMMY_LOC, sign=clingo_sign, atom=reflected_atom)
-
-    @reflect_predicate.register
-    def _reflect_literals(self, literals: preds.Literals) -> AST:
-        return self._reflect_child(literals, literals.literal)
-
-    @reflect_predicate.register
-    def _reflect_conditional_literal(self, cond_lit: preds.Conditional_Literal) -> AST:
-        reflected_literal = self._reflect_child(cond_lit, cond_lit.literal)
-        reflected_condition = self._reflect_child(cond_lit, cond_lit.condition, "*")
-        return ast.ConditionalLiteral(
-            location=DUMMY_LOC, literal=reflected_literal, condition=reflected_condition
-        )
-
-    @reflect_predicate.register
-    def _reflect_agg_elements(self, agg_elements: preds.Agg_Elements) -> AST:
-        return self._reflect_child(agg_elements, agg_elements.element)
-
-    @reflect_predicate.register
-    def _reflect_aggregate(self, aggregate: preds.Aggregate) -> AST:
-        reflected_left_guard = self._reflect_child(aggregate, aggregate.left_guard, "?")
-        reflected_right_guard = self._reflect_child(
-            aggregate, aggregate.right_guard, "?"
-        )
-        reflected_elements = self._reflect_child(aggregate, aggregate.elements, "*")
-        return ast.Aggregate(
-            location=DUMMY_LOC,
-            left_guard=reflected_left_guard,
-            elements=reflected_elements,
-            right_guard=reflected_right_guard,
-        )
-
-    @reflect_predicate.register
-    def _reflect_theory_guard(self, theory_guard: preds.Theory_Guard) -> AST:
-        reflected_operator_name = theory_guard.operator_name
-        reflected_theory_term = self._reflect_child(theory_guard, theory_guard.term)
-        return ast.TheoryGuard(
-            operator_name=str(reflected_operator_name), term=reflected_theory_term
-        )
-
-    @reflect_predicate.register
-    def _reflect_theory_atom_elements(
-        self, elements: preds.Theory_Atom_Elements
-    ) -> AST:
-        reflected_terms = self._reflect_child(elements, elements.terms, "*")
-        reflected_condition = self._reflect_child(elements, elements.condition, "*")
-        return ast.TheoryAtomElement(
-            terms=reflected_terms, condition=reflected_condition
-        )
-
-    @reflect_predicate.register
-    def _reflect_theory_atom(self, theory_atom: preds.Theory_Atom) -> AST:
-        reflected_syb_atom = self._reflect_child(theory_atom, theory_atom.atom)
-        reflected_elements = self._reflect_child(theory_atom, theory_atom.elements, "*")
-        reflected_guard = self._reflect_child(theory_atom, theory_atom.guard, "?")
-        return ast.TheoryAtom(
-            location=DUMMY_LOC,
-            term=reflected_syb_atom.symbol,
-            elements=reflected_elements,
-            guard=reflected_guard,
-        )
-
-    @reflect_predicate.register
-    def _reflect_body_agg_elements(self, elements: preds.Body_Agg_Elements) -> AST:
-        reflected_terms = self._reflect_child(elements, elements.terms, "*")
-        reflected_condition = self._reflect_child(elements, elements.condition, "*")
-        return ast.BodyAggregateElement(
-            terms=reflected_terms, condition=reflected_condition
-        )
-
-    @reflect_predicate.register
-    def _reflect_body_aggregate(self, aggregate: preds.Body_Aggregate) -> AST:
-        reflected_left_guard = self._reflect_child(aggregate, aggregate.left_guard, "?")
-        reflected_agg_function = preds.convert_enum(
-            preds.AggregateFunction(aggregate.function), ast.AggregateFunction
-        )
-        reflected_elements = self._reflect_child(aggregate, aggregate.elements, "*")
-        reflected_right_guard = self._reflect_child(
-            aggregate, aggregate.right_guard, "?"
-        )
-        return ast.BodyAggregate(
-            location=DUMMY_LOC,
-            left_guard=reflected_left_guard,
-            function=reflected_agg_function,
-            elements=reflected_elements,
-            right_guard=reflected_right_guard,
-        )
-
-    @reflect_predicate.register
-    def _reflect_body_literals(self, body_literals: preds.Body_Literals) -> AST:
-        return self._reflect_child(body_literals, body_literals.body_literal)
-
-    @reflect_predicate.register
-    def _reflect_body_literal(self, body_lit: preds.Body_Literal) -> AST:
-        return self._reflect_literal(body_lit)
-
-    @reflect_predicate.register
-    def _reflect_head_agg_elements(self, elements: preds.Head_Agg_Elements) -> AST:
-        reflected_terms = self._reflect_child(elements, elements.terms, "*")
-        reflected_condition = self._reflect_child(elements, elements.condition)
-        return ast.HeadAggregateElement(
-            terms=reflected_terms, condition=reflected_condition
-        )
-
-    @reflect_predicate.register
-    def _reflect_head_aggregate(self, aggregate: preds.Head_Aggregate) -> AST:
-        reflected_left_guard = self._reflect_child(aggregate, aggregate.left_guard, "?")
-        reflected_agg_function = preds.convert_enum(
-            preds.AggregateFunction(aggregate.function), ast.AggregateFunction
-        )
-        reflected_elements = self._reflect_child(aggregate, aggregate.elements, "*")
-        reflected_right_guard = self._reflect_child(
-            aggregate, aggregate.right_guard, "?"
-        )
-        return ast.HeadAggregate(
-            location=DUMMY_LOC,
-            left_guard=reflected_left_guard,
-            function=reflected_agg_function,
-            elements=reflected_elements,
-            right_guard=reflected_right_guard,
-        )
-
-    @reflect_predicate.register
-    def _reflect_conditional_literals(
-        self, cond_lits: preds.Conditional_Literals
-    ) -> AST:
-        return self._reflect_child(cond_lits, cond_lits.conditional_literal)
-
-    @reflect_predicate.register
-    def _reflect_disjunction(self, disjunction: preds.Disjunction) -> AST:
-        reflected_elements = self._reflect_child(disjunction, disjunction.elements, "*")
-        return ast.Disjunction(location=DUMMY_LOC, elements=reflected_elements)
-
-    @reflect_predicate.register
-    def _reflect_rule(self, rule: preds.Rule) -> AST:
-        """Reflect a Rule fact into a Rule node."""
-        reflected_head = self._reflect_child(rule, rule.head)
-        reflected_body = self._reflect_child(rule, rule.body, "*")
-        return ast.Rule(location=DUMMY_LOC, head=reflected_head, body=reflected_body)
-
-    @reflect_predicate.register
-    def _reflect_statements(self, statements: preds.Statements) -> AST:
-        return self._reflect_child(statements, statements.statement)
-
-    @reflect_predicate.register
-    def _reflect_constants(self, constants: preds.Constants) -> AST:
-        return self._reflect_child(constants, constants.constant)
-
-    @reflect_predicate.register
     def _reflect_program(self, program: preds.Program) -> Sequence[AST]:
         """Reflect a (sub)program fact into sequence of AST nodes, one
         node per each statement in the (sub)program.
@@ -1162,22 +724,6 @@ class ReifiedAST:
         subprogram.extend(statement_nodes)
         return subprogram
 
-    @reflect_predicate.register
-    def _reflect_external(self, external: preds.External) -> AST:
-        """Reflect an External fact into an External node."""
-        symb_atom_node = self._reflect_child(external, external.atom)
-        body_nodes = self._reflect_child(external, external.body, "*")
-        ext_type = ast.SymbolicTerm(
-            location=DUMMY_LOC,
-            symbol=symbol.Function(name=str(external.external_type), arguments=[]),
-        )
-        return ast.External(
-            location=DUMMY_LOC,
-            atom=symb_atom_node,
-            body=body_nodes,
-            external_type=ext_type,
-        )
-
     def reflect(self):
         """Convert stored reified ast facts into a (sequence of) AST
         node(s), and it's string representation.
@@ -1187,11 +733,8 @@ class ReifiedAST:
         self._program_ast = []
         # should probably define an order in which programs are queried
         for prog in self._reified.query(preds.Program).all():
-            subprogram = self.reflect_predicate(prog)
+            subprogram = self.reflect_fact(prog)
             self._program_ast.extend(subprogram)
-        self._program_string = "\n".join(
-            [str(statement) for statement in self._program_ast]
-        )
         logger.debug("Reflected program string:\n%s", self.program_string)
 
     def transform(
@@ -1234,7 +777,7 @@ class ReifiedAST:
             model_iterator = iter(handle)
             model = next(model_iterator)
             ast_symbols = [final.arguments[0] for final in model.symbols(shown=True)]
-            unifier = Unifier(preds.AstPredicates)
+            unifier = Unifier(preds.AstPreds)
             with TryUnify():
                 ast_facts = unifier.iter_unify(ast_symbols, raise_nomatch=True)
                 self._reified = FactBase(ast_facts)
