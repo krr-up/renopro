@@ -1,9 +1,6 @@
 # pylint: disable=too-many-lines
 """Module implementing reification and de-reification of non-ground programs"""
-import inspect
 import logging
-import re
-from contextlib import AbstractContextManager
 from functools import singledispatchmethod
 from itertools import count
 from pathlib import Path
@@ -35,15 +32,20 @@ from clorm import (
     BaseField,
     FactBase,
     Unifier,
-    UnifierNoMatchError,
     control_add_facts,
     parse_fact_files,
     parse_fact_string,
 )
-from thefuzz import process  # type: ignore
 
+import renopro.enum_fields as enums
 import renopro.predicates as preds
 from renopro.utils import assert_never
+from renopro.utils.clorm_utils import (
+    ChildQueryError,
+    ChildrenQueryError,
+    TryUnify,
+    convert_enum,
+)
 from renopro.utils.logger import get_clingo_logger_callback
 
 logger = logging.getLogger(__name__)
@@ -52,78 +54,6 @@ DUMMY_LOC = Location(Position("<string>", 1, 1), Position("<string>", 1, 1))
 
 NodeConstructor = Callable[..., Union[AST, Symbol]]
 NodeAttr = Union[AST, Symbol, Sequence[Symbol], ASTSequence, str, int, StrSequence]
-
-
-class ChildQueryError(Exception):
-    """Exception raised when a required child fact of an AST fact
-    cannot be found.
-
-    """
-
-
-class ChildrenQueryError(Exception):
-    """Exception raised when the expected number child facts of an AST
-    fact cannot be found.
-
-    """
-
-
-class TryUnify(AbstractContextManager):
-    """Context manager to try some operation that requires unification
-    of some set of ast facts. Enhance error message if unification fails.
-    """
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type is UnifierNoMatchError:
-            self.handle_unify_error(exc_value)
-
-    @staticmethod
-    def handle_unify_error(error):
-        """Enhance UnifierNoMatchError with some more
-        useful error messages to help debug the reason unification failed.
-
-        """
-        unmatched = error.symbol
-        name2arity2pred = {
-            pred.meta.name: {pred.meta.arity: pred} for pred in preds.AstPreds
-        }
-        candidate = name2arity2pred.get(unmatched.name, {}).get(
-            len(unmatched.arguments)
-        )
-        if candidate is None:
-            fuzzy_name = process.extractOne(unmatched.name, name2arity2pred.keys())[0]
-            signatures = [
-                f"{fuzzy_name}/{arity}." for arity in name2arity2pred[fuzzy_name]
-            ]
-            msg = f"""No AST fact of matching signature found for symbol
-            '{unmatched}'.
-            Similar AST fact signatures are:
-            """ + "\n".join(
-                signatures
-            )
-            raise UnifierNoMatchError(
-                inspect.cleandoc(msg), unmatched, error.predicates
-            ) from None
-        for idx, arg in enumerate(unmatched.arguments):
-            # This is very hacky. Should ask Dave for a better
-            # solution, if there is one.
-            arg_field = candidate[idx]._field  # pylint: disable=protected-access
-            arg_field_str = re.sub(r"\(.*?\)", "", str(arg_field))
-            try:
-                arg_field.cltopy(arg)
-            except (TypeError, ValueError):
-                msg = f"""Cannot unify symbol
-                '{unmatched}'
-                to only candidate AST fact of matching signature
-                {candidate.meta.name}/{candidate.meta.arity}
-                due to failure to unify symbol's argument
-                '{arg}'
-                against the corresponding field
-                '{arg_field_str}'."""
-                raise UnifierNoMatchError(
-                    inspect.cleandoc(msg), unmatched, (candidate,)
-                ) from None
-        raise RuntimeError("Code should be unreachable")  # nocoverage
 
 
 class ReifiedAST:
@@ -410,7 +340,7 @@ class ReifiedAST:
             )
         if hasattr(field, "enum"):
             ast_enum = getattr(ast, field.enum.__name__)
-            return preds.convert_enum(ast_enum(attr), field.enum)
+            return convert_enum(ast_enum(attr), field.enum)
         if annotation in [str, int]:
             return attr
         raise RuntimeError("Code should be unreachable.")  # nocoverage
@@ -500,7 +430,7 @@ class ReifiedAST:
                         id=body_lits1.id, position=pos, body_literal=body_lit1
                     )
                 )
-                clorm_sign = preds.convert_enum(ast.Sign(lit.sign), preds.Sign)
+                clorm_sign = convert_enum(ast.Sign(lit.sign), enums.Sign)
                 body_lit = preds.BodyLiteral(
                     id=body_lit1.id, sign_=clorm_sign, atom=self.reify_node(lit.atom)
                 )
@@ -708,7 +638,7 @@ class ReifiedAST:
                 kwargs_dict.update({key: attr_override_func(fact)})
             elif clorm_enum := getattr(field, "enum", None):
                 ast_enum = getattr(ast, clorm_enum.__name__)
-                ast_enum_member = preds.convert_enum(field_val, ast_enum)
+                ast_enum_member = convert_enum(field_val, ast_enum)
                 kwargs_dict.update({key: ast_enum_member})
             elif child_type in [str, int]:
                 kwargs_dict.update({key: field_val})
