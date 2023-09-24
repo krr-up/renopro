@@ -524,7 +524,7 @@ class TheoryFunction(AstPredicate):
     """
 
     id = IdentifierField
-    name = ConstantField
+    name = StringField
     arguments = TheoryTerms.unary.Field
 
 
