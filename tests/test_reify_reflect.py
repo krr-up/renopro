@@ -104,13 +104,15 @@ class TestReifyReflect(TestReifiedAST):
 
     base_str = "#program base.\n"
 
-    def assertReifyEqual(self, file_name: str):  # pylint: disable=invalid-name
+    def assertReifyEqual(
+        self, file_name: str, reify_location: bool = False
+    ):  # pylint: disable=invalid-name
         """Assert that reification of file_name under reflected_files
         results in file_name under reified_files."""
         reified_file = reified_files / file_name
         reflected_file = reflected_files / file_name
         reflected_str = reflected_file.read_text().strip()
-        rast1 = ReifiedAST()
+        rast1 = ReifiedAST(reify_location=reify_location)
         rast1.reify_string(reflected_str)
         reified_facts = rast1.reified_facts
         rast2 = ReifiedAST()
@@ -145,6 +147,10 @@ class TestReifyReflect(TestReifiedAST):
 class TestReifyReflectNormalPrograms(TestReifyReflect):
     """Test cases for reification and reflection of disjunctive logic
     program AST nodes."""
+
+    def test_rast_location(self):
+        "Test reification of AST node locations"
+        self.assertReifyEqual("location.lp", reify_location=True)
 
     def test_rast_prop_fact(self):
         "Test reification and reflection of a propositional fact."

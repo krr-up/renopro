@@ -314,9 +314,6 @@ class _AstPredicateMeta(_PredicateMeta):
             kwds={"name": underscore_lower_cls_name},
             exec_body=id_body,
         )
-        # The unary and non_unary attributes are created by the metaclass,
-        # and are only defined in AstPredicate and UnaryAstPredicate
-        # to supply type hints
         cls = super().__new__(
             mcs, cls_name, bases, namespace, name=underscore_lower_cls_name, **kwargs
         )
@@ -327,6 +324,23 @@ class _AstPredicateMeta(_PredicateMeta):
 
 class AstPredicate(Predicate, metaclass=_AstPredicateMeta):
     """A predicate representing an AST node."""
+
+
+class Position(ComplexTerm):
+    """Complex field representing a position in a text file."""
+
+    filename = StringField
+    line = IntegerField
+    column = IntegerField
+
+
+class Location(Predicate):
+    """Predicate linking an AST identifier to the range in a text
+    file from where it was reified."""
+
+    id = IdentifierField
+    begin = Position.Field
+    end = Position.Field
 
 
 class String(AstPredicate):
@@ -1264,6 +1278,7 @@ StatementField.fields.extend(
 
 
 AstPred = Union[
+    Location,
     String,
     Number,
     Variable,
@@ -1324,6 +1339,7 @@ AstPred = Union[
 ]
 
 AstPreds = [
+    Location,
     String,
     Number,
     Variable,

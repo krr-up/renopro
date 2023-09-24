@@ -131,13 +131,13 @@ class ReifiedAST:
     representation of ASP programs.
     """
 
-    def __init__(self, parse_theory_atoms: bool = False):
+    def __init__(self, reify_location: bool = False):
         self._reified = FactBase()
         self._program_ast: Sequence[AST] = []
         self._current_statement: Tuple[int, int] = (0, 0)
         self._tuple_pos: count = count()
         self._init_overrides()
-        self.parse_theory_atoms = parse_theory_atoms
+        self.reify_location = reify_location
 
     def add_reified_facts(self, reified_facts: Iterator[preds.AstPred]) -> None:
         """Add iterator of reified AST facts to internal factbase."""
@@ -234,7 +234,9 @@ class ReifiedAST:
             "node": {
                 # we don't include this node in our reified representation
                 # as it doesn't add much from a knowledge representation standpoint.
-                ASTType.SymbolicTerm: lambda node: self.reify_node(node.symbol),
+                ASTType.SymbolicTerm: lambda node: self.reify_node(
+                    node.symbol, location=node.location
+                ),
                 ASTType.Id: self._reify_id,
                 ASTType.Function: self._reify_function,
             },
@@ -385,6 +387,15 @@ class ReifiedAST:
             return symbol_type, symbol_constructor
         raise TypeError(f"Node must be of type AST or Symbol, got: {type(node)}")
 
+    def _reify_location(self, id_term, location: ast.Location):
+        begin = preds.Position(
+            location.begin.filename, location.begin.line, location.begin.column
+        )
+        end = preds.Position(
+            location.end.filename, location.end.line, location.end.column
+        )
+        self._reified.add(preds.Location(id_term.id, begin, end))
+
     def _reify_attr(self, annotation: Type, attr: NodeAttr, field: BaseField):
         """Reify an AST node's attribute attr based on the type hint
         for the respective argument in the AST node's constructor.
@@ -404,21 +415,26 @@ class ReifiedAST:
             return attr
         raise RuntimeError("Code should be unreachable.")  # nocoverage
 
-    def reify_node(self, node: Union[AST, Symbol], predicate=None, id_term=None):
+    def reify_node(
+        self, node: Union[AST, Symbol], predicate=None, id_term=None, location=None
+    ):
         """Reify the input ast node by adding it's clorm fact
         representation to the internal fact base, and recursively
         reify child nodes.
 
         """
         node_type, node_constructor = self._get_type_constructor_from_node(node)
-
         if node_override_func := self._reify_overrides["node"].get(node_type):
             return node_override_func(node)
-
         annotations = node_constructor.__annotations__
         predicate = getattr(preds, node_type.name) if predicate is None else predicate
         id_term = predicate.unary() if id_term is None else id_term
         kwargs_dict = {"id": id_term.id}
+        if self.reify_location:
+            if location := (
+                getattr(node, "location", None) if location is None else location
+            ):
+                self._reify_location(id_term, location)
 
         for key in predicate.meta.keys():
             # the id field has no corresponding attribute in nodes to be reified
@@ -443,6 +459,7 @@ class ReifiedAST:
             field = getattr(predicate, key).meta.field
             reified_attr = self._reify_attr(annotation, attr, field)
             kwargs_dict.update({key: reified_attr})
+
         reified_fact = predicate(**kwargs_dict)
         self._reified.add(reified_fact)
         if predicate is preds.Program:
@@ -505,6 +522,8 @@ class ReifiedAST:
                 arguments=self._reify_ast_sequence(node.arguments, preds.Terms),
             )
         )
+        if self.reify_location:
+            self._reify_location(func1, node.location)
         return func1
 
     def _reify_id(self, node):

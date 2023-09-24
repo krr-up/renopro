@@ -1,4 +1,5 @@
 % tag ast facts.
+ast(location(Id,position(F1,B1,E1),position(F2,B2,E2))) :- location(Id,position(F1,B1,E1),position(F2,B2,E2)).
 ast(string(Id,Val)) :- string(Id,Val).
 ast(number(Id,Val)) :- number(Id,Val).
 ast(variable(Id,Name)) :- variable(Id,Name).
