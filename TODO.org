@@ -1,0 +1,10 @@
+*  Refication of location should be a method parameter, not something that's permanently set on init.
+
+* Examine existing metaprogramming applications
+
+- HTLB
+- TLHTC
+- meta-telingo
+- Deontic logic
+- plingo meta encoding
+- unsat stuff with Susana
