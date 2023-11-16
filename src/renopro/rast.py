@@ -1,6 +1,9 @@
 # pylint: disable=too-many-lines
 """Module implementing reification and de-reification of non-ground programs"""
+import inspect
 import logging
+import re
+from contextlib import AbstractContextManager
 from functools import singledispatchmethod
 from itertools import count
 from pathlib import Path
@@ -791,30 +794,73 @@ class ReifiedAST:
             logger.warning("Reified AST to be transformed is empty.")
         if meta_str is None and meta_files is None:
             raise ValueError("No meta-program provided for transformation.")
-        meta_prog = ""
-        if meta_str is not None:
-            meta_prog += meta_str
-        if meta_files is not None:
-            for meta_file in meta_files:
-                with meta_file.open() as f:
-                    meta_prog += f.read()
-        logger.debug(
-            "Applying transformation defined in following meta-encoding:\n%s", meta_prog
-        )
         clingo_logger = get_clingo_logger_callback(logger)
         clingo_options = [] if clingo_options is None else clingo_options
         ctl = Control(clingo_options, logger=clingo_logger)
+        if meta_files:
+            for meta_file in meta_files:
+                ctl.load(str(meta_file))
         logger.debug(
             "Reified facts before applying transformation:\n%s", self.reified_string
         )
         control_add_facts(ctl, self._reified)
-        ctl.add(meta_prog)
+        if meta_str:
+            ctl.add(meta_str)
         ctl.load("./src/renopro/asp/transform.lp")
         ctl.ground()
         with ctl.solve(yield_=True) as handle:  # type: ignore
             model_iterator = iter(handle)
-            model = next(model_iterator)
-            ast_symbols = [final.arguments[0] for final in model.symbols(shown=True)]
+            try:
+                model = next(model_iterator)
+            except StopIteration as e:
+                raise TransformationError(
+                    "Transformation encoding is unsatisfiable."
+                ) from e
+            ast_symbols = []
+            logs = {40: [], 30: [], 20: [], 10: []}
+            logger.debug(
+                "Stable model obtained via transformation:\n%s",
+                model.symbols(shown=True),
+            )
+            for symb in model.symbols(shown=True):
+                if (
+                    symb.type == SymbolType.Function
+                    and symb.positive is True
+                    and symb.name == "log"
+                ):
+                    msg = ""
+                    log_lvl_symb = symb.arguments[0]
+                    log_lvl_strings = log_lvl_str2int.keys()
+                    if (
+                        log_lvl_symb.type != SymbolType.String
+                        or log_lvl_symb.string not in log_lvl_strings
+                    ):
+                        raise TransformationError(
+                            "First argument of log term must be one of the string symbols: '"
+                            + "', '".join(log_lvl_strings)
+                            + "'"
+                        )
+                    level = log_lvl_str2int[log_lvl_symb.string]
+                    log_strings = [
+                        location_symb2str(s)
+                        if s.match("location", 3)
+                        else str(s).strip('"')
+                        for s in symb.arguments[1:]
+                    ]
+                    msg += "".join(log_strings)
+                    logs[level].append(msg)
+                elif symb.match("final", 1):
+                    ast_symbols.append(symb.arguments[0])
+            for level, msgs in logs.items():
+                for msg in msgs:
+                    if level == 40:
+                        logger.error(
+                            msg, exc_info=logger.getEffectiveLevel() == logging.DEBUG
+                        )
+                    else:
+                        logger.log(level, msg)
+            if msgs := logs[40]:
+                raise TransformationError("\n".join(msgs))
             unifier = Unifier(preds.AstPreds)
             with TryUnify():
                 ast_facts = unifier.iter_unify(ast_symbols, raise_nomatch=True)

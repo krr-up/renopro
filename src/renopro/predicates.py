@@ -113,23 +113,6 @@ class AstPredicate(Predicate, metaclass=_AstPredicateMeta):
     """A predicate representing an AST node."""
 
 
-class Position(ComplexTerm):
-    """Complex field representing a position in a text file."""
-
-    filename = StringField
-    line = IntegerField
-    column = IntegerField
-
-
-class Location(Predicate):
-    """Predicate linking an AST identifier to the range in a text
-    file from where it was reified."""
-
-    id = IdentifierField
-    begin = Position.Field
-    end = Position.Field
-
-
 class String(AstPredicate):
     """Predicate representing a string term.
 
@@ -1064,6 +1047,26 @@ StatementField.fields.extend(
 )
 
 
+class Position(ComplexTerm):
+    """Complex field representing a position in a text file."""
+
+    filename = StringField
+    line = IntegerField
+    column = IntegerField
+
+
+class Location(Predicate):
+    """Predicate linking an AST identifier to the range in a text
+    file from where it was reified."""
+
+    id = IdentifierField
+    begin = Position.Field
+    end = Position.Field
+
+
+# Predicates for AST transformation
+
+
 AstPred = Union[
     Location,
     String,
@@ -1123,10 +1126,10 @@ AstPred = Union[
     TheoryGuardDefinition,
     TheoryAtomDefinitions,
     TheoryDefinition,
+    Location,
 ]
 
-AstPreds = [
-    Location,
+AstPreds = (
     String,
     Number,
     Variable,
@@ -1184,9 +1187,10 @@ AstPreds = [
     TheoryGuardDefinition,
     TheoryAtomDefinitions,
     TheoryDefinition,
-]
+    Location,
+)
 
-SubprogramStatements = [
+SubprogramStatements = (
     Rule,
     Definition,
     ShowSignature,
@@ -1200,9 +1204,9 @@ SubprogramStatements = [
     ProjectAtom,
     ProjectSignature,
     TheoryDefinition,
-]
+)
 
-FlattenedTuples = [
+FlattenedTuples = (
     TheoryUnparsedTermElements,
     TheoryAtomElements,
     BodyAggregateElements,
@@ -1210,7 +1214,7 @@ FlattenedTuples = [
     TheoryOperatorDefinitions,
     TheoryTermDefinitions,
     TheoryAtomDefinitions,
-]
+)
 
 # Predicates for AST transformation
 
