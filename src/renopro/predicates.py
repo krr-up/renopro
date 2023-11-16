@@ -26,16 +26,62 @@ from renopro.enum_fields import (
     TheorySequenceTypeField,
     UnaryOperatorField,
 )
-from renopro.utils.clorm_utils import combine_fields
 
 id_count = count()
+
+
+def combine_fields(
+    fields: Sequence[Type[BaseField]], *, name: str = ""
+) -> Type[BaseField]:
+    """Factory function that returns a field sub-class that combines
+    other fields lazily.
+
+    Essentially the same as the combine_fields defined in the clorm
+    package, but exposes a 'fields' attrible, allowing us to add
+    additional fields after the initial combination of fields by
+    appending to the 'fields' attribute of the combined field.
+
+    """
+    subclass_name = name if name else "AnonymousCombinedBaseField"
+
+    # Must combine at least two fields otherwise it doesn't make sense
+    for f in fields:
+        if not inspect.isclass(f) or not issubclass(f, BaseField):
+            raise TypeError("{f} is not BaseField or a sub-class.")
+
+    fields = list(fields)
+
+    def _pytocl(value):
+        for f in fields:
+            try:
+                return f.pytocl(value)
+            except (TypeError, ValueError, AttributeError):
+                pass
+        raise TypeError(f"No combined pytocl() match for value {value}.")
+
+    def _cltopy(symbol):
+        for f in fields:
+            try:
+                return f.cltopy(symbol)
+            except (TypeError, ValueError):
+                pass
+        raise TypeError(
+            (
+                f"Object '{symbol}' ({type(symbol)}) failed to unify "
+                f"with {subclass_name}."
+            )
+        )
+
+    def body(ns):
+        ns.update({"fields": fields, "pytocl": _pytocl, "cltopy": _cltopy})
+
+    return new_class(subclass_name, (BaseField,), {}, body)
 
 
 # by default we use integer identifiers, but allow arbitrary symbols as well
 # for flexibility when these are user generated
 IdentifierField = combine_fields([IntegerField, RawField], name="IdentifierField")
 IdentifierField = IdentifierField(default=lambda: next(id_count))  # type: ignore
-
 
 # Metaclass shenanigans to dynamically create unary versions of AST predicates,
 # which are used to identify child AST facts

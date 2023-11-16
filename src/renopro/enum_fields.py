@@ -1,9 +1,84 @@
 "Definitions of enum fields to be used in AST predicates."
 import enum
+import inspect
+from types import new_class
+from typing import Type, TypeVar
 
-from clorm import ConstantField, StringField
+from clorm import BaseField, ConstantField, StringField
 
-from renopro.utils.clorm_utils import define_enum_field
+
+def define_enum_field(
+    parent_field: Type[BaseField], enum_class: Type[enum.Enum], *, name: str = ""
+) -> Type[BaseField]:  # nocoverage
+    """Factory function that returns a BaseField sub-class for an
+    Enum. Essentially the same as the one defined in clorm, but stores
+    the enum that defines the field under attribute 'enum' for later
+    use.
+
+    Enums are part of the standard library since Python 3.4. This method
+    provides an alternative to using refine_field() to provide a restricted set
+    of allowable values.
+
+    Example:
+       .. code-block:: python
+
+          class IO(str,Enum):
+              IN="in"
+              OUT="out"
+
+          # A field that unifies against ASP constants "in" and "out"
+          IOField = define_enum_field(ConstantField,IO)
+
+    Positional argument:
+
+       field_class: the field that is being sub-classed
+
+       enum_class: the Enum class
+
+    Optional keyword-only arguments:
+
+       name: name for new class (default: anonymously generated).
+
+    """
+    subclass_name = name if name else parent_field.__name__ + "_Restriction"
+    if not inspect.isclass(parent_field) or not issubclass(parent_field, BaseField):
+        raise TypeError(f"{parent_field} is not a subclass of BaseField")
+
+    if not inspect.isclass(enum_class) or not issubclass(enum_class, enum.Enum):
+        raise TypeError(f"{enum_class} is not a subclass of enum.Enum")
+
+    values = set(i.value for i in enum_class)
+
+    def _pytocl(py):
+        val = py.value
+        if val not in values:
+            raise ValueError(
+                f"'{val}' is not a valid value of enum class '{enum_class.__name__}'"
+            )
+        return val
+
+    def body(ns):
+        ns.update({"pytocl": _pytocl, "cltopy": enum_class, "enum": enum_class})
+
+    return new_class(subclass_name, (parent_field,), {}, body)
+
+
+A = TypeVar("A", bound=enum.Enum)
+B = TypeVar("B", bound=enum.Enum)
+
+
+def convert_enum(enum_member: A, other_enum: Type[B]) -> B:
+    """Given an enum_member, convert it to the other_enum member of
+    the same name.
+    """
+    try:
+        return other_enum[enum_member.name]
+    except KeyError as exc:  # nocoverage
+        msg = (
+            f"Enum {other_enum} has no corresponding member "
+            f"with name {enum_member.name}"
+        )
+        raise ValueError(msg) from exc
 
 
 class UnaryOperator(str, enum.Enum):
