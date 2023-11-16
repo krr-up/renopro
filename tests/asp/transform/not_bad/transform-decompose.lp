@@ -1,0 +1,31 @@
+% ast transformation:
+
+% transforms every rule with single symbolic head
+% literal with name "good", adding a negated symbolic literal to the
+% body with name "bad", and same arguments as the head literal
+
+% examples:
+% good(X) :- person(X).
+% ->
+%	good(X) :- person(X), not bad(X).
+%
+% good(dog(X,"spotty")) :- cute(dog(X,"spotty")).
+% ->
+% good(dog(X,"spotty")) :- cute(dog(X,"spotty")), not bad(dog(X,"spotty")).
+
+% auxiliary predicate to get maximal index within a tuple of rule body literals
+max_lit_index(LT,Idx)
+:- Idx = #max{ P : body_literals(LT,P,_); -1 }, rule(_,_,body_literals(LT)).
+
+ast_operation(add(
+	@decompose(
+			body_literals_(
+					LT,N+1,body_literal_(
+									 "not",symbolic_atom_(
+											 function_(bad,Fargs)))))
+))
+:- rule(_,literal(L),body_literals(LT)),
+	 literal(L,"pos",symbolic_atom(A)),
+	 symbolic_atom(A,function(F)),
+	 function(F,good,Fargs),
+	 max_lit_index(LT,N).

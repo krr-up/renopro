@@ -73,6 +73,12 @@ def get_parser() -> ArgumentParser:
         "reify", help="Reify input program into ASP facts.", parents=[common_arg_parser]
     )
     reify_parser.add_argument(
+        "--reify-location",
+        "-L",
+        action="store_true",
+        help="Enable reification of AST node locations.",
+    )
+    reify_parser.add_argument(
         "--commented",
         "-c",
         action="store_true",
@@ -122,6 +128,12 @@ def get_parser() -> ArgumentParser:
         ),
         choices=["reified", "reflected"],
         default="reflected",
+    )
+    transform_parser.add_argument(
+        "--reify-location",
+        "-L",
+        action="store_true",
+        help="Enable reification of AST node locations.",
     )
     transform_parser.add_argument(
         "--clingo-options",
