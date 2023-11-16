@@ -1,7 +1,9 @@
 [run]
 source = renopro
        tests
-omit = */renopro/__main__.py
+omit = 
+     */renopro/__main__.py
+     src/renopro/utils/codegen.py
 [report]
 exclude_lines =
     assert
