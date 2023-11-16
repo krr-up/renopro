@@ -163,3 +163,75 @@ class TestTransformSimple(TestTransform):
                     files_dir / (testname + "_output.lp"),
                 )
 
+
+class TestTransformTheoryParsing(TestTransform):
+    """Test case for transformation that parses theory terms."""
+
+    files_dir = test_transform_dir / "theory-parsing"
+
+    def test_parse_theory_unparsed_theory_term_clingo_unknown(self):
+        """Theory operators without an entry in the operator table of
+        the appropriate theory term type should raise error."""
+        self.assertTransformLogs(
+            [self.files_dir / "inputs" / "clingo-unknown-operator.lp"],
+            [
+                self.files_dir / "parse-unparsed-theory-terms.lp",
+                self.files_dir / "clingo-operator-table.lp",
+            ],
+            "ERROR",
+            {
+                r"1:8-19: No definition for operator '\*' of arity '1' found "
+                r"for theory term type 'clingo'\.": 1,
+                r"1:8-19: No definition for operator '~' of arity '2' found "
+                r"for theory term type 'clingo'\.": 1,
+            },
+        )
+
+    def test_parse_unparsed_theory_terms_clingo(self):
+        """Test that unparsed theory terms with clingo operators
+        (using provided operator table) are parsed correctly.
+
+        """
+        self.assertTrasformEqual(
+            [self.files_dir / "inputs" / "clingo-unparsed-theory-term.lp"],
+            [
+                self.files_dir / "parse-unparsed-theory-terms.lp",
+                self.files_dir / "clingo-operator-table.lp",
+            ],
+            self.files_dir / "outputs" / "clingo-unparsed-theory-term.lp",
+        )
+
+    def test_parse_theory_terms_clingo(self):
+        """Test that theory terms with clingo operators
+        (using provided operator table) are parsed correctly.
+
+        """
+        rast1 = ReifiedAST(reify_location=True)
+        rast1.add_reified_files(
+            [self.files_dir / "inputs" / "clingo-theory-term-reified.lp"]
+        )
+        rast1.transform(meta_files=[self.files_dir / "parse-theory-terms.lp",
+                                    self.files_dir / "clingo-operator-table.lp"],)
+        rast2 = ReifiedAST(reify_location=True)
+        rast2.add_reified_files(
+            [self.files_dir / "inputs" / "clingo-theory-term-reified.lp"]
+        )
+        self.assertSetEqual(rast1.reified_facts, rast2.reified_facts)
+        rast3 = ReifiedAST()
+        rast3.add_reified_files(
+            [self.files_dir / "inputs" / "clingo-theory-term-unknown-reified.lp"]
+        )
+        pattern = "No definition for operator '\+' of arity '1' found"
+        with self.assertRaisesRegex(TransformationError, pattern):
+            rast3.transform(meta_files=[self.files_dir / "parse-theory-terms.lp",
+                                        self.files_dir / "clingo-operator-table.lp"])
+        pattern = "No definition for operator '!!' of arity '2' found"
+        with self.assertRaisesRegex(TransformationError, pattern):
+            rast3.transform(meta_files=[self.files_dir / "parse-theory-terms.lp",
+                                        self.files_dir / "clingo-operator-table.lp"])
+
+    def test_tables_from_theory_defs(self):
+        """Test that operator and atom tables are extracted correctly
+        from theory definitions."""
+        ctl = Control()
+        

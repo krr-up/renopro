@@ -19,8 +19,6 @@ malformed_reified_files = test_files / "malformed"
 class TestReifiedAST(TestCase):
     """Common base class for tests involving the ReifiedAST class."""
 
-    maxDiff = 930
-
     def setUp(self):
         # reset id generator between test cases so reification
         # auto-generates the expected integers

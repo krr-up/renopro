@@ -1,11 +1,13 @@
 # pylint: disable=too-many-lines
 """Definitions of AST elements as clorm predicates."""
+import inspect
 import re
 from itertools import count
 from types import new_class
-from typing import Union
+from typing import Sequence, Type, Union
 
 from clorm import (
+    BaseField,
     ComplexTerm,
     ConstantField,
     IntegerField,
@@ -1216,7 +1218,9 @@ FlattenedTuples = (
     TheoryAtomDefinitions,
 )
 
-# Predicates for AST transformation
+composed_pred_names = tuple(predicate.meta.name + "_" for predicate in AstPreds)
+
+name2arity2pred = {pred.meta.name: {pred.meta.arity: pred} for pred in AstPreds}
 
 
 class Final(Predicate):

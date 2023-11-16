@@ -18,7 +18,7 @@ max_lit_index(LT,Idx)
 :- Idx = #max{ P : body_literals(LT,P,_); -1 }, rule(_,_,body_literals(LT)).
 
 
-% the transformation itself
+%% the transformation itself
 ast_operation(
 add((body_literals(LT,N+1,body_literal(new_id(LT,0)));
 		body_literal(new_id(LT,0),"not",symbolic_atom(new_id(LT,1)));

@@ -473,11 +473,9 @@ class ReifiedAST:
             # sign is a reserved field name in clorm, so we had use
             # sign_ instead
             if key == "sign_":
-                annotation = annotations["sign"]
-                attr = getattr(node, "sign")
+                annotation, attr = annotations["sign"], getattr(node, "sign")
             else:
-                annotation = annotations.get(key)
-                attr = getattr(node, key)
+                annotation, attr = annotations.get(key), getattr(node, key)
             field = getattr(predicate, key).meta.field
             reified_attr = self._reify_attr(annotation, attr, field)
             kwargs_dict.update({key: reified_attr})
