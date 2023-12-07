@@ -1,3 +1,5 @@
+% Defined statements for AST facts.
+
 #defined string/2.
 #defined number/2.
 #defined variable/2.
@@ -6,6 +8,7 @@
 #defined interval/3.
 #defined terms/3.
 #defined function/3.
+#defined external_function/3.
 #defined pool/2.
 #defined theory_terms/3.
 #defined theory_sequence/3.
@@ -15,7 +18,7 @@
 #defined theory_unparsed_term/2.
 #defined guard/3.
 #defined guards/3.
-#defined comparison/2.
+#defined comparison/3.
 #defined boolean_constant/2.
 #defined symbolic_atom/2.
 #defined literal/3.
@@ -27,29 +30,31 @@
 #defined theory_guard/3.
 #defined theory_atom/4.
 #defined body_aggregate_elements/4.
-#defined body_aggregate/4.
+#defined body_aggregate/5.
 #defined body_literal/3.
 #defined body_literals/3.
 #defined head_aggregate_elements/4.
-#defined head_aggregate/4.
+#defined head_aggregate/5.
 #defined conditional_literals/3.
-#defined disjunction/3.
+#defined disjunction/2.
 #defined rule/3.
 #defined definition/4.
 #defined show_signature/4.
 #defined defined/4.
+#defined show_term/3.
 #defined minimize/5.
 #defined script/3.
 #defined statements/3.
 #defined constants/3.
 #defined program/4.
-#defined external/3.
+#defined external/4.
 #defined edge/4.
 #defined heuristic/6.
 #defined project_atom/3.
 #defined project_signature/4.
 #defined theory_operator_definitions/5.
-#defined theory_term_definitions/5.
+#defined theory_term_definitions/4.
 #defined theory_guard_definition/3.
 #defined theory_atom_definitions/7.
 #defined theory_definition/4.
+#defined location/3.

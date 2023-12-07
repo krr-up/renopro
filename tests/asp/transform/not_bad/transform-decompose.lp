@@ -17,13 +17,13 @@
 max_lit_index(LT,Idx)
 :- Idx = #max{ P : body_literals(LT,P,_); -1 }, rule(_,_,body_literals(LT)).
 
-
-%% the transformation itself
-ast_operation(
-add((body_literals(LT,N+1,body_literal(new_id(LT,0)));
-		body_literal(new_id(LT,0),"not",symbolic_atom(new_id(LT,1)));
-		symbolic_atom(new_id(LT,1),function(new_id(LT,2)));
-		function(new_id(LT,2),bad,Fargs))))
+ast_operation(add(
+	@decompose(
+			body_literals_(
+					LT,N+1,body_literal_(
+									 "not",symbolic_atom_(
+											 function_(bad,Fargs)))))
+))
 :- rule(_,literal(L),body_literals(LT)),
 	 literal(L,"pos",symbolic_atom(A)),
 	 symbolic_atom(A,function(F)),

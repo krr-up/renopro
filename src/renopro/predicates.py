@@ -1,11 +1,13 @@
 # pylint: disable=too-many-lines
 """Definitions of AST elements as clorm predicates."""
+import inspect
 import re
 from itertools import count
 from types import new_class
 from typing import TYPE_CHECKING, Any, Protocol, Union, cast, dataclass_transform
 
 from clorm import (
+    BaseField,
     ComplexTerm,
     ConstantField,
     IntegerField,
@@ -28,16 +30,62 @@ from renopro.enum_fields import (
     UnaryOperatorField,
     __dataclass_transform__
 )
-from renopro.utils.clorm_utils import combine_fields
 
 id_count = count()
+
+
+def combine_fields(
+    fields: Sequence[Type[BaseField]], *, name: str = ""
+) -> Type[BaseField]:
+    """Factory function that returns a field sub-class that combines
+    other fields lazily.
+
+    Essentially the same as the combine_fields defined in the clorm
+    package, but exposes a 'fields' attrible, allowing us to add
+    additional fields after the initial combination of fields by
+    appending to the 'fields' attribute of the combined field.
+
+    """
+    subclass_name = name if name else "AnonymousCombinedBaseField"
+
+    # Must combine at least two fields otherwise it doesn't make sense
+    for f in fields:
+        if not inspect.isclass(f) or not issubclass(f, BaseField):
+            raise TypeError("{f} is not BaseField or a sub-class.")
+
+    fields = list(fields)
+
+    def _pytocl(value):
+        for f in fields:
+            try:
+                return f.pytocl(value)
+            except (TypeError, ValueError, AttributeError):
+                pass
+        raise TypeError(f"No combined pytocl() match for value {value}.")
+
+    def _cltopy(symbol):
+        for f in fields:
+            try:
+                return f.cltopy(symbol)
+            except (TypeError, ValueError):
+                pass
+        raise TypeError(
+            (
+                f"Object '{symbol}' ({type(symbol)}) failed to unify "
+                f"with {subclass_name}."
+            )
+        )
+
+    def body(ns):
+        ns.update({"fields": fields, "pytocl": _pytocl, "cltopy": _cltopy})
+
+    return new_class(subclass_name, (BaseField,), {}, body)
 
 
 # by default we use integer identifiers, but allow arbitrary symbols as well
 # for flexibility when these are user generated
 IdentifierField = combine_fields([IntegerField, RawField], name="IdentifierField")
 IdentifierField = IdentifierField(default=lambda: next(id_count))  # type: ignore
-
 
 # Metaclass shenanigans to dynamically create unary versions of AST predicates,
 # which are used to identify child AST facts
@@ -90,23 +138,6 @@ class AstPredicate(Predicate, metaclass=_AstPredicateMeta):
 
     if TYPE_CHECKING:
         unary: IdentifierPredicateConstructor
-
-
-class Position(ComplexTerm):
-    """Complex field representing a position in a text file."""
-
-    filename = StringField
-    line = IntegerField
-    column = IntegerField
-
-
-class Location(Predicate):
-    """Predicate linking an AST identifier to the range in a text
-    file from where it was reified."""
-
-    id = IdentifierField
-    begin = Position.Field
-    end = Position.Field
 
 
 class String(AstPredicate):
@@ -1043,6 +1074,26 @@ StatementField.fields.extend(
 )
 
 
+class Position(ComplexTerm):
+    """Complex field representing a position in a text file."""
+
+    filename = StringField
+    line = IntegerField
+    column = IntegerField
+
+
+class Location(Predicate):
+    """Predicate linking an AST identifier to the range in a text
+    file from where it was reified."""
+
+    id = IdentifierField
+    begin = Position.Field
+    end = Position.Field
+
+
+# Predicates for AST transformation
+
+
 AstPred = Union[
     Location,
     String,
@@ -1102,10 +1153,10 @@ AstPred = Union[
     TheoryGuardDefinition,
     TheoryAtomDefinitions,
     TheoryDefinition,
+    Location,
 ]
 
-AstPreds = [
-    Location,
+AstPreds = (
     String,
     Number,
     Variable,
@@ -1163,9 +1214,10 @@ AstPreds = [
     TheoryGuardDefinition,
     TheoryAtomDefinitions,
     TheoryDefinition,
-]
+    Location,
+)
 
-SubprogramStatements = [
+SubprogramStatements = (
     Rule,
     Definition,
     ShowSignature,
@@ -1179,9 +1231,9 @@ SubprogramStatements = [
     ProjectAtom,
     ProjectSignature,
     TheoryDefinition,
-]
+)
 
-FlattenedTuples = [
+FlattenedTuples = (
     TheoryUnparsedTermElements,
     TheoryAtomElements,
     BodyAggregateElements,
@@ -1189,9 +1241,11 @@ FlattenedTuples = [
     TheoryOperatorDefinitions,
     TheoryTermDefinitions,
     TheoryAtomDefinitions,
-]
+)
 
-# Predicates for AST transformation
+composed_pred_names = tuple(predicate.meta.name + "_" for predicate in AstPreds)
+
+name2arity2pred = {pred.meta.name: {pred.meta.arity: pred} for pred in AstPreds}
 
 
 class Final(Predicate):

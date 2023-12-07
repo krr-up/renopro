@@ -1,0 +1,14 @@
+program(0,"base",constants(1),statements(2)).
+function(5,eval,terms(6)).
+number(13,1).
+number(14,2).
+theory_terms(12,0,number(13)).
+theory_terms(10,0,theory_function(11)).
+theory_terms(10,1,number(14)).
+theory_terms(8,0,theory_function(9)).
+theory_function(11,"-",theory_terms(12)).
+theory_function(9,"+",theory_terms(10)).
+theory_atom_elements(7,0,theory_terms(8),literals(15)).
+theory_atom(4,function(5),theory_atom_elements(7),theory_guard(16)).
+rule(3,theory_atom(4),body_literals(17)).
+statements(2,0,rule(3)).

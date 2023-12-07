@@ -14,8 +14,8 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
     setup_logger("renopro", args.log)
-    rast = ReifiedAST()
     if args.command == "reify":
+        rast = ReifiedAST(reify_location=args.reify_location)
         rast.reify_files(args.infiles)
         if args.commented:
             print(rast.reified_string_doc)
@@ -23,11 +23,13 @@ def main():
             print(rast.reified_string)
 
     elif args.command == "reflect":
+        rast = ReifiedAST()
         rast.add_reified_files(args.infiles)
         rast.reflect()
         print(rast.program_string)
 
     elif args.command == "transform":
+        rast = ReifiedAST(reify_location=args.reify_location)
         if args.input_format == "reified":
             rast.add_reified_files(args.infiles)
         elif args.input_format == "reflected":

@@ -1,6 +1,9 @@
 # pylint: disable=too-many-lines
 """Module implementing reification and de-reification of non-ground programs"""
+import inspect
 import logging
+import re
+from contextlib import AbstractContextManager
 from functools import singledispatchmethod
 from itertools import count
 from pathlib import Path
@@ -28,33 +31,122 @@ from clingo.ast import (
     parse_files,
     parse_string,
 )
+from clingo.script import enable_python
 from clingo.symbol import Symbol, SymbolType
 from clorm import (
     BaseField,
     FactBase,
     Unifier,
+    UnifierNoMatchError,
     control_add_facts,
     parse_fact_files,
     parse_fact_string,
 )
+from thefuzz import process  # type: ignore
 
 import renopro.enum_fields as enums
 import renopro.predicates as preds
+from renopro.enum_fields import convert_enum
 from renopro.utils import assert_never
-from renopro.utils.clorm_utils import (
-    ChildQueryError,
-    ChildrenQueryError,
-    TryUnify,
-    convert_enum,
-)
 from renopro.utils.logger import get_clingo_logger_callback
 
 logger = logging.getLogger(__name__)
+
+enable_python()
+
+
+class ChildQueryError(Exception):
+    """Exception raised when a required child fact of an AST fact
+    cannot be found.
+
+    """
+
+
+class ChildrenQueryError(Exception):
+    """Exception raised when the expected number child facts of an AST
+    fact cannot be found.
+
+    """
+
+
+class TransformationError(Exception):
+    """Exception raised when a transformation meta-encoding derives an
+    error or is unsatisfiable."""
+
+
+class TryUnify(AbstractContextManager):
+    """Context manager to try some operation that requires unification
+    of some set of ast facts. Enhance error message if unification fails.
+    """
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is UnifierNoMatchError:
+            self.handle_unify_error(exc_value)
+
+    @staticmethod
+    def handle_unify_error(error):
+        """Enhance UnifierNoMatchError with some more
+        useful error messages to help debug the reason unification failed.
+
+        """
+        unmatched = error.symbol
+        name2arity2pred = {
+            pred.meta.name: {pred.meta.arity: pred} for pred in preds.AstPreds
+        }
+        candidate = name2arity2pred.get(unmatched.name, {}).get(
+            len(unmatched.arguments)
+        )
+        if candidate is None:
+            fuzzy_name = process.extractOne(unmatched.name, name2arity2pred.keys())[0]
+            signatures = [
+                f"{fuzzy_name}/{arity}." for arity in name2arity2pred[fuzzy_name]
+            ]
+            msg = f"""No AST fact of matching signature found for symbol
+            '{unmatched}'.
+            Similar AST fact signatures are:
+            """ + "\n".join(
+                signatures
+            )
+            raise UnifierNoMatchError(
+                inspect.cleandoc(msg), unmatched, error.predicates
+            ) from None
+        for idx, arg in enumerate(unmatched.arguments):
+            # This is very hacky. Should ask Dave for a better
+            # solution, if there is one.
+            arg_field = candidate[idx]._field  # pylint: disable=protected-access
+            arg_field_str = re.sub(r"\(.*?\)", "", str(arg_field))
+            try:
+                arg_field.cltopy(arg)
+            except (TypeError, ValueError):
+                msg = f"""Cannot unify symbol
+                '{unmatched}'
+                to only candidate AST fact of matching signature
+                {candidate.meta.name}/{candidate.meta.arity}
+                due to failure to unify symbol's argument
+                '{arg}'
+                against the corresponding field
+                '{arg_field_str}'."""
+                raise UnifierNoMatchError(
+                    inspect.cleandoc(msg), unmatched, (candidate,)
+                ) from None
+        raise RuntimeError("Code should be unreachable")  # nocoverage
+
 
 DUMMY_LOC = Location(Position("<string>", 1, 1), Position("<string>", 1, 1))
 
 NodeConstructor = Callable[..., Union[AST, Symbol]]
 NodeAttr = Union[AST, Symbol, Sequence[Symbol], ASTSequence, str, int, StrSequence]
+
+log_lvl_str2int = {"debug": 10, "info": 20, "warning": 30, "error": 40}
+
+
+def location_symb2str(location: Symbol) -> str:
+    pairs = []
+    for pair in zip(location.arguments[1].arguments, location.arguments[2].arguments):
+        pairs.append(
+            str(pair[0]) if pair[0] == pair[1] else str(pair[0]) + "-" + str(pair[1])
+        )
+    return ":".join(pairs)
 
 
 class ReifiedAST:
@@ -384,11 +476,9 @@ class ReifiedAST:
             # sign is a reserved field name in clorm, so we had use
             # sign_ instead
             if key == "sign_":
-                annotation = annotations["sign"]
-                attr = getattr(node, "sign")
+                annotation, attr = annotations["sign"], getattr(node, "sign")
             else:
-                annotation = annotations.get(key)
-                attr = getattr(node, key)
+                annotation, attr = annotations.get(key), getattr(node, key)
             field = getattr(predicate, key).meta.field
             reified_attr = self._reify_attr(annotation, attr, field)
             kwargs_dict.update({key: reified_attr})
@@ -712,30 +802,73 @@ class ReifiedAST:
             logger.warning("Reified AST to be transformed is empty.")
         if meta_str is None and meta_files is None:
             raise ValueError("No meta-program provided for transformation.")
-        meta_prog = ""
-        if meta_str is not None:
-            meta_prog += meta_str
-        if meta_files is not None:
-            for meta_file in meta_files:
-                with meta_file.open() as f:
-                    meta_prog += f.read()
-        logger.debug(
-            "Applying transformation defined in following meta-encoding:\n%s", meta_prog
-        )
         clingo_logger = get_clingo_logger_callback(logger)
         clingo_options = [] if clingo_options is None else clingo_options
         ctl = Control(clingo_options, logger=clingo_logger)
+        if meta_files:
+            for meta_file in meta_files:
+                ctl.load(str(meta_file))
         logger.debug(
             "Reified facts before applying transformation:\n%s", self.reified_string
         )
         control_add_facts(ctl, self._reified)
-        ctl.add(meta_prog)
+        if meta_str:
+            ctl.add(meta_str)
         ctl.load("./src/renopro/asp/transform.lp")
         ctl.ground()
         with ctl.solve(yield_=True) as handle:  # type: ignore
             model_iterator = iter(handle)
-            model = next(model_iterator)
-            ast_symbols = [final.arguments[0] for final in model.symbols(shown=True)]
+            try:
+                model = next(model_iterator)
+            except StopIteration as e:
+                raise TransformationError(
+                    "Transformation encoding is unsatisfiable."
+                ) from e
+            ast_symbols = []
+            logs = {40: [], 30: [], 20: [], 10: []}
+            logger.debug(
+                "Stable model obtained via transformation:\n%s",
+                model.symbols(shown=True),
+            )
+            for symb in model.symbols(shown=True):
+                if (
+                    symb.type == SymbolType.Function
+                    and symb.positive is True
+                    and symb.name == "log"
+                ):
+                    msg = ""
+                    log_lvl_symb = symb.arguments[0]
+                    log_lvl_strings = log_lvl_str2int.keys()
+                    if (
+                        log_lvl_symb.type != SymbolType.String
+                        or log_lvl_symb.string not in log_lvl_strings
+                    ):
+                        raise TransformationError(
+                            "First argument of log term must be one of the string symbols: '"
+                            + "', '".join(log_lvl_strings)
+                            + "'"
+                        )
+                    level = log_lvl_str2int[log_lvl_symb.string]
+                    log_strings = [
+                        location_symb2str(s)
+                        if s.match("location", 3)
+                        else str(s).strip('"')
+                        for s in symb.arguments[1:]
+                    ]
+                    msg += "".join(log_strings)
+                    logs[level].append(msg)
+                elif symb.match("final", 1):
+                    ast_symbols.append(symb.arguments[0])
+            for level, msgs in logs.items():
+                for msg in msgs:
+                    if level == 40:
+                        logger.error(
+                            msg, exc_info=logger.getEffectiveLevel() == logging.DEBUG
+                        )
+                    else:
+                        logger.log(level, msg)
+            if msgs := logs[40]:
+                raise TransformationError("\n".join(msgs))
             unifier = Unifier(preds.AstPreds)
             with TryUnify():
                 ast_facts = unifier.iter_unify(ast_symbols, raise_nomatch=True)
