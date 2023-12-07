@@ -5,6 +5,7 @@ from functools import singledispatchmethod
 from itertools import count
 from pathlib import Path
 from typing import (
+    Any,
     Callable,
     Iterator,
     Literal,
@@ -65,7 +66,7 @@ class ReifiedAST:
         self._reified = FactBase()
         self._program_ast: Sequence[AST] = []
         self._current_statement: Tuple[int, int] = (0, 0)
-        self._tuple_pos: count = count()
+        self._tuple_pos: Iterator[int] = count()
         self._init_overrides()
         self.reify_location = reify_location
 
@@ -157,7 +158,7 @@ class ReifiedAST:
         """
         return self._reified.asp_str(commented=True)
 
-    def _init_overrides(self):
+    def _init_overrides(self) -> None:
         """Initialize override functions that change the default
         behavior when reifying or reflecting"""
         self._reify_overrides = {
@@ -280,7 +281,7 @@ class ReifiedAST:
         self,
         ast_seq: Union[ASTSequence, Sequence[Symbol]],
         tuple_predicate: Type[preds.AstPredicate],
-    ):
+    ) -> preds.AstPredicate:
         "Reify an ast sequence into a list of facts of type tuple_predicate."
         tuple_unary_fact = tuple_predicate.unary()
         reified_facts = []
@@ -317,7 +318,9 @@ class ReifiedAST:
             return symbol_type, symbol_constructor
         raise TypeError(f"Node must be of type AST or Symbol, got: {type(node)}")
 
-    def _reify_location(self, id_term, location: ast.Location):
+    def _reify_location(
+        self, id_term: preds.AstPredicate, location: ast.Location
+    ) -> None:
         begin = preds.Position(
             location.begin.filename, location.begin.line, location.begin.column
         )
@@ -326,7 +329,7 @@ class ReifiedAST:
         )
         self._reified.add(preds.Location(id_term.id, begin, end))
 
-    def _reify_attr(self, annotation: Type, attr: NodeAttr, field: BaseField):
+    def _reify_attr(self, annotation: Type, attr: NodeAttr, field: BaseField) -> Any:
         """Reify an AST node's attribute attr based on the type hint
         for the respective argument in the AST node's constructor.
         This default behavior is overridden in certain cases; see reify_node."""
@@ -403,7 +406,9 @@ class ReifiedAST:
             self._current_statement = (id_, position + 1)
         return id_term
 
-    def _reify_theory_operators(self, operators: Sequence[str]):
+    def _reify_theory_operators(
+        self, operators: Sequence[str]
+    ) -> preds.TheoryOperators.unary:
         operators1 = preds.TheoryOperators.unary()
         reified_operators = [
             preds.TheoryOperators(id=operators1.id, position=p, operator=op)
@@ -412,7 +417,9 @@ class ReifiedAST:
         self._reified.add(reified_operators)
         return operators1
 
-    def _reify_body_literals(self, nodes: Sequence[ast.AST]):
+    def _reify_body_literals(
+        self, nodes: Sequence[ast.AST]
+    ) -> preds.BodyLiterals.unary:
         body_lits1 = preds.BodyLiterals.unary()
         reified_body_lits = []
         for pos, lit in enumerate(nodes, start=0):
@@ -463,7 +470,7 @@ class ReifiedAST:
         )
         return const1
 
-    def _reify_bool(self, boolean: int):
+    def _reify_bool(self, boolean: int) -> str:
         return "true" if boolean == 1 else "false"
 
     def _get_children(
@@ -600,14 +607,17 @@ class ReifiedAST:
         )  # nocoverage
 
     @singledispatchmethod
-    def reflect_fact(self, fact: preds.AstPred):  # nocoverage
+    def reflect_fact(self, fact: preds.AstPred) -> AST:  # nocoverage
         """Convert the input AST element's reified fact representation
         back into a the corresponding member of clingo's abstract
         syntax tree, recursively reflecting all child facts.
 
         """
         predicate = type(fact)
-        if pred_override_func := self._reflect_overrides["pred"].get(predicate):
+        pred_override_func: Optional[Callable[[Any], AST]] = self._reflect_overrides[
+            "pred"
+        ].get(predicate)
+        if pred_override_func:
             return pred_override_func(fact)
         node_constructor = self._node_constructor_from_pred(predicate)
 
@@ -654,7 +664,7 @@ class ReifiedAST:
         reflected_node = node_constructor(**kwargs_dict)
         return reflected_node
 
-    def _reflect_bool(self, boolean: Literal["true", "false"]):
+    def _reflect_bool(self, boolean: Literal["true", "false"]) -> int:
         return 1 if boolean == "true" else 0
 
     def _reflect_program(self, program: preds.Program) -> Sequence[AST]:
@@ -673,7 +683,7 @@ class ReifiedAST:
         subprogram.extend(statement_nodes)
         return subprogram
 
-    def reflect(self):
+    def reflect(self) -> None:
         """Convert stored reified ast facts into a (sequence of) AST
         node(s), and it's string representation.
 

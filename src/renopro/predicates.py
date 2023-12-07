@@ -3,7 +3,7 @@
 import re
 from itertools import count
 from types import new_class
-from typing import Union
+from typing import TYPE_CHECKING, Any, Protocol, Union, cast, dataclass_transform
 
 from clorm import (
     ComplexTerm,
@@ -12,6 +12,7 @@ from clorm import (
     Predicate,
     RawField,
     StringField,
+    field,
     refine_field,
 )
 from clorm.orm.core import _PredicateMeta
@@ -25,6 +26,7 @@ from renopro.enum_fields import (
     TheoryOperatorTypeField,
     TheorySequenceTypeField,
     UnaryOperatorField,
+    __dataclass_transform__
 )
 from renopro.utils.clorm_utils import combine_fields
 
@@ -41,12 +43,19 @@ IdentifierField = IdentifierField(default=lambda: next(id_count))  # type: ignor
 # which are used to identify child AST facts
 
 
+@__dataclass_transform__(field_specifiers=(field,))
 class _AstPredicateMeta(_PredicateMeta):
-    def __new__(mcs, cls_name, bases, namespace, **kwargs):
+    def __new__(
+        mcs,
+        cls_name: str,
+        bases: tuple[type, ...],
+        namespace: dict[str, Any],
+        **kwargs: Any,
+    ) -> "_AstPredicateMeta":
         pattern = re.compile(r"(?<!^)(?=[A-Z])")
         underscore_lower_cls_name = pattern.sub("_", cls_name).lower()
 
-        def id_body(ns):
+        def id_body(ns: dict[str, Any]) -> None:
             ns.update({"id": IdentifierField})
 
         unary = new_class(
@@ -57,14 +66,30 @@ class _AstPredicateMeta(_PredicateMeta):
         )
         cls = super().__new__(
             mcs, cls_name, bases, namespace, name=underscore_lower_cls_name, **kwargs
-        )
+        )  # type: ignore
         cls.unary = unary
         cls.unary.non_unary = cls
-        return cls
+        return cast(_AstPredicateMeta, cls)
+
+
+class IdentifierPredicate(Predicate):
+    id = IdentifierField
+
+
+# define callback protocol to correctly type the default argument
+# behaviour of IdentifierField
+
+
+class IdentifierPredicateConstructor(Protocol):
+    def __call__(self, id: Any = ..., /) -> IdentifierPredicate:
+        ...
 
 
 class AstPredicate(Predicate, metaclass=_AstPredicateMeta):
     """A predicate representing an AST node."""
+
+    if TYPE_CHECKING:
+        unary: IdentifierPredicateConstructor
 
 
 class Position(ComplexTerm):

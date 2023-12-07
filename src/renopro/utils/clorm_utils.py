@@ -1,11 +1,12 @@
-"Clorm related utility functions."
+"""Clorm related utility functions."""
 import enum
 import inspect
 import re
 from contextlib import AbstractContextManager
-from types import new_class
-from typing import Sequence, Type, TypeVar
+from types import TracebackType, new_class
+from typing import Any, Sequence, Type, TypeVar, cast
 
+from clingo import Symbol
 from clorm import BaseField, UnifierNoMatchError
 from thefuzz import process  # type: ignore
 
@@ -33,18 +34,18 @@ def combine_fields(
 
     fields = list(fields)
 
-    def _pytocl(value):
+    def _pytocl(value: Any) -> Symbol:
         for f in fields:
             try:
-                return f.pytocl(value)
+                return f.pytocl(value)  # type: ignore
             except (TypeError, ValueError, AttributeError):
                 pass
         raise TypeError(f"No combined pytocl() match for value {value}.")
 
-    def _cltopy(symbol):
+    def _cltopy(symbol: Symbol) -> Any:
         for f in fields:
             try:
-                return f.cltopy(symbol)
+                return f.cltopy(symbol)  # type: ignore
             except (TypeError, ValueError):
                 pass
         raise TypeError(
@@ -54,7 +55,7 @@ def combine_fields(
             )
         )
 
-    def body(ns):
+    def body(ns: dict[str, Any]) -> None:
         ns.update({"fields": fields, "pytocl": _pytocl, "cltopy": _cltopy})
 
     return new_class(subclass_name, (BaseField,), {}, body)
@@ -102,7 +103,7 @@ def define_enum_field(
 
     values = set(i.value for i in enum_class)
 
-    def _pytocl(py):
+    def _pytocl(py: enum.Enum) -> Any:
         val = py.value
         if val not in values:
             raise ValueError(
@@ -110,7 +111,7 @@ def define_enum_field(
             )
         return val
 
-    def body(ns):
+    def body(ns: dict[str, Any]) -> None:
         ns.update({"pytocl": _pytocl, "cltopy": enum_class, "enum": enum_class})
 
     return new_class(subclass_name, (parent_field,), {}, body)
@@ -148,17 +149,22 @@ class ChildrenQueryError(Exception):
     """
 
 
-class TryUnify(AbstractContextManager):
+class TryUnify(AbstractContextManager):  # type: ignore
     """Context manager to try some operation that requires unification
     of some set of ast facts. Enhance error message if unification fails.
     """
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: Type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         if exc_type is UnifierNoMatchError:
-            self.handle_unify_error(exc_value)
+            self.handle_unify_error(cast(UnifierNoMatchError, exc_value))
 
     @staticmethod
-    def handle_unify_error(error):
+    def handle_unify_error(error: UnifierNoMatchError) -> None:
         """Enhance UnifierNoMatchError with some more
         useful error messages to help debug the reason unification failed.
 
@@ -183,7 +189,7 @@ class TryUnify(AbstractContextManager):
             )
             raise UnifierNoMatchError(
                 inspect.cleandoc(msg), unmatched, error.predicates
-            ) from None
+            ) from None  # type: ignore
         for idx, arg in enumerate(unmatched.arguments):
             # This is very hacky. Should ask Dave for a better
             # solution, if there is one.
@@ -202,5 +208,5 @@ class TryUnify(AbstractContextManager):
                 '{arg_field_str}'."""
                 raise UnifierNoMatchError(
                     inspect.cleandoc(msg), unmatched, (candidate,)
-                ) from None
+                ) from None  # type: ignore
         raise RuntimeError("Code should be unreachable")  # nocoverage
