@@ -10,4 +10,12 @@ skip_magic_trailing_comma = true
 line-length = 88
 
 [tool.mypy]
-disable_error_code = ["attr-defined"]
+strict = true
+exclude = ["tests/*"]
+
+[tool.pylsp-mypy]
+enabled = true
+live_mode = true
+strict = true
+exclude = ["tests/*"]
+
