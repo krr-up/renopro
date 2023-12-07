@@ -210,8 +210,12 @@ class TestTransformTheoryParsing(TestTransform):
         rast1.add_reified_files(
             [self.files_dir / "inputs" / "clingo-theory-term-reified.lp"]
         )
-        rast1.transform(meta_files=[self.files_dir / "parse-theory-terms.lp",
-                                    self.files_dir / "clingo-operator-table.lp"],)
+        rast1.transform(
+            meta_files=[
+                self.files_dir / "parse-theory-terms.lp",
+                self.files_dir / "clingo-operator-table.lp",
+            ]
+        )
         rast2 = ReifiedAST(reify_location=True)
         rast2.add_reified_files(
             [self.files_dir / "inputs" / "clingo-theory-term-reified.lp"]
@@ -223,15 +227,22 @@ class TestTransformTheoryParsing(TestTransform):
         )
         pattern = "No definition for operator '\+' of arity '1' found"
         with self.assertRaisesRegex(TransformationError, pattern):
-            rast3.transform(meta_files=[self.files_dir / "parse-theory-terms.lp",
-                                        self.files_dir / "clingo-operator-table.lp"])
+            rast3.transform(
+                meta_files=[
+                    self.files_dir / "parse-theory-terms.lp",
+                    self.files_dir / "clingo-operator-table.lp",
+                ]
+            )
         pattern = "No definition for operator '!!' of arity '2' found"
         with self.assertRaisesRegex(TransformationError, pattern):
-            rast3.transform(meta_files=[self.files_dir / "parse-theory-terms.lp",
-                                        self.files_dir / "clingo-operator-table.lp"])
+            rast3.transform(
+                meta_files=[
+                    self.files_dir / "parse-theory-terms.lp",
+                    self.files_dir / "clingo-operator-table.lp",
+                ]
+            )
 
     def test_tables_from_theory_defs(self):
         """Test that operator and atom tables are extracted correctly
         from theory definitions."""
-        ctl = Control()
-        
+        Control()

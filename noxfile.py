@@ -75,17 +75,16 @@ def typecheck(session):
 
 @nox.session(python=PYTHON_VERSIONS)
 def test(session):
-    install_args = ['.[test]']
+    install_args = [".[test]"]
     if EDITABLE_TESTS:
-        install_args.insert(0, '-e')
+        install_args.insert(0, "-e")
     session.install(*install_args)
     testargs = session.posargs
     if "--nocoverage" in session.posargs:
         testargs = [arg for arg in testargs if arg != "--nocoverage"]
         session.run("python", "-m", "unittest", "discover", "-v", *testargs)
     else:
-        session.run("coverage", "run", "-m", "unittest", "discover", "-v",
-                    *testargs)
+        session.run("coverage", "run", "-m", "unittest", "discover", "-v", *testargs)
         session.run("coverage", "report", "-m", "--fail-under=100")
 
 
