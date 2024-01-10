@@ -11,11 +11,11 @@ line-length = 88
 
 [tool.mypy]
 strict = true
-exclude = ["tests/*"]
+exclude = ["tests/*", "noxfile.py", "init.py"]
 
 [tool.pylsp-mypy]
 enabled = true
 live_mode = true
 strict = true
-exclude = ["tests/*"]
+exclude = ["tests/*", "noxfile.py", "init.py"]
 

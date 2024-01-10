@@ -2,7 +2,7 @@
 import enum
 import inspect
 from types import new_class
-from typing import Type, TypeVar
+from typing import Type, TypeVar, Any
 
 from clorm import BaseField, ConstantField, StringField
 
@@ -49,7 +49,7 @@ def define_enum_field(
 
     values = set(i.value for i in enum_class)
 
-    def _pytocl(py):
+    def _pytocl(py: enum.Enum) -> Any:
         val = py.value
         if val not in values:
             raise ValueError(
@@ -57,7 +57,7 @@ def define_enum_field(
             )
         return val
 
-    def body(ns):
+    def body(ns: dict[str, Any]) -> None:
         ns.update({"pytocl": _pytocl, "cltopy": enum_class, "enum": enum_class})
 
     return new_class(subclass_name, (parent_field,), {}, body)

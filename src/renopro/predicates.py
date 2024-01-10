@@ -4,8 +4,9 @@ import inspect
 import re
 from itertools import count
 from types import new_class
-from typing import TYPE_CHECKING, Any, Protocol, Union, cast, dataclass_transform
+from typing import TYPE_CHECKING, Any, Protocol, Sequence, Type, Union, cast
 
+from clingo import Symbol
 from clorm import (
     BaseField,
     ComplexTerm,
@@ -14,7 +15,6 @@ from clorm import (
     Predicate,
     RawField,
     StringField,
-    field,
     refine_field,
 )
 from clorm.orm.core import _PredicateMeta
@@ -28,7 +28,6 @@ from renopro.enum_fields import (
     TheoryOperatorTypeField,
     TheorySequenceTypeField,
     UnaryOperatorField,
-    __dataclass_transform__
 )
 
 id_count = count()
@@ -55,18 +54,18 @@ def combine_fields(
 
     fields = list(fields)
 
-    def _pytocl(value):
+    def _pytocl(value: Any) -> Symbol:
         for f in fields:
             try:
-                return f.pytocl(value)
+                return f.pytocl(value)  # type: ignore
             except (TypeError, ValueError, AttributeError):
                 pass
         raise TypeError(f"No combined pytocl() match for value {value}.")
 
-    def _cltopy(symbol):
+    def _cltopy(symbol: Symbol) -> Any:
         for f in fields:
             try:
-                return f.cltopy(symbol)
+                return f.cltopy(symbol)  # type: ignore
             except (TypeError, ValueError):
                 pass
         raise TypeError(
@@ -76,7 +75,7 @@ def combine_fields(
             )
         )
 
-    def body(ns):
+    def body(ns: dict[str, Any]) -> None:
         ns.update({"fields": fields, "pytocl": _pytocl, "cltopy": _cltopy})
 
     return new_class(subclass_name, (BaseField,), {}, body)
@@ -91,7 +90,6 @@ IdentifierField = IdentifierField(default=lambda: next(id_count))  # type: ignor
 # which are used to identify child AST facts
 
 
-@__dataclass_transform__(field_specifiers=(field,))
 class _AstPredicateMeta(_PredicateMeta):
     def __new__(
         mcs,
@@ -117,7 +115,7 @@ class _AstPredicateMeta(_PredicateMeta):
         )  # type: ignore
         cls.unary = unary
         cls.unary.non_unary = cls
-        return cast(_AstPredicateMeta, cls)
+        return cls
 
 
 class IdentifierPredicate(Predicate):

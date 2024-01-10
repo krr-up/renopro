@@ -7,6 +7,7 @@ from contextlib import AbstractContextManager
 from functools import singledispatchmethod
 from itertools import count
 from pathlib import Path
+from types import TracebackType
 from typing import (
     Any,
     Callable,
@@ -18,6 +19,8 @@ from typing import (
     Type,
     Union,
     overload,
+    cast,
+    List
 )
 
 from clingo import Control, ast, symbol
@@ -74,17 +77,22 @@ class TransformationError(Exception):
     error or is unsatisfiable."""
 
 
-class TryUnify(AbstractContextManager):
+class TryUnify(AbstractContextManager):  # type: ignore
     """Context manager to try some operation that requires unification
     of some set of ast facts. Enhance error message if unification fails.
     """
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: Type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         if exc_type is UnifierNoMatchError:
-            self.handle_unify_error(exc_value)
+            self.handle_unify_error(cast(UnifierNoMatchError, exc_value))
 
     @staticmethod
-    def handle_unify_error(error):
+    def handle_unify_error(error: UnifierNoMatchError) -> None:
         """Enhance UnifierNoMatchError with some more
         useful error messages to help debug the reason unification failed.
 
@@ -109,7 +117,7 @@ class TryUnify(AbstractContextManager):
             )
             raise UnifierNoMatchError(
                 inspect.cleandoc(msg), unmatched, error.predicates
-            ) from None
+            ) from None  # type: ignore
         for idx, arg in enumerate(unmatched.arguments):
             # This is very hacky. Should ask Dave for a better
             # solution, if there is one.
@@ -128,7 +136,7 @@ class TryUnify(AbstractContextManager):
                 '{arg_field_str}'."""
                 raise UnifierNoMatchError(
                     inspect.cleandoc(msg), unmatched, (candidate,)
-                ) from None
+                ) from None  # type: ignore
         raise RuntimeError("Code should be unreachable")  # nocoverage
 
 
@@ -156,7 +164,7 @@ class ReifiedAST:
 
     def __init__(self, reify_location: bool = False):
         self._reified = FactBase()
-        self._program_ast: Sequence[AST] = []
+        self._program_ast: List[AST] = []
         self._current_statement: Tuple[int, int] = (0, 0)
         self._tuple_pos: Iterator[int] = count()
         self._init_overrides()
@@ -213,7 +221,7 @@ class ReifiedAST:
         parse_files(files_str, self.program_ast.append)
         self.reify_ast(self._program_ast)
 
-    def reify_ast(self, asts: Sequence[AST]) -> None:
+    def reify_ast(self, asts: List[AST]) -> None:
         """Reify input sequence of AST nodes, adding reified facts to
         the internal factbase."""
         self._program_ast = asts
@@ -226,7 +234,7 @@ class ReifiedAST:
         return "\n".join([str(statement) for statement in self._program_ast])
 
     @property
-    def program_ast(self) -> Sequence[AST]:
+    def program_ast(self) -> List[AST]:
         """AST nodes attained via reflection of AST facts."""
         return self._program_ast
 
@@ -421,7 +429,7 @@ class ReifiedAST:
         )
         self._reified.add(preds.Location(id_term.id, begin, end))
 
-    def _reify_attr(self, annotation: Type, attr: NodeAttr, field: BaseField) -> Any:
+    def _reify_attr(self, annotation: Type[NodeAttr], attr: NodeAttr, field: BaseField) -> Any:
         """Reify an AST node's attribute attr based on the type hint
         for the respective argument in the AST node's constructor.
         This default behavior is overridden in certain cases; see reify_node."""
@@ -535,7 +543,8 @@ class ReifiedAST:
         self._reified.add(reified_body_lits)
         return body_lits1
 
-    def _reify_function(self, node):
+    def _reify_function(self, node: AST) -> preds.IdentifierPredicate:
+        pred: Type[preds.Function] | Type[preds.ExternalFunction]
         if node.external == 0:
             pred = preds.Function
             func1 = pred.unary()
