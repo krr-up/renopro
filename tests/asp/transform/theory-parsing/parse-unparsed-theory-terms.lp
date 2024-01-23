@@ -95,49 +95,49 @@ return(X,O) :- recur(X,Y), return(Y,O).
 
 % If the next token is a unary operator with higher precedence than
 % the limit, we can immediately apply it and recur.
-recur(parse(Limit,Right,Operator),
-			parse(Limit,theory_function_(Name, (theory_terms_(0,Right),)),Next))
-  :- call(parse(Limit,Right,Operator)),
-		 name(Operator,Name),
-		 arity(Operator,1),
+recur(parse(Limit,Operator,Token),
+			parse(Limit,Next,theory_function_(Name,(theory_terms_(0,Token),))))
+  :- call(parse(Limit,Operator,Token)),
+		 name(Operator,Name), arity(Operator,1),
 		 prio_assoc(Operator,(Prec,_)),
 		 Prec>Limit, next(Operator,Next).
 
 % If the next token is a binary operator with higher precedence than
 % the limit, we start a child parser from the left operand with a new
-% precedence limit,
-call(parse(Prec-Assoc,Token,Operator'))
-  :- call(parse(Limit,Right,Operator)), arity(Operator,2),
+% precedence limit, adjusted by the associativity of the operator.
+call(parse(Prec-Assoc,Next,Token'))
+  :- call(parse(Limit,Operator,Token)), arity(Operator,2),
 		 prio_assoc(Operator,(Prec,Assoc)), Prec>Limit, 
-		 next(Operator,Token), next(Token,Operator').
+		 next(Operator,Token'), next(Token',Next).
 
-% and recur, having applied the binary operator to right, and
-% whatever the child parser returned
-recur(parse(Limit,Right,Operator),
-			parse(Limit,theory_function_(Name,(theory_terms_(0,Output),
-																				 theory_terms_(1,Right))),Next))
-  :- call(parse(Limit,Right,Operator)), arity(Operator,2),
+% and recur, having applied the binary operator to the token and
+% whatever new token the child parser returned
+recur(parse(Limit,Operator,Token),
+			parse(Limit,Next',theory_function_(Name,(theory_terms_(0,Token''),
+																				       theory_terms_(1,Token)))))
+  :- call(parse(Limit,Operator,Token)), arity(Operator,2),
 		 prio_assoc(Operator,(Prec,Assoc)), Prec>Limit, 
-		 next(Operator,Token), next(Token,Operator'),
-		 name(Operator,Name), return(parse(Prec-Assoc,Token,Operator'),(Output,Next)).
+		 next(Operator,Token'), next(Token',Next),
+		 name(Operator,Name), 
+		 return(parse(Prec-Assoc,Next,Token'),(Next',Token'')).
 	 
 % If an operator has lower precedence than the limit, we are
 % not allowed to parse it yet, just return.
-return(parse(Limit,Right,Operator),(Right,Operator))
-  :- call(parse(Limit,Right,Operator)), prio_assoc(Operator,(Prec,_)),
+return(parse(Limit,Operator,Token),(Operator,Token))
+  :- call(parse(Limit,Operator,Token)), prio_assoc(Operator,(Prec,_)),
 		 Prec<=Limit.
 
 % Return if we run out of tokens.
-return(parse(Limit,Right,afterlast),(Right,afterlast))
-  :- call(parse(Limit,Right,afterlast)).
+return(parse(Limit,afterlast,Token),(afterlast,Token))
+  :- call(parse(Limit,afterlast,Token)).
 
 % Start off recursion at the first token with precedence level 0.
-call(parse(0,T,T')) :- first(T), next(T,T').
+call(parse(0,T',T)) :- first(T), next(T,T').
 
-#show log("info", "{}: Output of parser: '{}'", 
+#show log("debug", "{}: Output of theory term parser: '{}'", 
 					location(theory_unparsed_term(UT),Begin,End), 
 					theory_function_(Name,Args))
-  :  return(parse(0,T,T'),(theory_function_(Name,Args),_)),
+  :  return(parse(0,T',T),(_,theory_function_(Name,Args))),
      first(T), next(T,T'), 
 		 theory_unparsed_term_elements(E,_,_,T),
 		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
@@ -148,7 +148,7 @@ call(parse(0,T,T')) :- first(T), next(T,T').
 ast_operation(
 		add(@decompose(theory_function(UT,Name,Args)));
 		replace(theory_unparsed_term(UT),theory_function(UT)))
-  :- return(parse(0,T,T'),(theory_function_(Name,Args),_)),
+  :- return(parse(0,T',T),(_,theory_function_(Name,Args))),
 		 first(T), next(T,T'),
 		 theory_unparsed_term_elements(E,_,_,T),
 		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
