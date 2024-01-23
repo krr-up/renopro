@@ -1262,6 +1262,7 @@ FlattenedTuples = (
     TheoryAtomDefinitions,
 )
 
+pred_names = tuple(predicate.meta.name for predicate in AstPreds)
 composed_pred_names = tuple(predicate.meta.name + "_" for predicate in AstPreds)
 
 name2arity2pred = {pred.meta.name: {pred.meta.arity: pred} for pred in AstPreds}
