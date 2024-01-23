@@ -15,13 +15,11 @@ def is_operator_name(name: String):
 % check that theory functions of arity 1 or 2 that 
 % represent operations agree with the grammar
 
-#show log("warning",Id,Name) : theory_function(Id,Name,_), theory_term_type(Id,T).
-
-undefined_operator(Type,N,Arity,location(TF,Begin,End))
+undefined_operator(Type,N,Arity,location(theory_function(TF),Begin,End))
 :- theory_function(TF,N,theory_terms(TT)),
 	 theory_term_type(TF,Type),
    Arity = #count{ P: theory_terms(TT,P,T) }, Arity<3,
    @is_operator_name(N) = 1, 
 	 not operator_table(Type,(N,Arity),_),
-   location(TF,Begin,End).
+   location(theory_function(TF),Begin,End).
    

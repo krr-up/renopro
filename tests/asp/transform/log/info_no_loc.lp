@@ -1,1 +1,1 @@
-#show log("info","Found function with name ",a,". Sorry, no location.") : function(F,a,_).
+#show log("info","Found function with name {}. Sorry, no location.",a) : function(F,a,_).

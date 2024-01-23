@@ -20,9 +20,6 @@ theory_atom_type(A,directive)
   func_arity(F,Arity), atom_table((AtomName,Arity),AtomType,_,_),
   theory_atom_type(A,OccuranceType), OccuranceType != AtomType.
 
-#show log("error")
-: 
-
 
 % descendant is the transitive closure of child, but only
 % defined starting from a theory atom node downward

@@ -11,6 +11,7 @@ from types import TracebackType
 from typing import (
     Any,
     Callable,
+    Dict,
     Iterator,
     Literal,
     Optional,
@@ -20,7 +21,7 @@ from typing import (
     Union,
     overload,
     cast,
-    List
+    List,
 )
 
 from clingo import Control, ast, symbol
@@ -868,9 +869,10 @@ class ReifiedAST:
                     symb.type == SymbolType.Function
                     and symb.positive is True
                     and symb.name == "log"
+                    and len(symb.arguments) > 1
                 ):
-                    msg = ""
                     log_lvl_symb = symb.arguments[0]
+                    msg_format_str = str(symb.arguments[1])
                     log_lvl_strings = log_lvl_str2int.keys()
                     if (
                         log_lvl_symb.type != SymbolType.String
@@ -886,10 +888,10 @@ class ReifiedAST:
                         location_symb2str(s)
                         if s.match("location", 3)
                         else str(s).strip('"')
-                        for s in symb.arguments[1:]
+                        for s in symb.arguments[2:]
                     ]
-                    msg += "".join(log_strings)
-                    logs[level].append(msg)
+                    msg_str = msg_format_str.format(*log_strings)
+                    logs[level].append(msg_str)
                 elif symb.match("final", 1):
                     ast_symbols.append(symb.arguments[0])
             for level, msgs in logs.items():
