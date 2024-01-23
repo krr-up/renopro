@@ -3,6 +3,7 @@
 from itertools import count
 from pathlib import Path
 from unittest import TestCase
+import re
 
 from clingo import ast
 from clorm import FactBase, Predicate, UnifierNoMatchError
@@ -103,16 +104,20 @@ class TestReifyReflect(TestReifiedAST):
     base_str = "#program base.\n"
 
     def assertReifyEqual(
-        self, file_name: str, reify_location: bool = False
+        self, file_name: str, reify_location: bool = False, reify_child_relation: bool = False
     ):  # pylint: disable=invalid-name
         """Assert that reification of file_name under reflected_files
         results in file_name under reified_files."""
         reified_file = reified_files / file_name
         reflected_file = reflected_files / file_name
         reflected_str = reflected_file.read_text().strip()
-        rast1 = ReifiedAST(reify_location=reify_location)
+        rast1 = ReifiedAST()
         rast1.reify_string(reflected_str)
         reified_facts = rast1.reified_facts
+        if not reify_location:
+            reified_facts.query(preds.Location).delete()
+        if not reify_child_relation:
+            reified_facts.query(preds.Child).delete()
         rast2 = ReifiedAST()
         rast2.add_reified_files([reified_file])
         expected_facts = rast2.reified_facts
@@ -216,6 +221,10 @@ class TestReifyReflectNormalPrograms(TestReifyReflect):
         "Test reification and reflection of a conditional literal."
         self.assertReifyReflectEqual("conditional_literal.lp")
 
+    def test_rast_conditional_literal_child(self):
+        "Test reification of a conditional literal, including the child relation."
+        self.assertReifyEqual("conditional_literal_child.lp", reify_child_relation=True)
+
     def test_rast_disjunction(self):
         "Test reification and reflection of a disjunction."
         self.assertReifyReflectEqual("disjunction.lp")
@@ -229,7 +238,7 @@ class TestReifyReflectErrors(TestReifyReflect):
         clingo.symbol.Symbol should raise a TypeError."""
         rast = ReifiedAST()
         not_node = {"not": "ast"}
-        regex = "(?s).*AST or Symbol.*dict"
+        regex = "(?s).*AST or Symbol.*"
         with self.assertRaisesRegex(TypeError, expected_regex=regex):
             rast.reify_node(not_node)
 
@@ -264,10 +273,14 @@ class TestReifyReflectErrors(TestReifyReflect):
         rast = ReifiedAST()
         rast.add_reified_files([malformed_reified_files / "multiple_in_same_pos.lp"])
         regex = (
-            r"(?s).*comparison\(5,number\(6\),guards\(7\)\).*"
             r"multiple child facts in the same position.*guards\(7\)"
         )
-        with self.assertRaisesRegex(ChildrenQueryError, expected_regex=regex):
+        with self.assertLogs("renopro.rast", level="DEBUG") as cm:
+            rast.reflect()
+            logs = "\n".join(cm.output)
+            reo = re.compile(regex)
+            num_log_matches = len(reo.findall(logs))
+            assert num_log_matches == 1
             rast.reflect()
 
     def test_children_query_error_one_or_more_expected_zero_found(self):
@@ -340,6 +353,10 @@ class TestReifyReflectAggTheory(TestReifyReflect):
     def test_rast_head_aggregate(self):
         "Test reification and reflection of a head aggregate."
         self.assertReifyReflectEqual("head_aggregate.lp")
+
+    def test_rast_head_aggregate_child(self):
+        "Test reification of a head aggregate including child relation."
+        self.assertReifyEqual("head_aggregate_child.lp", reify_child_relation=True)
 
     def test_rast_body_aggregate(self):
         "Test reification and reflection of a body aggregate."

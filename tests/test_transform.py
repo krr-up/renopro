@@ -2,7 +2,7 @@
 import re
 from itertools import count
 from pathlib import Path
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 from unittest import TestCase
 
 from clingo import Control
@@ -25,13 +25,14 @@ class TestTransform(TestCase):
     def assertTrasformEqual(
         self,
         input_files: List[Path],
-        meta_files: List[Path],
+        meta: List[List[Path]],
         expected_output_file: Path,
-        reify_location=True,
+        rast: Optional[ReifiedAST] = None,
     ):
-        rast = ReifiedAST(reify_location=reify_location)
+        rast = ReifiedAST() if rast is None else rast
         rast.reify_files(input_files)
-        rast.transform(meta_files=meta_files)
+        for meta_files in meta:
+            rast.transform(meta_files=meta_files)
         rast.reflect()
         transformed_str = rast.program_string.strip()
         with expected_output_file.open("r") as f:
@@ -41,43 +42,43 @@ class TestTransform(TestCase):
     def assertTransformLogs(
         self,
         input_files: List[Path],
-        meta_files: List[Path],
+        meta: List[List[Path]],
         level: Literal["DEBUG", "INFO", "WARNING", "ERROR"],
         message2num_matches: Dict[str, int],
-        reify_location=True,
     ):
-        rast = ReifiedAST(reify_location=reify_location)
+        rast = ReifiedAST()
         rast.reify_files(input_files)
-        with self.assertLogs("renopro.rast", level=level) as cm:
-            try:
-                rast.transform(meta_files=meta_files)
-            except TransformationError as e:
-                if level != "ERROR":
-                    raise e
+        for meta_files in meta:
+            with self.assertLogs("renopro.rast", level=level) as cm:
+                try:
+                    rast.transform(meta_files=meta_files)
+                except TransformationError as e:
+                    if level != "ERROR":
+                        raise e
+                    for message, expected_num in message2num_matches.items():
+                        assert_exc_msg = (
+                            f"Expected {expected_num} "
+                            "matches for exception message "
+                            f"'{message}', found "
+                        )
+                        num_exception_matches = len(re.findall(message, str(e)))
+                        self.assertEqual(
+                            num_exception_matches,
+                            expected_num,
+                            msg=assert_exc_msg + str(num_exception_matches),
+                        )
+                logs = "\n".join(cm.output)
                 for message, expected_num in message2num_matches.items():
-                    assert_exc_msg = (
+                    assert_msg = (
                         f"Expected {expected_num} "
-                        "matches for exception message "
+                        "matches for log message "
                         f"'{message}', found "
                     )
-                    num_exception_matches = len(re.findall(message, str(e)))
+                    reo = re.compile(message)
+                    num_log_matches = len(reo.findall(logs))
                     self.assertEqual(
-                        num_exception_matches,
-                        expected_num,
-                        msg=assert_exc_msg + str(num_exception_matches),
+                        num_log_matches, expected_num, msg=assert_msg + str(num_log_matches)
                     )
-            logs = "\n".join(cm.output)
-            for message, expected_num in message2num_matches.items():
-                assert_msg = (
-                    f"Expected {expected_num} "
-                    "matches for log message "
-                    f"'{message}', found "
-                )
-                reo = re.compile(message)
-                num_log_matches = len(reo.findall(logs))
-                self.assertEqual(
-                    num_log_matches, expected_num, msg=assert_msg + str(num_log_matches)
-                )
 
     base_str = "#program base.\n"
 
@@ -105,25 +106,25 @@ class TestTransformSimple(TestTransform):
             rast.transform(meta_str="#show log('hello', 'world') : #true.")
         self.assertTransformLogs(
             [files_dir / "input.lp"],
-            [files_dir / "info_with_loc.lp"],
+            [[files_dir / "info_with_loc.lp"]],
             "INFO",
             {r"7:12-13: Found function with name a.": 1},
         )
         self.assertTransformLogs(
             [files_dir / "input.lp"],
-            [files_dir / "info_no_loc.lp"],
+            [[files_dir / "info_no_loc.lp"]],
             "INFO",
             {r"Found function with name a. Sorry, no location.": 1},
         )
         self.assertTransformLogs(
             [files_dir / "input.lp"],
-            [files_dir / "error_no_loc.lp"],
+            [[files_dir / "error_no_loc.lp"]],
             "ERROR",
             {r"Found function with name a. Sorry, no location.": 1},
         )
         self.assertTransformLogs(
             [files_dir / "input.lp"],
-            [files_dir / "error_with_loc.lp"],
+            [[files_dir / "error_with_loc.lp"]],
             "ERROR",
             {r"7:12-13: Found function with name a.": 1},
         )
@@ -147,7 +148,7 @@ class TestTransformSimple(TestTransform):
         files_dir = test_transform_dir / "not_bad"
         self.assertTrasformEqual(
             [files_dir / "input.lp"],
-            [files_dir / "transform.lp"],
+            [[files_dir / "transform.lp"]],
             files_dir / "output.lp",
         )
 
@@ -159,7 +160,7 @@ class TestTransformSimple(TestTransform):
             with self.subTest(testname=testname):
                 self.assertTrasformEqual(
                     [files_dir / (testname + "_input.lp")],
-                    [files_dir / "transform.lp"],
+                    [[files_dir / "transform.lp"]],
                     files_dir / (testname + "_output.lp"),
                 )
 
@@ -174,10 +175,10 @@ class TestTransformTheoryParsing(TestTransform):
         the appropriate theory term type should raise error."""
         self.assertTransformLogs(
             [self.files_dir / "inputs" / "clingo-unknown-operator.lp"],
-            [
+            [[
                 self.files_dir / "parse-unparsed-theory-terms.lp",
                 self.files_dir / "clingo-operator-table.lp",
-            ],
+            ]],
             "ERROR",
             {
                 r"1:8-19: No definition for operator '\*' of arity '1' found "
@@ -194,10 +195,10 @@ class TestTransformTheoryParsing(TestTransform):
         """
         self.assertTrasformEqual(
             [self.files_dir / "inputs" / "clingo-unparsed-theory-term.lp"],
-            [
+            [[
                 self.files_dir / "parse-unparsed-theory-terms.lp",
                 self.files_dir / "clingo-operator-table.lp",
-            ],
+            ]],
             self.files_dir / "outputs" / "clingo-unparsed-theory-term.lp",
         )
 
@@ -206,7 +207,7 @@ class TestTransformTheoryParsing(TestTransform):
         (using provided operator table) are parsed correctly.
 
         """
-        rast1 = ReifiedAST(reify_location=True)
+        rast1 = ReifiedAST()
         rast1.add_reified_files(
             [self.files_dir / "inputs" / "clingo-theory-term-reified.lp"]
         )
@@ -216,7 +217,7 @@ class TestTransformTheoryParsing(TestTransform):
                 self.files_dir / "clingo-operator-table.lp",
             ]
         )
-        rast2 = ReifiedAST(reify_location=True)
+        rast2 = ReifiedAST()
         rast2.add_reified_files(
             [self.files_dir / "inputs" / "clingo-theory-term-reified.lp"]
         )

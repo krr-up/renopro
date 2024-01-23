@@ -236,3 +236,9 @@ ast_operation(add(theory_definition(X0,X1,B,X3));delete(theory_definition(X0,X1,
 ast_operation(add(theory_definition(X0,X1,X2,B));delete(theory_definition(X0,X1,X2,A)))
  :- ast_operation(replace(A,B)), theory_definition(X0,X1,X2,A).
 
+ast_operation(add(child(B,X1));delete(child(A,X1)))
+ :- ast_operation(replace(A,B)), child(A,X1).
+
+ast_operation(add(child(X0,B));delete(child(X0,A)))
+ :- ast_operation(replace(A,B)), child(X0,A).
+

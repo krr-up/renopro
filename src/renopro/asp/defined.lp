@@ -58,3 +58,4 @@
 #defined theory_atom_definitions/7.
 #defined theory_definition/4.
 #defined location/3.
+#defined child/2.

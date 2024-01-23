@@ -58,3 +58,4 @@ ast(theory_guard_definition(X0,X1,X2)) :- theory_guard_definition(X0,X1,X2).
 ast(theory_atom_definitions(X0,X1,X2,X3,X4,X5,X6)) :- theory_atom_definitions(X0,X1,X2,X3,X4,X5,X6).
 ast(theory_definition(X0,X1,X2,X3)) :- theory_definition(X0,X1,X2,X3).
 ast(location(X0,X1,X2)) :- location(X0,X1,X2).
+ast(child(X0,X1)) :- child(X0,X1).

@@ -1,7 +1,6 @@
 #include "ast.lp".
 #include "defined.lp".
 #include "replace.lp".
-#include "child.lp".
 
 #script (python)
 

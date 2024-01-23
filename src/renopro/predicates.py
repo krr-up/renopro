@@ -1072,88 +1072,6 @@ StatementField.fields.extend(
 )
 
 
-class Position(ComplexTerm):
-    """Complex field representing a position in a text file."""
-
-    filename = StringField
-    line = IntegerField
-    column = IntegerField
-
-
-class Location(Predicate):
-    """Predicate linking an AST identifier to the range in a text
-    file from where it was reified."""
-
-    id = IdentifierField
-    begin = Position.Field
-    end = Position.Field
-
-
-# Predicates for AST transformation
-
-
-AstPred = Union[
-    Location,
-    String,
-    Number,
-    Variable,
-    UnaryOperation,
-    BinaryOperation,
-    Interval,
-    Terms,
-    Function,
-    ExternalFunction,
-    Pool,
-    TheoryTerms,
-    TheorySequence,
-    TheoryFunction,
-    TheoryOperators,
-    TheoryUnparsedTermElements,
-    TheoryUnparsedTerm,
-    Guard,
-    Guards,
-    Comparison,
-    BooleanConstant,
-    SymbolicAtom,
-    Literal,
-    Literals,
-    ConditionalLiteral,
-    AggregateElements,
-    Aggregate,
-    TheoryAtomElements,
-    TheoryGuard,
-    TheoryAtom,
-    BodyAggregateElements,
-    BodyAggregate,
-    BodyLiteral,
-    BodyLiterals,
-    HeadAggregateElements,
-    HeadAggregate,
-    ConditionalLiterals,
-    Disjunction,
-    Rule,
-    Definition,
-    ShowSignature,
-    Defined,
-    ShowTerm,
-    Minimize,
-    Script,
-    Statements,
-    Constants,
-    Program,
-    External,
-    Edge,
-    Heuristic,
-    ProjectAtom,
-    ProjectSignature,
-    TheoryOperatorDefinitions,
-    TheoryTermDefinitions,
-    TheoryGuardDefinition,
-    TheoryAtomDefinitions,
-    TheoryDefinition,
-    Location,
-]
-
 AstPreds = (
     String,
     Number,
@@ -1211,9 +1129,101 @@ AstPreds = (
     TheoryTermDefinitions,
     TheoryGuardDefinition,
     TheoryAtomDefinitions,
+    TheoryDefinition
+)
+
+
+AstIdentifierTermField = combine_fields([pred.unary.Field for pred in AstPreds], name="AstIdentifierTermField")
+
+
+class Position(ComplexTerm):
+    """Complex field representing a position in a text file."""
+
+    filename = StringField
+    line = IntegerField
+    column = IntegerField
+
+
+class Location(Predicate):
+    """Predicate linking an AST identifier to the range in a text
+    file from where it was reified."""
+
+    id_term = AstIdentifierTermField
+    begin = Position.Field
+    end = Position.Field
+
+
+class Child(Predicate):
+    """Predicate linking a parent AST predicate's identifier to it's
+    child predicate's identifier."""
+
+    parent = AstIdentifierTermField
+    child = AstIdentifierTermField
+
+AstPreds = AstPreds + (Location, Child)
+
+AstPred = Union[
+    String,
+    Number,
+    Variable,
+    UnaryOperation,
+    BinaryOperation,
+    Interval,
+    Terms,
+    Function,
+    ExternalFunction,
+    Pool,
+    TheoryTerms,
+    TheorySequence,
+    TheoryFunction,
+    TheoryOperators,
+    TheoryUnparsedTermElements,
+    TheoryUnparsedTerm,
+    Guard,
+    Guards,
+    Comparison,
+    BooleanConstant,
+    SymbolicAtom,
+    Literal,
+    Literals,
+    ConditionalLiteral,
+    AggregateElements,
+    Aggregate,
+    TheoryAtomElements,
+    TheoryGuard,
+    TheoryAtom,
+    BodyAggregateElements,
+    BodyAggregate,
+    BodyLiteral,
+    BodyLiterals,
+    HeadAggregateElements,
+    HeadAggregate,
+    ConditionalLiterals,
+    Disjunction,
+    Rule,
+    Definition,
+    ShowSignature,
+    Defined,
+    ShowTerm,
+    Minimize,
+    Script,
+    Statements,
+    Constants,
+    Program,
+    External,
+    Edge,
+    Heuristic,
+    ProjectAtom,
+    ProjectSignature,
+    TheoryOperatorDefinitions,
+    TheoryTermDefinitions,
+    TheoryGuardDefinition,
+    TheoryAtomDefinitions,
     TheoryDefinition,
     Location,
-)
+    Child
+]
+
 
 SubprogramStatements = (
     Rule,
@@ -1249,4 +1259,4 @@ name2arity2pred = {pred.meta.name: {pred.meta.arity: pred} for pred in AstPreds}
 class Final(Predicate):
     """Wrapper predicate to distinguish output AST facts of a transformation."""
 
-    ast = combine_fields([fact.Field for fact in AstPreds])
+    ast = combine_fields([pred.Field for pred in AstPreds])
