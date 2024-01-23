@@ -1,0 +1,92 @@
+#+begin_src 
+
+#+end_src
+
+The first arguments of the since/until and trigger/release operators do not count as positive
+occurrences w.r.t. establishing safety. A top-level operator is an operator which occurs as the
+symbolic atom of a literal. The final operands of a top-level operator are found by traversing
+operands recursively if another operator with function arguments re encountered; the leaves of this
+tree are the final operands.
+
+* Normal rules
+
+We discuss what external statements we'd emit for a normal rule first, and then extend the approach
+to rules with conditional rules and aggregates.
+
+For each top-level operator occurring in the rule's body, we emit an external statement for the
+operator, conditioned the conjunction of all safe final temporal operands and positive
+non-temporal literals occurring in body of the rule.
+
+Note that, due to the fact that we condition the external only on safe operands, the emitted external statements may become unsafe. For example, rule below is safe, but the emitted external is note.
+
+#+begin_src
+a(X) :- until(b(X),next(c(Y+Z))), d(Y), e(Z).
+#external until(b(X),next(c(Y+Z))) : c(Y+Z), d(Y), e(Z).
+#+end_src
+
+(simpler example in thesis)
+
+This is intentional, as the unsafe left hand operand of until cannot be used to establish the safety
+of X. The unsafe nature of the emitted external indicated that the original rule is also unsafe,
+under the temporal semantics. A safe version of the rule could be:
+
+#+begin_src
+a(X) :- until(b(X),next(c(Y+Z))), d(Y), e(Z), f(X).
+#external until(b(X),next(c(Y+Z))) : c(Y+Z), d(Y), e(Z), f(X).
+#+end_src
+
+For operators occurring in the head, we differentiate based on the literal's sign. 
+If the literals is negated or double negated, we treat it like an operator occurring in the body. This is due to the fact that these rules can be rewritten equivalently by shifting the operators into the body as such.
+
+#+begin_src 
+not a.
+:- not not a.
+
+not not a.
+:- not a.
+#+end_src
+
+Otherwise, each final operand (safe or otherwise), we emit an external
+statement for the operand, conditioned the conjunction of all positive safe final temporal operands and
+positive non-temporal literals occurring in body of the rule.
+
+#+begin_src 
+until(b(X),next(c(Y+Z))) :- d(Y), e(Z), f(X).
+#external b(X) : d(Y), e(Z), f(X).
+#external c(Y+Z) : d(Y), e(Z), f(X).
+#+end_src
+
+* Rules with aggregates and conditional literals
+
+Our treatment of aggregates and conditional literals will be basically the same, so we will instead
+just consider /conditions/ in general.
+
+** Conditions in the body
+
+For each operator occurring in the condition (head or body), we emit and external statement for each positive
+safe final operand, conditioned on the the conjunction of all positive safe temporal operands and positive non-temporal
+literals occurring in condition or rule body.
+
+#+begin_src 
+a(X) :- until(b(X),next(c(Y+Z))) : prev(d(Y)); e(Z), f(X).
+
+#external prev(d(Y)) : d(Y), e(Z), f(X).
+#external until(b(X),next(c(X+Y))) : d(Y), e(Z), f(X).
+#+end_src
+
+** Conditions in the head
+
+If an operator occurs in the body of such a condition, we do the same as in the previous
+subsection. Similarly, if it is in the head of such a condition and is negated or double negated, we do the same.
+
+If it occurs in the head positively, we emit an external statement for each operand (safe or unsafe),
+conditioned on the conjunction of all safe temporal operands and non-temporal literals occurring in
+condition or rule body.
+
+#+begin_src 
+until(b(X),next(c(Y+Z))) : prev(d(Y)) :- e(Z), f(X).
+
+#external prev(d(Y)) : d(Y), e(Z), f(X).
+#external b(X) : d(Y), e(Z), f(X).
+#external c(X+Y) : d(Y), e(Z), f(X).
+#+end_src

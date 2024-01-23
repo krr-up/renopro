@@ -164,6 +164,28 @@ class TestTransformSimple(TestTransform):
                     files_dir / (testname + "_output.lp"),
                 )
 
+    def test_transform_meta_telingo_externals_body(self):
+        """Test emission of external statements to protect temporal
+        operators in the body."""
+        files_dir = test_transform_dir / "meta-telingo-externals"
+        rast = self.assertTrasformEqual(
+            [files_dir / "input-body.lp"],
+            [[files_dir / "transform-subprogram.lp"], 
+             [files_dir / "transform-add-externals.lp"]],
+            files_dir / "output-body.lp"
+        )
+
+    def test_transform_meta_telingo_externals_head(self):
+        """Test emission of external statements to protect temporal
+        operators in the head."""
+        files_dir = test_transform_dir / "meta-telingo-externals"
+        rast = self.assertTrasformEqual(
+            [files_dir / "input-head.lp"],
+            [[files_dir / "transform-subprogram.lp"], 
+             [files_dir / "transform-add-externals.lp"]],
+            files_dir / "output-head.lp"
+        )
+
 
 class TestTransformTheoryParsing(TestTransform):
     """Test case for transformation that parses theory terms."""
