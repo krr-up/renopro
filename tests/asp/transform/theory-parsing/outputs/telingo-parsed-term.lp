@@ -19,4 +19,4 @@
   &tel/0: formula, any
 }.
 #program base.
-&tel { >?(fail(X)) } :- &tel { &(&(shoot(X),<(<?(shoot(X)))),<*(unloaded(X))) }.
+&tel { >?(fail(X)) } :- &tel { &(shoot(X),<(&(<?(shoot(X)),<*(unloaded(X))))) }.

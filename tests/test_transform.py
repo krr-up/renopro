@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Dict, List, Literal, Optional
 from unittest import TestCase
 
-from clingo import Control
-
 import renopro.predicates as preds
 from renopro.rast import ReifiedAST, TransformationError
 
@@ -16,7 +14,7 @@ test_transform_dir = tests_dir / "transform"
 
 class TestTransform(TestCase):
     """Tests for AST transformations defined via a meta-encodings."""
-
+    maxDiff = None
     def setUp(self):
         # reset id generator between test cases so reification
         # auto-generates the expected integers
@@ -44,12 +42,12 @@ class TestTransform(TestCase):
         input_files: List[Path],
         meta: List[List[Path]],
         level: Literal["DEBUG", "INFO", "WARNING", "ERROR"],
-        message2num_matches: Dict[str, int],
+        message2num_matchess: List[Dict[str, int]],
     ):
         rast = ReifiedAST()
         rast.reify_files(input_files)
-        for meta_files in meta:
-            with self.assertLogs("renopro.rast", level=level) as cm:
+        with self.assertLogs("renopro.rast", level=level) as cm:
+            for meta_files, message2num_matches in zip(meta, message2num_matchess):
                 try:
                     rast.transform(meta_files=meta_files)
                 except TransformationError as e:
@@ -71,8 +69,8 @@ class TestTransform(TestCase):
                 for message, expected_num in message2num_matches.items():
                     assert_msg = (
                         f"Expected {expected_num} "
-                        "matches for log message "
-                        f"'{message}', found "
+                        "matches for log message pattern"
+                        f"'{message}' in {logs}, found "
                     )
                     reo = re.compile(message)
                     num_log_matches = len(reo.findall(logs))
@@ -108,25 +106,25 @@ class TestTransformSimple(TestTransform):
             [files_dir / "input.lp"],
             [[files_dir / "info_with_loc.lp"]],
             "INFO",
-            {r"7:12-13: Found function with name a.": 1},
+            [{r"7:12-13: Found function with name a.": 1}],
         )
         self.assertTransformLogs(
             [files_dir / "input.lp"],
             [[files_dir / "info_no_loc.lp"]],
             "INFO",
-            {r"Found function with name a. Sorry, no location.": 1},
+            [{r"Found function with name a. Sorry, no location.": 1}],
         )
         self.assertTransformLogs(
             [files_dir / "input.lp"],
             [[files_dir / "error_no_loc.lp"]],
             "ERROR",
-            {r"Found function with name a. Sorry, no location.": 1},
+            [{r"Found function with name a. Sorry, no location.": 1}],
         )
         self.assertTransformLogs(
             [files_dir / "input.lp"],
             [[files_dir / "error_with_loc.lp"]],
             "ERROR",
-            {r"7:12-13: Found function with name a.": 1},
+            [{r"7:12-13: Found function with name a.": 1}],
         )
 
     def test_transform_bad_input(self):
@@ -164,28 +162,6 @@ class TestTransformSimple(TestTransform):
                     files_dir / (testname + "_output.lp"),
                 )
 
-    def test_transform_meta_telingo_externals_body(self):
-        """Test emission of external statements to protect temporal
-        operators in the body."""
-        files_dir = test_transform_dir / "meta-telingo-externals"
-        rast = self.assertTrasformEqual(
-            [files_dir / "input-body.lp"],
-            [[files_dir / "transform-subprogram.lp"], 
-             [files_dir / "transform-add-externals.lp"]],
-            files_dir / "output-body.lp"
-        )
-
-    def test_transform_meta_telingo_externals_head(self):
-        """Test emission of external statements to protect temporal
-        operators in the head."""
-        files_dir = test_transform_dir / "meta-telingo-externals"
-        rast = self.assertTrasformEqual(
-            [files_dir / "input-head.lp"],
-            [[files_dir / "transform-subprogram.lp"], 
-             [files_dir / "transform-add-externals.lp"]],
-            files_dir / "output-head.lp"
-        )
-
 
 class TestTransformTheoryParsing(TestTransform):
     """Test case for transformation that parses theory terms."""
@@ -199,15 +175,15 @@ class TestTransformTheoryParsing(TestTransform):
             [self.files_dir / "inputs" / "clingo-unknown-operator.lp"],
             [[
                 self.files_dir / "parse-unparsed-theory-terms.lp",
-                self.files_dir / "clingo-operator-table.lp",
+                self.files_dir / "inputs" / "clingo-operator-table.lp",
             ]],
             "ERROR",
-            {
+            [{
                 r"1:8-19: No definition for operator '\*' of arity '1' found "
                 r"for theory term type 'clingo'\.": 1,
                 r"1:8-19: No definition for operator '~' of arity '2' found "
                 r"for theory term type 'clingo'\.": 1,
-            },
+            }],
         )
 
     def test_parse_unparsed_theory_terms_clingo(self):
@@ -219,7 +195,7 @@ class TestTransformTheoryParsing(TestTransform):
             [self.files_dir / "inputs" / "clingo-unparsed-theory-term.lp"],
             [[
                 self.files_dir / "parse-unparsed-theory-terms.lp",
-                self.files_dir / "clingo-operator-table.lp",
+                self.files_dir / "inputs" / "clingo-operator-table.lp",
             ]],
             self.files_dir / "outputs" / "clingo-unparsed-theory-term.lp",
         )
@@ -236,7 +212,7 @@ class TestTransformTheoryParsing(TestTransform):
         rast1.transform(
             meta_files=[
                 self.files_dir / "parse-theory-terms.lp",
-                self.files_dir / "clingo-operator-table.lp",
+                self.files_dir / "inputs" / "clingo-operator-table.lp",
             ]
         )
         rast2 = ReifiedAST()
@@ -248,24 +224,85 @@ class TestTransformTheoryParsing(TestTransform):
         rast3.add_reified_files(
             [self.files_dir / "inputs" / "clingo-theory-term-unknown-reified.lp"]
         )
-        pattern = "No definition for operator '\+' of arity '1' found"
+        pattern = r"No definition for operator '\+' of arity '1' found"
         with self.assertRaisesRegex(TransformationError, pattern):
             rast3.transform(
                 meta_files=[
                     self.files_dir / "parse-theory-terms.lp",
-                    self.files_dir / "clingo-operator-table.lp",
+                    self.files_dir / "inputs" / "clingo-operator-table.lp",
                 ]
             )
-        pattern = "No definition for operator '!!' of arity '2' found"
+        pattern = r"No definition for operator '!!' of arity '2' found"
         with self.assertRaisesRegex(TransformationError, pattern):
             rast3.transform(
                 meta_files=[
                     self.files_dir / "parse-theory-terms.lp",
-                    self.files_dir / "clingo-operator-table.lp",
+                    self.files_dir / "inputs" / "clingo-operator-table.lp",
                 ]
             )
+    def test_parse_telingo(self):
+        """Test that parsing of telingo theory terms works correctly."""
+        self.assertTrasformEqual(
+            [self.files_dir / "inputs" / "telingo-unparsed-term.lp",
+             self.files_dir / "inputs" / "telingo-theory-def.lp"],
+            [[
+                self.files_dir / "parse-theory-terms.lp"
+            ]],
+            self.files_dir / "outputs" / "telingo-parsed-term.lp",
+        )
 
-    def test_tables_from_theory_defs(self):
-        """Test that operator and atom tables are extracted correctly
-        from theory definitions."""
-        Control()
+    def test_bad_theory_atom_occurrence(self):
+        """Error should be raised when theory atoms occur in incorrect
+        context."""
+        self.assertTransformLogs(
+            [self.files_dir / "inputs" / "bad-occurrences.lp"],
+            [[
+                self.files_dir / "parse-theory-terms.lp"
+            ]],
+            "ERROR",
+            [{
+                r":13:2-3: Theory atom found in unexpected context, allowed context: 'head'.": 1,
+                r":14:2-3: Theory atom found in unexpected context, allowed context: 'body'.": 1,
+                r":15:2-3: Theory atom found in unexpected context, allowed context: 'directive'.": 1
+            }],
+        )
+
+
+class TestTransformMetaTelingo(TestTransform):
+    """Test case for transformations that implement meta-telingo
+    'frontend'."""
+
+    files_dir = test_transform_dir / "meta-telingo"
+
+    def test_transform_meta_telingo_externals_body(self):
+        """Test emission of external statements to protect temporal
+        operators in the body."""
+        self.assertTrasformEqual(
+            [self.files_dir / "inputs" / "input-body.lp"],
+            [[self.files_dir / "transform-subprogram.lp"], 
+             [self.files_dir / "transform-add-externals.lp"]],
+            self.files_dir / "outputs" / "output-body.lp"
+        )
+
+    def test_transform_meta_telingo_externals_head(self):
+        """Test emission of external statements to protect temporal
+        operators in the head."""
+        self.assertTrasformEqual(
+            [self.files_dir / "inputs" / "input-head.lp"],
+            [[self.files_dir / "transform-subprogram.lp"],
+             [self.files_dir / "transform-add-externals.lp"]],
+            self.files_dir / "outputs" / "output-head.lp"
+        )
+
+    # def test_transform_meta_telingo_theory_validation(self):
+    #     """Test validation of theory terms in telingo theory atom elements."""
+    #     self.assertTransformLogs(
+    #         [self.files_dir / "inputs" / "telingo-input-bad-term.lp",
+    #          test_transform_dir / "theory-parsing" / "inputs" / "telingo-theory-def.lp"],
+    #         [[test_transform_dir / "theory-parsing" / "parse-theory-terms.lp"],
+    #          [self.files_dir / "transform-theory-to-symbolic.lp"]],
+    #         "ERROR",
+    #         [{},
+    #          {r":1:2-5: The term tuple of tel theory atom elements must contain a single temporal formula.": 1,
+    #           r":2:2-5: The term tuple of tel theory atom elements must contain a single temporal formula.": 1,
+    #           r":3:2-5: The term tuple of tel theory atom elements must contain a single temporal formula.": 1}])

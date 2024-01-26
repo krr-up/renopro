@@ -1,18 +1,26 @@
-operator_arity((initially;finally),0).
+operator_arity((initial;final),0).
 operator_arity((prev;wprev;next;wnext;
 							 always;always_before;eventually;eventually_before),1).
-operator_arity((until;since;release;trigger),2).
+operator_arity((until;since;release;trigger;and;or),2).
+% Naturally, default negation is unsafe.
+% wnext/wprev are unsafe, as they are satisfied in the final/initial time step
+% even if their operand is not.
+unsafe_arg((wprev;wnext),0).
+% the left operand of binary temporal operators are considered unsafe,
+% as they can be satisfied even if their left operand is not.
+unsafe_arg((until;since;release;trigger),0).
+% both operands of or are unsafe.
+unsafe_arg(or,(0;1)).
 
 func_arity(F,A) :- function(F,_,terms(TS)), A = #count{ P: terms(TS,P,_) }.
-num_func_args(F,N) 
+num_func_args(F,N)
   :- function(F,_,terms(TS)), N = #count{ P: terms(TS,P,function(_)) }.
 
 % we call a function an operator if it matches the name and arity of
 % an operator definition and has only function operands.
 operator(function(F))
   :- function(F,Name,terms(T)), operator_arity(Name,Arity), 
-		 func_arity(F,Arity), num_func_args(F,Arity), 
-		 Arity=#count{ F' : terms(T,_,function(F')) }.
+		 func_arity(F,Arity), num_func_args(F,Arity).
 root_operator(Func)
   :- operator(Func), symbolic_atom(_,Func).
 
@@ -21,18 +29,18 @@ root_operator(Func)
 
 operand(function(F),Operand)
   :- operator(function(F)), function(F,_,terms(T)), terms(T,_,Operand).
-% the left operand of binary temporal operators are considered unsafe,
-% as they can be satisfied even if their left operand is not.
+
 unsafe_operand(function(F),Operand)
-  :- operator(function(F)), operator_arity(Name,2), function(F,Name,terms(T)), 
-		 Name=(until;release), terms(T,0,Operand).
-% wnext/wprev are unsafe, as they are satisfied in the final/initial time step
-% even if their operand is not.
-unsafe_operand(function(F),Operand)
-  :- operator(function(F)), operator_arity(Name,1), function(F,Name,terms(T)), 
-		 Name=(wprev;wnext), terms(T,0,Operand).
+  :- operator(function(F)), function(F,Name,terms(T)),
+		 unsafe_arg(Name,Pos), terms(T,Pos,Operand).
+
 safe_operand(Func,Operand) 
   :- operand(Func,Operand), not unsafe_operand(Func,Operand).
+
+desc_root_op(Func,Child) :- root_operator(Func), child(Func,Child).
+desc_root_op(Func,Child') :- desc_root_op(Func,Child), child(Child,Child').
+has_var(Func) :- desc_root_op(Func,variable(V)).
+
 
 desc_root_op2operand(Func,Operand) :- operand(Func,Operand), root_operator(Func).
 desc_root_op2operand(Func,Operand') 
@@ -127,10 +135,18 @@ ast_operation(
 				external(Func,symbolic_atom(Func),body_literals(Func),false);
 				symbolic_atom(Func,Func)))
   :- body_root_op(Func).
-% body of external condition in both cases.
+% body of external condition in all cases but when we have a propositional body operator.
 ast_operation(
 		add(body_literals(Func,0,body_literal(Func'));
 				body_literal(Func',Sign,symbolic_atom(Func'));
 				symbolic_atom(Func',Func')))
-  :- root_operator(Func), root_op2extern_cond(Func,Sign,Func').
+  :- root_operator(Func), root_op2extern_cond(Func,Sign,Func'), 
+		 #false : not has_var(Func), body_root_op(Func).
+% body of external condition when we have a propositional body operator.
+ast_operation(
+		add(body_literals(Func,0,body_literal(Func'));
+				body_literal(Func',Sign,symbolic_atom(Func'));
+				symbolic_atom(Func',Func')))
+  :- root_operator(Func), root_op2safe_leaf_operand(Func,Sign,Func'), 
+		 not has_var(Func), body_root_op(Func).
 

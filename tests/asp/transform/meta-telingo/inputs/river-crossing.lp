@@ -9,26 +9,26 @@ eats(fox,goose). eats(goose,beans).
 
 %#program initial.
 
-% Initially, everything is at the river bank
-at(farmer,river_bank) :- initially.
-at(X,river_bank) :- item(X), initially.
+% Initial, everything is at the river bank
+at(farmer,river_bank) :- initial.
+at(X,river_bank) :- item(X), initial.
 
 %#program dynamic.
 
 % Choose moving exactly one item
-0 {move(X):item(X)} 1 :- not initially.
+0 {move(X):item(X)} 1 :- not initial.
 
 % The farmer is always moving
-move(farmer) :- not initially.
+move(farmer) :- not initial.
 
 % Effect axiom for moving
-at(X,B) :- prev(at(X,A)), move(X), route(A,B), not initially.
+at(X,B) :- prev(at(X,A)), move(X), route(A,B), not initial.
 
 % Items not moved stay where they are
-at(X,A) :- prev(at(X,A)), not move(X), not initially.
+at(X,A) :- prev(at(X,A)), not move(X), not initial.
 
 % The farmer cannot move item X if it is at the opposite bank
-:- move(X), item(X), prev(at(farmer,A)), not prev(at(X,A)), not initially.
+:- move(X), item(X), prev(at(farmer,A)), not prev(at(X,A)), not initial.
 
 %#program always.
 
@@ -41,7 +41,7 @@ at(X,A) :- prev(at(X,A)), not move(X), not initially.
 %#program final.
 
 % Finally, everything has to be at the far bank
-:- at(X,river_bank), finally.
+:- at(X,river_bank), final.
 
 % Domain predicates
 
@@ -53,7 +53,7 @@ animal(X) :- item(X).
 #show show(at(X,A)) : animal(X), loc(A).
 #show show(move(X)) : animal(X).
 
-#external initially.
-#external finally.
+#external initial.
+#external final.
 #external move(X) : animal(X).
 #external prev(at(X,A)) : animal(X), loc(A).

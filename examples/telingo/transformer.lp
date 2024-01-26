@@ -18,7 +18,7 @@ arity(F,N+1) :- function(F,_,terms(T)), max_arg_index(T,N).
 % chain modal operators
 modal(prev).
 modal(next).
-% modal(initially).
+% modal(initial).
 
 chain(M,A,function(F),O)
     :- symbolic_atom(A,function(F)), function(F,M,terms(T)), arity(F,1),

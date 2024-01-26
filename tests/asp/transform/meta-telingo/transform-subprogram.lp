@@ -17,7 +17,7 @@ ast_operation(
 		add(body_literals(BLS,-1,body_literal(BLS));
 			 body_literal(BLS,"pos",symbolic_atom(BLS));
 			 symbolic_atom(BLS,function(BLS));
-			 function(BLS,initially,terms(BLS)))
+			 function(BLS,initial,terms(BLS)))
 )
   :- body_program(BLS,"initial").
 
@@ -25,7 +25,7 @@ ast_operation(
 		add(body_literals(BLS,-1,body_literal(BLS));
 			 body_literal(BLS,"pos",symbolic_atom(BLS));
 			 symbolic_atom(BLS,function(BLS));
-			 function(BLS,finally,terms(BLS)))
+			 function(BLS,final,terms(BLS)))
 )
   :- body_program(BLS,"final").
 
@@ -33,7 +33,7 @@ ast_operation(
 		add(body_literals(BLS,-1,body_literal(BLS));
 			 body_literal(BLS,"not",symbolic_atom(BLS));
 			 symbolic_atom(BLS,function(BLS));
-			 function(BLS,initially,terms(BLS)))
+			 function(BLS,initial,terms(BLS)))
 )
   :- body_program(BLS,"dynamic").
 

@@ -5,7 +5,7 @@
 ### Input
 
 ```
-next(push) :- initially.
+next(push) :- initial.
 
 :- red, green.
 red :- not green.
