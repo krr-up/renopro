@@ -1,4 +1,4 @@
-*  Refication of location should be a method parameter, not something that's permanently set on init.
+* Decompose function should generate locations, in case downstream meta-encodings rely on it
 
 * Examine existing metaprogramming applications
 
