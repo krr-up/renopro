@@ -862,7 +862,7 @@ class ReifiedAST:
             logs = {40: [], 30: [], 20: [], 10: []}
             logger.debug(
                 "Stable model obtained via transformation:\n%s",
-                model.symbols(shown=True),
+                "\n".join([str(s) for s in model.symbols(shown=True)]),
             )
             for symb in model.symbols(shown=True):
                 if (

@@ -454,7 +454,7 @@ class BooleanConstant(AstPredicate):
 # have a pool argument.
 
 
-FunctionOrPoolField = combine_fields([Function.unary.Field, Pool.unary.Field])
+FunctionOrPoolField = combine_fields([Function.unary.Field, Pool.unary.Field], name="FunctionOrPoolField")
 
 
 class SymbolicAtom(AstPredicate):
@@ -1043,7 +1043,7 @@ class TheoryAtomDefinitions(AstPredicate):
                may occur in a logic program.
     name: The name of the theory atom to be defined
     arity: The arity of the theory atom to be defined
-    term: The theory term that may appear as an element of the theory atom.
+    term: The theory term type that may appear as an element of the theory atom.
     guard: The definition of the theory guard which may serve as the theory
            atom's guard.
     """
