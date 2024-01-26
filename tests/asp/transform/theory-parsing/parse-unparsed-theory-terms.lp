@@ -21,7 +21,7 @@ arity(theory_operators(Ops,P,Opname),1)
 #show log("error",
 					"{}: No definition for operator '{}' of arity '{}' found for theory term type '{}'.",
 					Location,Opname,Arity,Type)
-  : undefined_operator(Type,Opname,Arity,Location).
+  :  undefined_operator(Type,Opname,Arity,Location).
 
 undefined_operator(Type,Opname,Arity,location(theory_unpared_term(Id),Begin,End))
   :- theory_unparsed_term(Id,theory_unparsed_term_elements(Elements)),
@@ -53,40 +53,39 @@ first_operator(theory_operators(O,P',N))
   :- theory_operators(O,_,_),
 		 T'=#min{P: theory_operators(O,P,_)}, theory_operators(O,P',N).
 
-_next(TheoryTerm,theory_operators(Ops,OpPos,OpName))
+_next(theory_operators(Ops,OpPos,OpName),TheoryTerm)
   :- theory_unparsed_term_elements(Elements,P,theory_operators(Ops),TheoryTerm),
 		 last_operator(theory_operators(Ops,OpPos,OpName)).
 
-_next(theory_operators(Ops,P,Opname1),theory_operators(Ops,P-1,Opname2))
+_next(theory_operators(Ops,P-1,Opname2),theory_operators(Ops,P,Opname1))
   :- theory_operators(Ops,P,Opname1), theory_operators(Ops,P-1,Opname2).
 
-_next(theory_operators(O,P,N),TheoryTerm)
+_next(TheoryTerm,theory_operators(O,P,N))
   :- first_operator(theory_operators(O,P,N)),
 		 theory_unparsed_term_elements(E,EP,theory_operators(O),_),
 		 theory_unparsed_term_elements(E,EP-1,_,TheoryTerm).
 
 next(X,Y) :- _next(X,Y).
-% add a marker after the end of the next chain for use when parsing
-next(Y,afterlast) :- _next(X,Y), not _next(Y,_).
-
-first(T) :- next(T,T'), not next(_,T).
+% add a marker before the end of the next chain for use when parsing
+next(alpha,X) :- _next(X,_), not _next(_,X).
+last(T) :- next(_,T), not next(T,_).
 
 name(theory_operators(Ops,P,Name),Name) :- theory_operators(Ops,P,Name).
 
 % We now encode a (purely) functional Pratt parser by defining the function
-% parse(Limit,Right,Next)
+% parse(Limit,Next,Token)
 % where:
 %   Limit is the precedence limit.
-%   Right is the token being parsed.
 %   Next is the next token in our sequence.
+%   Token is the token being parsed.
 %
 % The intuition behind pratt parsing, is that we set a limit, and only
 % apply operators above that limit, as lower precedence operators bind
 % less powerfully, and thus should be applied later.
 % 
-% The facts call(parse(L,R,N)) gives us the set of function calls that occur.
-% return(parse(L,R,N),(O,N')) gives us the return value (O,N') of the call,
-% where O is a token, and N' designates the token after O.
+% The facts call(parse(L,N,T)) gives us the set of function calls that occur.
+% return(parse(L,N,T),(N'T')) gives us the return value (O,N') of the call,
+% where T' is a token, and N' designates the next token after O.
 
 % the recur(X,Y) holds when the return value of call(X)
 % is set to the return value of call(Y).
@@ -100,7 +99,7 @@ recur(parse(Limit,Operator,Token),
   :- call(parse(Limit,Operator,Token)),
 		 name(Operator,Name), arity(Operator,1),
 		 prio_assoc(Operator,(Prec,_)),
-		 Prec>Limit, next(Operator,Next).
+		 Prec>Limit, next(Next,Operator).
 
 % If the next token is a binary operator with higher precedence than
 % the limit, we start a child parser from the left operand with a new
@@ -108,7 +107,7 @@ recur(parse(Limit,Operator,Token),
 call(parse(Prec-Assoc,Next,Token'))
   :- call(parse(Limit,Operator,Token)), arity(Operator,2),
 		 prio_assoc(Operator,(Prec,Assoc)), Prec>Limit, 
-		 next(Operator,Token'), next(Token',Next).
+		 next(Next,Token'), next(Token',Operator).
 
 % and recur, having applied the binary operator to the token and
 % whatever new token the child parser returned
@@ -116,8 +115,8 @@ recur(parse(Limit,Operator,Token),
 			parse(Limit,Next',theory_function_(Name,(theory_terms_(0,Token''),
 																				       theory_terms_(1,Token)))))
   :- call(parse(Limit,Operator,Token)), arity(Operator,2),
-		 prio_assoc(Operator,(Prec,Assoc)), Prec>Limit, 
-		 next(Operator,Token'), next(Token',Next),
+		 prio_assoc(Operator,(Prec,Assoc)), Prec>Limit,
+		 next(Next,Token'), next(Token',Operator),
 		 name(Operator,Name), 
 		 return(parse(Prec-Assoc,Next,Token'),(Next',Token'')).
 	 
@@ -128,17 +127,17 @@ return(parse(Limit,Operator,Token),(Operator,Token))
 		 Prec<=Limit.
 
 % Return if we run out of tokens.
-return(parse(Limit,afterlast,Token),(afterlast,Token))
-  :- call(parse(Limit,afterlast,Token)).
+return(parse(Limit,alpha,Token),(alpha,Token))
+  :- call(parse(Limit,alpha,Token)).
 
 % Start off recursion at the first token with precedence level 0.
-call(parse(0,T',T)) :- first(T), next(T,T').
+call(parse(0,T',T)) :- last(T), next(T',T).
 
 #show log("debug", "{}: Output of theory term parser: '{}'", 
 					location(theory_unparsed_term(UT),Begin,End), 
 					theory_function_(Name,Args))
   :  return(parse(0,T',T),(_,theory_function_(Name,Args))),
-     first(T), next(T,T'), 
+     last(T), next(T',T), 
 		 theory_unparsed_term_elements(E,_,_,T),
 		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
 		 location(theory_unparsed_term(UT),Begin,End).
@@ -149,7 +148,6 @@ ast_operation(
 		add(@decompose(theory_function(UT,Name,Args)));
 		replace(theory_unparsed_term(UT),theory_function(UT)))
   :- return(parse(0,T',T),(_,theory_function_(Name,Args))),
-		 first(T), next(T,T'),
+		 last(T), next(T',T),
 		 theory_unparsed_term_elements(E,_,_,T),
-		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
-		 theory_terms(TT,P,theory_unparsed_term(UT)).
+		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)).
