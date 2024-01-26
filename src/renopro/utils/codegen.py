@@ -36,7 +36,10 @@ def generate_replace():
             program += (
                 f"ast_operation(add({name}({new_args}));"
                 f"delete({name}({old_args})))\n :- "
-                f"ast_operation(replace(A,B)), {name}({old_args}).\n\n"
+                f"ast_operation(replace(A,B)), {name}({old_args}).\n"
+                f"ast_operation(add({name}({new_args}));"
+                f"delete({name}({old_args})))\n :- "
+                f"ast_operation(replace(A,B)), ast_operation(add({name}({old_args}))).\n\n"
             )
         Path("src", "renopro", "asp", "replace.lp").write_text(program)
 
