@@ -41,8 +41,10 @@ def decompose(f: Symbol):
 
  #end.
 
+% delete stops inertia from old ast
 final(A) :- ast(A), not ast_operation(delete(A)).
-final(N) :- ast_operation(add(N)).
+% and even overrides adding of new ast
+final(A) :- ast_operation(add(A)), not ast_operation(delete(A)).
 
 #defined ast_operation/1.
 
