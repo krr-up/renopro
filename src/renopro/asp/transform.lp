@@ -11,7 +11,7 @@ from renopro.predicates import pred_names, composed_pred_names
 
 def _decompose(f: Symbol, top_id: Symbol, asts: List[Symbol], i: int, top_level=False, override_id=None):
     current_id = override_id if override_id is not None else i
-    fresh_id = Function("_fresh", [top_id, Number(current_id)])
+    fresh_id = Function("_fresh", [top_id, Number(current_id)]) if not top_level else top_id.arguments[0]
     i = i + 1
     current_id = i
     ast_args = [fresh_id] if not top_level else []
