@@ -40,38 +40,36 @@ tel_root_term_desc(Term,Child') :- tel_root_term_desc(Term,Child), child(Child,C
 % theory function names can syntactically be operators if they are
 % defined tel theory operators
 ast_operation(
-		delete(theory_function(TF,Name,theory_terms(TTS)));
+		delete(theory_function(TF,Name,theory_terms(TTS));
+					 theory_terms(TTS,P,TT));
 		add(function(TF,SName,terms(TTS));
-			  child(function(TF),terms(TTS)));
+			  terms(TTS,P,TT));
 		replace(theory_function(TF),function(TF))
 )
   :- tel_root_term_desc(Term,theory_function(TF)), theory_function(TF,Name,theory_terms(TTS)), 
+		 theory_terms(TTS,P,TT),
 		 arity(TF,Arity), theory_opertor2symbol(Name,Arity,SName).
 
 ast_operation(
-		delete(theory_function(TF,Name,theory_terms(TTS)));
+		delete(theory_function(TF,Name,theory_terms(TTS));
+					 theory_terms(TTS,P,TT));
 		add(function(TF,Const,terms(TTS));
-			  child(function(TF),terms(TTS)));
+			  terms(TTS,P,TT));
 		replace(theory_function(TF),function(TF))
 )
-  :- tel_root_term_desc(Term,theory_function(TF)), theory_function(TF,Name,theory_terms(TTS)), 
+  :- tel_root_term_desc(Term,theory_function(TF)), theory_function(TF,Name,theory_terms(TTS)),
+		 theory_terms(TTS,P,TT),
 		 arity(TF,Arity), not theory_opertor2symbol(Name,Arity,_), Const=@string_to_const(Name).
-
-ast_operation(
-		delete(theory_terms(TTS,P,Term));
-		add(terms(TTS,P,Term));
-)
-  :- tel_root_term_desc(RootTerm,theory_terms(TTS)), theory_terms(TTS,P,Term).
 
 % theory atoms in the head are interpreted as disjunctions, in the
 % body they are interpreted as conditional literals. As such, in the
 % body, they may only have one element.
 
 #show log("error", "{}: tel theory atoms occurring in the body may only have one element.",Loc)
-  : body_literals(BLS,P,body_literal(BL)),
+  : body_literals(BLS,_,body_literal(BL)),
     body_literal(BL,_,theory_atom(A)), tel_theory_atom(A,Loc), 
 		theory_atom(A,_,theory_atom_elements(E),_),
-		#count{ P': theory_atom_elements(E,P',_,_) } > 1.
+		#count{ P: theory_atom_elements(E,P,_,_) } > 1.
 
 ast_operation(
 		replace(body_literal(BL),conditional_literal((A,1)));
@@ -83,7 +81,20 @@ ast_operation(
 		 body_literal(BL,Sign,theory_atom(A)), tel_theory_atom(A,_), 
 		 theory_atom(A,_,theory_atom_elements(E),_), 
 		 theory_atom_elements(E,_,theory_terms(TS),literals(LS)),
-     theory_terms(TS,0,RootTerm), tel_root_term_id(RootTerm,F).
+     theory_terms(TS,0,RootTerm), tel_root_term_id(RootTerm,F),
+     literals(LS,_,_).
+
+ast_operation(
+		delete(body_literal(BL,Sign,theory_atom(A)));
+		add(body_literal(BL,Sign,symbolic_atom((A,1)));
+			  symbolic_atom((A,1),function(F)))
+)
+  :- body_literals(BLS,P,body_literal(BL)),
+		 body_literal(BL,Sign,theory_atom(A)), tel_theory_atom(A,_), 
+		 theory_atom(A,_,theory_atom_elements(E),_), 
+		 theory_atom_elements(E,_,theory_terms(TS),literals(LS)),
+     theory_terms(TS,0,RootTerm), tel_root_term_id(RootTerm,F),
+     not literals(LS,_,_).
 
 ast_operation(
 		replace(theory_atom(A),disjunction((A,1)));
