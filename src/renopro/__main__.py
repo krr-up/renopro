@@ -34,9 +34,10 @@ def main():
             rast.add_reified_files(args.infiles)
         elif args.input_format == "reflected":
             rast.reify_files(args.infiles)
-        rast.transform(
-            meta_files=args.meta_encoding, clingo_options=args.clingo_options
-        )
+        for meta_encoding in args.meta_encodings:
+            rast.transform(
+                meta_files=meta_encoding, clingo_options=args.clingo_options
+            )
         if args.output_format == "reified":
             print(rast.reified_string)
         elif args.output_format == "reflected":

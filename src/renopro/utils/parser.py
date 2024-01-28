@@ -92,11 +92,12 @@ def get_parser() -> ArgumentParser:
         parents=[common_arg_parser],
     )
     transform_parser.add_argument(
-        "--meta-encoding",
+        "--meta-encodings",
         "-m",
         action="append",
+        nargs="+",
         type=Path,
-        help="Meta-encoding to be applied to reified facts.",
+        help="Meta-encodings to be applied to reified facts.",
         required=True,
     )
     transform_parser.add_argument(
