@@ -273,14 +273,9 @@ class TestReifyReflectErrors(TestReifyReflect):
         rast = ReifiedAST()
         rast.add_reified_files([malformed_reified_files / "multiple_in_same_pos.lp"])
         regex = (
-            r"multiple child facts in the same position.*guards\(7\)"
+            r"(?s).*multiple child facts in the same position.*guards\(7\)"
         )
-        with self.assertLogs("renopro.rast", level="DEBUG") as cm:
-            rast.reflect()
-            logs = "\n".join(cm.output)
-            reo = re.compile(regex)
-            num_log_matches = len(reo.findall(logs))
-            assert num_log_matches == 1
+        with self.assertRaisesRegex(ChildrenQueryError, expected_regex=regex):
             rast.reflect()
 
     def test_children_query_error_one_or_more_expected_zero_found(self):

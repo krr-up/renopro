@@ -144,7 +144,6 @@ call(parse(0,T',T)) :- last(T), next(T',T).
 
 % Finally, add the output of out Pratt parser to the AST in the correct place
 
-
 parsed(@decompose(theory_function(UT,Name,Args)))
   :- return(parse(0,T',T),(_,theory_function_(Name,Args))),
 		 last(T), next(T',T),

@@ -26,11 +26,11 @@ firearm(gun).
 #show show(fail(X)) : fail(X).
 #show show(unloaded(X)) : unloaded(X).
 #program base.
-#external and(and(shoot(X),prev(eventually_before(shoot(X)))),always_before(unloaded(X))) : shoot(X); unloaded(X); shoot(X). [false]
+#external and(and(shoot(X),prev(eventually_before(shoot(X)))),always_before(unloaded(X))) : shoot(X); shoot(X); unloaded(X). [false]
 #external and(initial,firearm(X)) : firearm(X). [false]
+#external fail(X) : shoot(X); shoot(X); unloaded(X). [false]
 #external shoot(X) : firearm(X). [false]
 #external unloaded(X) : firearm(X). [false]
 #external unloaded(X) : firearm(X). [false]
-#external shoot(X) : firearm(X). [false]
 #external unloaded(X) : firearm(X). [false]
-#external fail(X) : shoot(X); unloaded(X); shoot(X). [false]
+#external shoot(X) : firearm(X). [false]

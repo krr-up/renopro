@@ -14,6 +14,11 @@ tel_theory_atom_terms(TTS,Loc)
   :- theory_atom(A,function(F),theory_atom_elements(E),_), tel_theory_atom(A,Loc), 
 		 theory_atom_elements(E,_,theory_terms(TTS),_).
 
+tel_root_term(Term,Loc) :- tel_theory_atom_terms(TTS,Loc), theory_terms(TTS,0,Term).
+tel_root_term_id(Term,F) :- tel_root_term(Term,_), Term=(function(F);theory_function(F)).
+tel_root_term_desc(Term,Term) :- tel_root_term(Term,Loc).
+tel_root_term_desc(Term,Child') :- tel_root_term_desc(Term,Child), child(Child,Child').
+
 % each tel theory atom element should should have a single function or
 % theory function in it's term tuple, as we rewrite elements as
 % conditional literals or body literals, and these may only have one literal in their
@@ -24,11 +29,6 @@ tel_theory_atom_terms(TTS,Loc)
 
 #show log("error","{}: The term tuple of tel theory atom elements must contain a single (temporal) formula.",Loc)
   : tel_theory_atom_terms(TTS,Loc), #count{ P: theory_terms(TTS,P,_) } != 1.
-
-tel_root_term(Term,Loc) :- tel_theory_atom_terms(TTS,Loc), theory_terms(TTS,0,Term).
-tel_root_term_id(Term,F) :- tel_root_term(Term,_), Term=(function(F);theory_function(F)).
-tel_root_term_desc(Term,Term) :- tel_root_term(Term,Loc).
-tel_root_term_desc(Term,Child') :- tel_root_term_desc(Term,Child), child(Child,Child').
 
 #show log("error", "{}: Theory sequences not allowed in tel theory atoms, found sequence type {}.",location(theory_sequence(TS),Begin,End),SequenceType)
   : tel_root_term_desc(Term,theory_sequence(TS)), theory_sequence(TS,SequenceType,_),
@@ -65,27 +65,25 @@ ast(replace(theory_function(TF,Name,theory_terms(TTS)),function(TF,Const,terms(T
 
 % body case
 
+tel_body_theory_atom(BL,Sign,A,F,LS)
+  :- body_literal(BL,Sign,theory_atom(A)), tel_theory_atom(A,_), 
+		 theory_atom(A,_,theory_atom_elements(E),_), 
+		 theory_atom_elements(E,_,theory_terms(TS),literals(LS)),
+     theory_terms(TS,0,RootTerm), tel_root_term_id(RootTerm,F).
+
 ast(replace(body_literal(BL,Sign,theory_atom(A)),
 				    conditional_literal((A,1),literal((A,2)),literals(LS)));
 		add(literal((A,2),Sign,symbolic_atom((A,3)));
 			  symbolic_atom((A,3),function(F)))
 )
-  :- body_literals(BLS,P,body_literal(BL)),
-		 body_literal(BL,Sign,theory_atom(A)), tel_theory_atom(A,_), 
-		 theory_atom(A,_,theory_atom_elements(E),_), 
-		 theory_atom_elements(E,_,theory_terms(TS),literals(LS)),
-     theory_terms(TS,0,RootTerm), tel_root_term_id(RootTerm,F),
+  :- tel_body_theory_atom(BL,Sign,A,F,LS),
      literals(LS,_,_).
 
 ast(replace(body_literal(BL,Sign,theory_atom(A)),
 					  body_literal((A,0),Sign,symbolic_atom((A,1))));
 		add(symbolic_atom((A,1),function(F)))
 )
-  :- body_literals(BLS,P,body_literal(BL)),
-		 body_literal(BL,Sign,theory_atom(A)), tel_theory_atom(A,_), 
-		 theory_atom(A,_,theory_atom_elements(E),_), 
-		 theory_atom_elements(E,_,theory_terms(TS),literals(LS)),
-     theory_terms(TS,0,RootTerm), tel_root_term_id(RootTerm,F),
+  :- tel_body_theory_atom(BL,Sign,A,F,LS),
      not literals(LS,_,_).
 
 % head case

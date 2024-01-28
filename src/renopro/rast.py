@@ -629,18 +629,16 @@ class ReifiedAST:
             raise ChildQueryError(base_msg + msg)
         #  pylint: disable=consider-using-in
         if expected_children_num == "*" or expected_children_num == "+":
-            query = query.order_by(child_ast_pred.position)
             child_facts = list(query.all())
+            child_facts.sort(key=lambda fact: fact.position)
             num_child_facts = len(child_facts)
-            # log if there are no tuple elements in the same position
-            # while this is allowed, in case the user doesn't care about 
-            # the ordering, we record this in case it was not intentional
+            # tuple elements in the same position are not allowed.
             if num_child_facts != len(set(tup.position for tup in child_facts)):
                 msg = (
                     "Found multiple child facts in the same position for "
                     f"identifier '{child_id_fact}'."
                 )
-                logger.debug(msg)
+                raise ChildrenQueryError(base_msg + msg)
             if expected_children_num == "+" and num_child_facts == 0:
                 msg = (
                     f"Expected 1 or more child facts for identifier "

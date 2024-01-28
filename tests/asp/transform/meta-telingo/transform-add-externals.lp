@@ -1,16 +1,18 @@
 operator_arity((initial;final),0).
-operator_arity((prev;wprev;next;wnext;
+operator_arity((prev;wprev;next;wnext;neg;
 							 always;always_before;eventually;eventually_before),1).
 operator_arity((until;since;release;trigger;and;or),2).
 % Naturally, default negation is unsafe.
 % wnext/wprev are unsafe, as they are satisfied in the final/initial time step
 % even if their operand is not.
-unsafe_arg((wprev;wnext),0).
+arg((wprev;wnext),0,unsafe).
 % the left operand of binary temporal operators are considered unsafe,
 % as they can be satisfied even if their left operand is not.
-unsafe_arg((until;since;release;trigger),0).
+arg((until;since;release;trigger),0,unsafe).
 % both operands of or are unsafe.
-unsafe_arg(or,(0;1)).
+arg(or,(0;1),unsafe).
+arg(Opname,Arg,safe)
+  :- operator_arity(Opname,Arity), Arg=0..Arity-1, not arg(Opname,Arg,unsafe).
 
 func_arity(F,A) :- function(F,_,terms(TS)), A = #count{ P: terms(TS,P,_) }.
 num_func_args(F,N)
@@ -24,36 +26,23 @@ operator(function(F))
 root_operator(Func)
   :- operator(Func), symbolic_atom(_,Func).
 
-%% #show.
-%% #show (F,Name) : operator(funcion(F)), function(F,Name,_).
-
-operand(function(F),Operand)
-  :- operator(function(F)), function(F,_,terms(T)), terms(T,_,Operand).
-
-unsafe_operand(function(F),Operand)
-  :- operator(function(F)), function(F,Name,terms(T)),
-		 unsafe_arg(Name,Pos), terms(T,Pos,Operand).
-
-safe_operand(Func,Operand) 
-  :- operand(Func,Operand), not unsafe_operand(Func,Operand).
+operand(function(F),Operand,Safety)
+  :- operator(function(F)), function(F,Name,terms(T)), arg(Name,P,Safety),
+		 terms(T,P,Operand).
 
 desc_root_op(Func,Child) :- root_operator(Func), child(Func,Child).
 desc_root_op(Func,Child') :- desc_root_op(Func,Child), child(Child,Child').
 has_var(Func) :- desc_root_op(Func,variable(V)).
 
 
-desc_root_op2operand(Func,Operand) :- operand(Func,Operand), root_operator(Func).
-desc_root_op2operand(Func,Operand') 
-  :- desc_root_op2operand(Func,Operand), operand(Operand,Operand').
-desc_root_op2safe_operand(Func,Operand) 
-  :- safe_operand(Func,Operand), root_operator(Func).
-desc_root_op2safe_operand(Func,Operand') 
-  :- desc_root_op2safe_operand(Func,Operand), safe_operand(Operand,Operand').
-root_op2leaf_operand(Func, Operand)
-  :- desc_root_op2operand(Func,Operand), not operator(Operand).
-root_op2safe_leaf_operand(Func, Operand)
-  :- root_operator(Func), desc_root_op2safe_operand(Func,Operand), 
-		 not operator(Operand).
+operand_from_root(Root,Operand,Safety)
+  :- root_operator(Root), operand(Root,Operand,Safety).
+operand_from_root(Root,Operand',Safety)
+  :- operand_from_root(Root,Operand,Safety), operand(Operand,Operand',safe).
+operand_from_root(Root,Operand',unsafe)
+  :- operand_from_root(Root,Operand,Safety), operand(Operand,Operand',unsafe).
+leaf_operand_from_root(Root,Operand,Safety)
+  :- operand_from_root(Root,Operand,Safety), not operator(Operand).
 
 root_op_sign(Func,Sign) 
   :- root_operator(Func), symbolic_atom(A,Func), 
@@ -61,9 +50,6 @@ root_op_sign(Func,Sign)
 root_op_sign(Func,Sign) 
   :- root_operator(Func), symbolic_atom(A,Func), 
 		 body_literal(_,Sign,symbolic_atom(A)).
-
-%% #show.
-%% #show (Name,Name') : root_op2leaf_operand(function(F),function(F')), function(F,Name,_), function(F',Name',_).
 
 % determine which root operators occur in the head vs the body
 possible_head_root_op(Func)
@@ -86,6 +72,7 @@ body_root_op(Func) :- not head_root_op(Func), root_operator(Func).
 desc_stm((statements(STM),Pos),Child) :- statements(STM,Pos,Child).
 desc_stm(Statement,Child') 
   :- desc_stm(Statement,Child), not root_operator(Child), child(Child,Child').
+% functions occurring in the body are included
 root_op2possible_extern_cond(Func,Sign,Func')
   :- desc_stm(Statement,Func), root_operator(Func), 
 		 desc_stm(Statement,body_literal(BL)), body_literal(BL,Sign,symbolic_atom(S)),
@@ -96,7 +83,7 @@ root_op2possible_extern_cond(Func,Sign,Func')
   :- root_operator(Func), symbolic_atom(S,Func), literal(L,_,symbolic_atom(S)),
 		 conditional_literal(_,literal(L),literals(LS)), literals(LS,_,literal(L')),
      literal(L',Sign,symbolic_atom(S')), symbolic_atom(S',Func').
-% where operator is in body of condition (this covers body aggregates
+% and where operator is in body of condition (this covers body aggregates
 % as well thankfully)
 root_op2possible_extern_cond(Func,Sign,Func')
   :- root_operator(Func), symbolic_atom(S,Func), literal(L,_,symbolic_atom(S)),
@@ -107,46 +94,40 @@ root_op2possible_extern_cond(Func,Sign,Func')
 % non-operator literals in the body, and the safe leaf operands of
 % operator literals, omitting the safe leaf operand of the operator in
 % question if it is not positive.
+
+% no conditioning on it's own operands if it is not positive
 -root_op2extern_cond(Func,Sign,Func')
   :- root_op2possible_extern_cond(Func,Sign,Func'), 
 		 Func=Func', Sign=("not";"not not").
+% we condition on each body literal
 root_op2extern_cond(Func,Sign,Func')
   :- root_op2possible_extern_cond(Func,Sign,Func'),
 		 not root_operator(Func').
 root_op2extern_cond(Func,Sign,Func'')
   :- root_op2possible_extern_cond(Func,Sign,Func'),
 		 not -root_op2extern_cond(Func,Sign,Func'), 
-		 root_op2safe_leaf_operand(Func',Func'').
+		 leaf_operand_from_root(Func',Func'',safe).
 
 % create a base subprogram under which the external will be added.
-ast(
-		add(program(externals,"base",constants(externals),statements(externals)))
-).
+ast(add(program(externals,"base",constants(externals),statements(externals)))).
 
 % head of external condition in head operator case.
-ast(
-		add(statements(externals,0,external(Operand));
+ast(add(statements(externals,pos(Func,Operand),external(Operand));
 				external(Operand,symbolic_atom(Operand),body_literals(Func),false);
 				symbolic_atom(Operand,Operand)))
-  :- head_root_op(Func), root_op2leaf_operand(Func,Operand).
+  :- head_root_op(Func), leaf_operand_from_root(Func,Operand,_).
+
 % head of external condition in body operator case.
-ast(
-		add(statements(externals,0,external(Func));
+ast(add(statements(externals,pos(Func),external(Func));
 				external(Func,symbolic_atom(Func),body_literals(Func),false);
 				symbolic_atom(Func,Func)))
   :- body_root_op(Func).
-% body of external condition in all cases but when we have a propositional body operator.
-ast(
-		add(body_literals(Func,0,body_literal(Func'));
+
+% body of external condition 
+% when we have a propositional operator in the body, we leave the condition empty
+ast(add(body_literals(Func,pos(Func'),body_literal(Func'));
 				body_literal(Func',Sign,symbolic_atom(Func'));
 				symbolic_atom(Func',Func')))
   :- root_operator(Func), root_op2extern_cond(Func,Sign,Func'), 
 		 #false : not has_var(Func), body_root_op(Func).
-% body of external condition when we have a propositional body operator.
-ast(
-		add(body_literals(Func,0,body_literal(Func'));
-				body_literal(Func',Sign,symbolic_atom(Func'));
-				symbolic_atom(Func',Func')))
-  :- root_operator(Func), root_op2safe_leaf_operand(Func,Sign,Func'), 
-		 not has_var(Func), body_root_op(Func).
 

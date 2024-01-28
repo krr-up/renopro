@@ -226,7 +226,7 @@ class Terms(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     term = TermField
 
 
@@ -306,7 +306,7 @@ class TheoryTerms(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     theory_term = TheoryTermField
 
 
@@ -346,7 +346,7 @@ class TheoryOperators(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     operator = StringField
 
 
@@ -361,7 +361,7 @@ class TheoryUnparsedTermElements(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     operators = TheoryOperators.unary.Field
     term = TheoryTermField
 
@@ -414,7 +414,7 @@ class Guards(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     guard = Guard.unary.Field
 
 
@@ -497,7 +497,7 @@ class Literals(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     literal = Literal.unary.Field
 
 
@@ -523,7 +523,7 @@ class AggregateElements(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     element = ConditionalLiteral.unary.Field
 
 
@@ -558,7 +558,7 @@ class TheoryAtomElements(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     terms = TheoryTerms.unary.Field
     condition = Literals.unary.Field
 
@@ -604,7 +604,7 @@ class BodyAggregateElements(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     terms = Terms.unary.Field
     condition = Literals.unary.Field
 
@@ -669,7 +669,7 @@ class BodyLiterals(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     body_literal = BodyLiteralField
 
 
@@ -685,7 +685,7 @@ class HeadAggregateElements(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     terms = Terms.unary.Field
     condition = ConditionalLiteral.unary.Field
 
@@ -717,7 +717,7 @@ class ConditionalLiterals(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     conditional_literal = ConditionalLiteral.unary.Field
 
 
@@ -869,7 +869,7 @@ class Statements(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     statement = StatementField
 
 
@@ -882,7 +882,7 @@ class Constants(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     constant = Function.unary.Field
 
 
@@ -1002,7 +1002,7 @@ class TheoryOperatorDefinitions(AstPredicate):
     operator type: The type of the operator."""
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     name = StringField
     priority = IntegerField
     operator_type = TheoryOperatorTypeField
@@ -1017,7 +1017,7 @@ class TheoryTermDefinitions(AstPredicate):
     operators: The theory operators defined over the theory term."""
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     name = ConstantField
     operators = TheoryOperatorDefinitions.unary.Field
 
@@ -1049,7 +1049,7 @@ class TheoryAtomDefinitions(AstPredicate):
     """
 
     id = IntegerOrRawField
-    position = IntegerField
+    position = IntegerOrRawField
     atom_type = TheoryAtomTypeField
     name = ConstantField
     arity = IntegerField
