@@ -12,7 +12,7 @@ def generate_replace():
         "% occurs as a term.\n\n"
     )
     for predicate in preds.AstPreds:
-        if predicate is preds.Location:
+        if predicate is preds.Location or predicate is preds.Child:
             continue
         replacements = []
         name = predicate.meta.name
@@ -34,21 +34,19 @@ def generate_replace():
                 ["X" + str(i) if i != idx else "B" for i in range(arity)]
             )
             program += (
-                f"ast_operation(add({name}({new_args}));"
+                f"ast(add({name}({new_args}));"
                 f"delete({name}({old_args})))\n :- "
-                f"ast_operation(replace(A,B)), {name}({old_args}).\n"
-                f"ast_operation(add({name}({new_args}));"
-                f"delete({name}({old_args})))\n :- "
-                f"ast_operation(replace(A,B)), ast_operation(add({name}({old_args}))).\n\n"
+                f"ast(_replace_id(A,B)), ast(fact({name}({old_args}));add({name}({old_args}))).\n\n"
             )
-        Path("src", "renopro", "asp", "replace.lp").write_text(program)
+    program += "ast(add(child(X0,B));delete(child(X0,A)))\n  :- ast(_replace_id(A,B)), ast(fact(child(X0,A));add(child(X0,A)))."
+    Path("src", "renopro", "asp", "replace_id.lp").write_text(program)
 
 
 def generate_add_child():
     """Generate rules to create child relations for all facts added
-    via ast_operation add, and rules to replace identifiers via
-    ast_operation replace."""
-    add_child_program = "% Add child relations for facts added via ast_operation add.\n\n"
+    via ast add, and rules to replace identifiers via
+    ast replace."""
+    add_child_program = "% Add child relations for facts added via ast add.\n\n"
     for predicate in preds.AstPreds:
         if predicate is preds.Location or predicate is preds.Child:
             continue
@@ -68,8 +66,8 @@ def generate_add_child():
                 ["X" + str(i) if i != idx else "Child" for i in range(arity)]
             )
             add_child_program += (
-                f"ast_operation(add(child({name}(X0),Child)))\n  :- "
-                f"ast_operation(add({name}({add_child_args}))).\n\n"
+                f"ast(add(child({name}(X0),Child)))\n  :- "
+                f"ast(add({name}({add_child_args}))).\n\n"
             )
         Path("src", "renopro", "asp", "add-children.lp").write_text(add_child_program)
 
@@ -80,7 +78,7 @@ def generate_ast_fact2id():
     for predicate in preds.AstPreds:
         if predicate is preds.Location:
             location = "location(Id,Begin,End)"
-            program += f"transformed_ast_fact2id({location},Id) :- transformed({location}).\n"
+            program += f"ast_fact2id({location},Id) :- ast(fact({location});add({location});delete({location})).\n"
             continue
         if predicate is preds.Child:
             continue
@@ -89,8 +87,8 @@ def generate_ast_fact2id():
         args = ",".join(["X" + str(i) for i in range(arity)])
         fact = f"{name}({args})"
         identifier = f"{name}(X0)"
-        program += f"transformed_ast_fact2id({fact},{identifier}) :- transformed({fact}).\n"
-    Path("src", "renopro", "asp", "transformed_ast_fact2id.lp").write_text(program)
+        program += f"ast_fact2id({fact},{identifier})\n  :- ast(fact({fact});add({fact});delete({fact})).\n\n"
+    Path("src", "renopro", "asp", "ast_fact2id.lp").write_text(program)
 
 
 def generate_ast():
@@ -101,7 +99,7 @@ def generate_ast():
         arity = predicate.meta.arity
         args = ",".join(["X" + str(i) for i in range(arity)])
         fact = f"{name}({args})"
-        rule = f"ast({fact}) :- {fact}.\n"
+        rule = f"ast(fact({fact})) :- {fact}.\n"
         program += rule
     Path("src", "renopro", "asp", "ast.lp").write_text(program)
 

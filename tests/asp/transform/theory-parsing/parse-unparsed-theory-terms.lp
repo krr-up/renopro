@@ -144,10 +144,23 @@ call(parse(0,T',T)) :- last(T), next(T',T).
 
 % Finally, add the output of out Pratt parser to the AST in the correct place
 
-ast_operation(
-		add(@decompose(theory_function(UT,Name,Args)));
-		replace(theory_unparsed_term(UT),theory_function(UT)))
+
+parsed(@decompose(theory_function(UT,Name,Args)))
   :- return(parse(0,T',T),(_,theory_function_(Name,Args))),
 		 last(T), next(T',T),
 		 theory_unparsed_term_elements(E,_,_,T),
 		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)).
+
+ast(add(A)) :- parsed(A).
+
+ast(replace(theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
+						theory_function(UT,Name,A)))
+  :- return(parse(0,T',T),(_,theory_function_(Name,Args))),
+		 last(T), next(T',T),
+		 theory_unparsed_term_elements(E,_,_,T),
+		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
+		 parsed(theory_function(UT,Name,A)).
+
+%% theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
+%% 		 parsed(theory_function(UT,Name,A)).
+

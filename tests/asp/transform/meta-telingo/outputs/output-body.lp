@@ -10,12 +10,12 @@ j(X) :- next(wprev(k(X))).
 #program base.
 #false :- final; n.
 #program base.
-#external final. [false]
-#external next(wprev(k(X))). [false]
-#external until(c,prev(d)). [false]
+#external prev(h(Y)) : h(Y); i(X). [false]
+#external next(d(Y)) : d(Y); e(X). [false]
+#external until(b(X),next(c((X+Y)))) : d(Y); e(X). [false]
+#external initial. [false]
+#external initial. [false]
 #external prev(prev(b)). [false]
-#external initial. [false]
-#external initial. [false]
-#external until(b(X),next(c((X+Y)))) : e(X); d(Y). [false]
-#external next(d(Y)) : e(X); d(Y). [false]
-#external prev(h(Y)) : i(X); h(Y). [false]
+#external until(c,prev(d)). [false]
+#external next(wprev(k(X))). [false]
+#external final. [false]

@@ -19,7 +19,7 @@ max_lit_index(LT,Idx)
 
 
 %% the transformation itself
-ast_operation(
+ast(
 		add((body_literals(LT,N+1,body_literal(new_id(LT,0)));
 				 body_literal(new_id(LT,0),"not",symbolic_atom(new_id(LT,1)));
 				 symbolic_atom(new_id(LT,1),function(new_id(LT,2)));

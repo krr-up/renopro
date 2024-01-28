@@ -25,7 +25,7 @@ first_prev(A,F) :- prev_chain(A,F,O), not prev_chain(A,_,F).
 % when an symbolic_atom is not prev.
 
 % add time point constant as additional argument
-ast_operation(
+ast(
 		add(terms(T,N+1,function(new_id(T)));
 				function(new_id(T),t,terms(new_id(T)))))
 :- symbolic_atom(A,function(F)), function(F,Name,terms(T)),
@@ -35,12 +35,12 @@ ast_operation(
 
 % replace function symbol of symbolic_atom with final operand, appending
 % appropriate time point as additional argument.
-ast_operation(
+ast(
 		delete(function(F,N,T1));
 		add(function(F,Name,terms(T2));
-				 terms(T2,I+1,binary_operation(new_id(O)));
-				 binary_operation(new_id(O),"-",function(new_id(O)),number(new_id(O)));
-				 function(new_id(O),t,terms(new_id(O)));
-				 number(new_id(O),Num)))
+				terms(T2,I+1,binary_operation(new_id(O)));
+				binary_operation(new_id(O),"-",function(new_id(O)),number(new_id(O)));
+				function(new_id(O),t,terms(new_id(O)));
+				number(new_id(O),Num)))
 :- first_prev(A,function(F)), function(F,N,T1), final_operand(A,function(O)),
 	 function(O,Name,terms(T2)),  max_arg_index(T2,I), num_prevs(A,Num).

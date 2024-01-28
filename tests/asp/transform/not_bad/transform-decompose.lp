@@ -17,7 +17,7 @@
 max_lit_index(LT,Idx)
 :- Idx = #max{ P : body_literals(LT,P,_); -1 }, rule(_,_,body_literals(LT)).
 
-ast_operation(add(
+ast(add(
 	@decompose(
 			body_literals_(
 					LT,N+1,body_literal_(

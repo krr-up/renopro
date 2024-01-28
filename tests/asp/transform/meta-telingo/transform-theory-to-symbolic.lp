@@ -16,7 +16,7 @@ tel_theory_atom_terms(TTS,Loc)
 
 % each tel theory atom element should should have a single function or
 % theory function in it's term tuple, as we rewrite elements as
-% conditional literals, and these may only have one literal in their
+% conditional literals or body literals, and these may only have one literal in their
 % head.
 #show log("error","{}: The term tuple of tel theory atom elements must contain a single (temporal) formula.",Loc)
   : tel_theory_atom_terms(TTS,Loc), theory_terms(TTS,0,X), #false: X=theory_function(_);
@@ -39,23 +39,15 @@ tel_root_term_desc(Term,Child') :- tel_root_term_desc(Term,Child), child(Child,C
 % Due to the way theory parsing is implemented upstream, we know that
 % theory function names can syntactically be operators if they are
 % defined tel theory operators
-ast_operation(
-		delete(theory_function(TF,Name,theory_terms(TTS));
-					 theory_terms(TTS,P,TT));
-		add(function(TF,SName,terms(TTS));
-			  terms(TTS,P,TT));
-		replace(theory_function(TF),function(TF))
+ast(replace(theory_function(TF,Name,theory_terms(TTS)),function(TF,SName,terms(TTS));
+					  theory_terms(TTS,P,TT),terms(TTS,P,TT))
 )
   :- tel_root_term_desc(Term,theory_function(TF)), theory_function(TF,Name,theory_terms(TTS)), 
 		 theory_terms(TTS,P,TT),
 		 arity(TF,Arity), theory_opertor2symbol(Name,Arity,SName).
 
-ast_operation(
-		delete(theory_function(TF,Name,theory_terms(TTS));
-					 theory_terms(TTS,P,TT));
-		add(function(TF,Const,terms(TTS));
-			  terms(TTS,P,TT));
-		replace(theory_function(TF),function(TF))
+ast(replace(theory_function(TF,Name,theory_terms(TTS)),function(TF,Const,terms(TTS));
+					  theory_terms(TTS,P,TT),terms(TTS,P,TT))
 )
   :- tel_root_term_desc(Term,theory_function(TF)), theory_function(TF,Name,theory_terms(TTS)),
 		 theory_terms(TTS,P,TT),
@@ -71,10 +63,11 @@ ast_operation(
 		theory_atom(A,_,theory_atom_elements(E),_),
 		#count{ P: theory_atom_elements(E,P,_,_) } > 1.
 
-ast_operation(
-		replace(body_literal(BL),conditional_literal((A,1)));
-		add(conditional_literal((A,1),literal((A,2)),literals(LS));
-				literal((A,2),Sign,symbolic_atom((A,3)));
+% body case
+
+ast(replace(body_literal(BL,Sign,theory_atom(A)),
+				    conditional_literal((A,1),literal((A,2)),literals(LS)));
+		add(literal((A,2),Sign,symbolic_atom((A,3)));
 			  symbolic_atom((A,3),function(F)))
 )
   :- body_literals(BLS,P,body_literal(BL)),
@@ -84,10 +77,9 @@ ast_operation(
      theory_terms(TS,0,RootTerm), tel_root_term_id(RootTerm,F),
      literals(LS,_,_).
 
-ast_operation(
-		delete(body_literal(BL,Sign,theory_atom(A)));
-		add(body_literal(BL,Sign,symbolic_atom((A,1)));
-			  symbolic_atom((A,1),function(F)))
+ast(replace(body_literal(BL,Sign,theory_atom(A)),
+					  body_literal((A,0),Sign,symbolic_atom((A,1))));
+		add(symbolic_atom((A,1),function(F)))
 )
   :- body_literals(BLS,P,body_literal(BL)),
 		 body_literal(BL,Sign,theory_atom(A)), tel_theory_atom(A,_), 
@@ -96,15 +88,16 @@ ast_operation(
      theory_terms(TS,0,RootTerm), tel_root_term_id(RootTerm,F),
      not literals(LS,_,_).
 
-ast_operation(
-		replace(theory_atom(A),disjunction((A,1)));
-		add(disjunction((A,1),conditional_literals((A,2)));
-			  conditional_literals((A,2),P,conditional_literal((A,3,P)));
+% head case
+
+ast(replace(theory_atom(A,Func,theory_atom_elements(E),Guard),
+						disjunction((A,1),conditional_literals((A,2))));
+		add(conditional_literals((A,2),P,conditional_literal((A,3,P)));
 			  conditional_literal((A,3,P),literal((A,4,P)),literals(LS));
 				literal((A,4,P),"pos",symbolic_atom((A,5)));
 			  symbolic_atom((A,5),function(F)))
 )
   :- rule(_,theory_atom(A),_), tel_theory_atom(A,_),
-		 theory_atom(A,_,theory_atom_elements(E),_),
+		 theory_atom(A,Func,theory_atom_elements(E),Guard),
      theory_atom_elements(E,P,theory_terms(TS),literals(LS)),
      theory_terms(TS,0,RootTerm), tel_root_term_id(RootTerm,F).

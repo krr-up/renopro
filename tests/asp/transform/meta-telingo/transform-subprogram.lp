@@ -2,7 +2,7 @@
 
 
 % move all the temporal subprograms into the base subprogram
-ast_operation(
+ast(
 		delete(program(P,X,constants(CS),statements(STS)));
 		add(program(P,"base",constants(CS),statements(STS))))
   :- program(P,X,constants(CS),statements(STS)), not constants(CS,_,_),
@@ -13,7 +13,7 @@ body_program(BLS,X)
   :- program(_,X,constants(CS),statements(STS)), not constants(CS,_,_), statements(STS,_,Statement),
 		 child(Statement,body_literals(BLS)), X=("initial";"dynamic";"always";"final").
 
-ast_operation(
+ast(
 		add(body_literals(BLS,-1,body_literal(BLS));
 			 body_literal(BLS,"pos",symbolic_atom(BLS));
 			 symbolic_atom(BLS,function(BLS));
@@ -21,7 +21,7 @@ ast_operation(
 )
   :- body_program(BLS,"initial").
 
-ast_operation(
+ast(
 		add(body_literals(BLS,-1,body_literal(BLS));
 			 body_literal(BLS,"pos",symbolic_atom(BLS));
 			 symbolic_atom(BLS,function(BLS));
@@ -29,7 +29,7 @@ ast_operation(
 )
   :- body_program(BLS,"final").
 
-ast_operation(
+ast(
 		add(body_literals(BLS,-1,body_literal(BLS));
 			 body_literal(BLS,"not",symbolic_atom(BLS));
 			 symbolic_atom(BLS,function(BLS));
@@ -39,7 +39,7 @@ ast_operation(
 
 % since there will be a downstream meta-encoding, construct the
 % child relation for the new ast elements.
-ast_operation(
+ast(
 		add(child(body_literals(BLS),body_literal(BLS));
 			  child(body_literal(BLS),symbolic_atom(BLS));
 			  child(symbolic_atom(BLS),function(BLS)))

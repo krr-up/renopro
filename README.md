@@ -74,7 +74,7 @@ to reified facts or a reflected program via --input-format/-i and
 --output-format/-o, respectively.
 
 ```shell
-$ echo "ast_operation(delete(function(Id,a,Terms));add(function(Id,b,Terms))) :- function(Id,a,Terms)." > meta.lp
+$ echo "ast(delete(function(Id,a,Terms));add(function(Id,b,Terms))) :- function(Id,a,Terms)." > meta.lp
 $ echo "a." | renopro transform -m meta.lp
 #program base.
 b.

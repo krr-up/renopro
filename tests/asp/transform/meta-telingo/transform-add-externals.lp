@@ -119,31 +119,31 @@ root_op2extern_cond(Func,Sign,Func'')
 		 root_op2safe_leaf_operand(Func',Func'').
 
 % create a base subprogram under which the external will be added.
-ast_operation(
+ast(
 		add(program(externals,"base",constants(externals),statements(externals)))
 ).
 
 % head of external condition in head operator case.
-ast_operation(
+ast(
 		add(statements(externals,0,external(Operand));
 				external(Operand,symbolic_atom(Operand),body_literals(Func),false);
 				symbolic_atom(Operand,Operand)))
   :- head_root_op(Func), root_op2leaf_operand(Func,Operand).
 % head of external condition in body operator case.
-ast_operation(
+ast(
 		add(statements(externals,0,external(Func));
 				external(Func,symbolic_atom(Func),body_literals(Func),false);
 				symbolic_atom(Func,Func)))
   :- body_root_op(Func).
 % body of external condition in all cases but when we have a propositional body operator.
-ast_operation(
+ast(
 		add(body_literals(Func,0,body_literal(Func'));
 				body_literal(Func',Sign,symbolic_atom(Func'));
 				symbolic_atom(Func',Func')))
   :- root_operator(Func), root_op2extern_cond(Func,Sign,Func'), 
 		 #false : not has_var(Func), body_root_op(Func).
 % body of external condition when we have a propositional body operator.
-ast_operation(
+ast(
 		add(body_literals(Func,0,body_literal(Func'));
 				body_literal(Func',Sign,symbolic_atom(Func'));
 				symbolic_atom(Func',Func')))
