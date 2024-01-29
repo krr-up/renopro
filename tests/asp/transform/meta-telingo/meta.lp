@@ -1,4 +1,4 @@
-% Define one world for each time point.
+%  one world for each time point.
 
 conjunction(B,T) :- literal_tuple(B), time(T),
         hold(L,T) : literal_tuple(B, L), L > 0;
@@ -12,7 +12,7 @@ body(normal(B),T) :- rule(_,normal(B)), conjunction(B,T), time(T).
   hold(A,T) : atom_tuple(H,A)   :- rule(disjunction(H),B), body(B,T), time(T).
 { hold(A,T) : atom_tuple(H,A) } :- rule(     choice(H),B), body(B,T), time(T).
 
-time(0..horizon).
+time(0..lambda-1).
 
 % Only show formulas s for which we have a show statement #show show(s). in the input program
 
@@ -44,116 +44,93 @@ true(O,T) :- time(T), output(O,B), not literal_tuple(B,_).
 
 % top level formulas
 formula(O) :- output(O,_).
+% mark subformulas as formulas
+formula(F;G) :- formula(and(F,G);or(F,G);until(F,G);since(F,G)).
+formula(F) :- formula(neg(F);next(F);prev(F)).
 
-% true always holds, false never does.
-
+% true/0
 true(true,T) :- formula(true), time(T).
+
+% false/0
 :- formula(false), time(T), true(false,T).
 
-% define and, or operators
-formula((F;G)) :- formula(and(F,G);or(F,G)).
-
+% and/2 
 true(and(F,G),T) :- formula(and(F,G)), true(F,T), true(G,T).
 true((F;G),T) :- formula(and(F,G)), true(and(F,G),T).
 
+% or/2
 true(or(F,G),T) :- formula(or(F,G)), true((F;G),T).
 true(F,T);true(G,T) :- formula(or(F,G)), true(or(F,G),T).
 
-% define neg operator - behaves as default negation
-formula(F) :- formula(neg(F)).
+% neg/1 (default negation)
 true(neg(F),T) :- formula(neg(F)), time(T), not true(F,T).
 not true(F,T) :- formula(neg(F)), true(neg(F),T).
 
-% define nullary initial
-true(initial,0) :- formula(initial).
-T=0 :- true(initial,T), formula(initial).
+% initial/0
+true(initial,T) :- formula(initial), T=0.
+:- true(initial,T), formula(initial), T!=0.
 
-% define nullary final.
-true(final,horizon) :- formula(final).
-T=horizon :- true(final,T), formula(final).
+% final/0.
+true(final,T) :- formula(final), T=lambda-1.
+:- true(final,T), formula(final), T!=lambda-1.
 
 % the define predicates allow us to define an operator in terms of an
 % already defined operator
-
 formula(F2) :- define(F1,F2), formula(F1).
 true(F2,T) :- define(F1,F2), true(F1,T).
 true(F1,T) :- define(F1,F2), true(F2,T).
 
-end(-1,0).
-end(1,horizon).
+% next/1
+true(F,T+1): time(T+1) :- formula(next(F)), true(next(F),T).
+true(next(F),T) :- true(F,T+1), formula(next(F)), time(T).
 
-% define _bidir_next(F,D). It is a "next" operator that works
-% _bidirectionally in time, with the next and previous operators being
-% special cases of the operator. F gives the inner formula.  D denotes
-% the direction we're looking: D=1 means we're looking towards the
-% future, and gives us the next operator.  D=-1 means we're looking
-% towards the past, and gives us the previous operator.
+% prev/1
+true(F,T-1): time(T-1) :- formula(prev(F)), true(prev(F),T).
+true(prev(F),T) :- true(F,T-1), formula(prev(F)), time(T).
 
-formula(F) :- formula(_bidir_next(F,_)).
-
-true(F,T+D) : time(T+D)
-  :- formula(_bidir_next(F,D)), true(_bidir_next(F,D),T), time(T).
-true(_bidir_next(F,D),T)
-  :- true(F,T+D), formula(_bidir_next(F,D)), time(T), time(T+D).
-
-% define derived operators
-
-% prev
-define(prev(F),_bidir_next(F,-1)) :- formula(prev(F)).
-% wprev
+% wprev/1
 define(wprev(F),or(prev(F),initial)) :- formula(wprev(F)).
-% next
-define(next(F),_bidir_next(F,1)) :- formula(next(F)).
-% wnext
+
+% wnext/1
 define(wnext(F),or(next(F),final)) :- formula(wnext(F)).
 
-% define _bidir_until(L,R,D). It is a generalization of the until and
-% since operators D denotes the direction we're looking: D=1 means
-% we're looking towards the future, and gives us until.  D=-1 means
-% we're looking towards the past, and gives us since.
+% until/2
+true(until(L,R),(T,J)): T<=J, time(J)
+  :- formula(until(L,R)), true(until(L,R),T), time(T).
+true(until(L,R),T)
+  :- formula(until(L,R)), true(until(L,R),(T,_)).
 
-formula((L;R)) :- formula(_bidir_until(L,R,_)).
+true(L,K) :- true(until(L,R),(T,J)), K=T..J-1.
+true(R,J) :- true(until(L,R),(T,J)).
+true(until(L,R),(T,J))
+  :- formula(until(L,R)), time(T), time(J), T<=J, true(R,J), 
+     true(L,K) : K=T..J-1.
 
-_true(_bidir_until(L,R,D),T,J) : end(D,E), M=|E-T|, J=0..M
-  :- formula(_bidir_until(L,R,D)), true(_bidir_until(L,R,D),T), 
-		 time(T).
-true(_bidir_until(L,R,D),T)
-  :- formula(_bidir_until(L,R,D)), _true(_bidir_until(L,R,D),T,_).
+% since/2.
+true(since(L,R),(T,J)): J<=T, time(J)
+  :- formula(since(L,R)), true(since(L,R),T), time(T).
+true(since(L,R),T)
+  :- formula(since(L,R)), true(since(L,R),(T,_)).
 
-true(L,K) :- _true(_bidir_until(L,R,D),T,J), I=0..J-1, K=T+D*I, time(K).
-true(R,T+D*J) :- _true(_bidir_until(L,R,D),T,J).
-_true(_bidir_until(L,R,D),T,J)
-  :- formula(_bidir_until(L,R,D)), time(T), end(D,E), M=|E-T|, J=0..M, true(R,T+D*J), 
-     true(L,K) : I=0..J-1, K=T+D*I.
+true(L,K) :- true(since(L,R),(T,J)), K=J+1..T.
+true(R,J) :- true(since(L,R),(T,J)).
+true(since(L,R),(T,J))
+  :- formula(since(L,R)), time(T), time(J), J<=T, true(R,J), 
+     true(L,K) : K=J+1..T.
 
-% until.
-define(until(L,R),_bidir_until(L,R,1)) :- formula(until(L,R)).
-% eventually
+% eventually/1
 define(eventually(F),until(true,F)) :- formula(eventually(F)).
-% since
-define(since(L,R),_bidir_until(L,R,-1)) :- formula(since(L,R)).
-% eventually_before
+% eventually_before/1
 define(eventually_before(F),since(true,F)) :- formula(eventually_before(F)).
 
-% define _bidir_release(L,R,D). It is a generalization of release and trigger.
-% D denotes the direction we're looking:
-% D=1 means we're looking towards the future, and gives us release.
-% D=-1 means we're looking towards the past, and gives us trigger.
-
-% note: these equivalences to not hold in the infinite case, see
-define(_bidir_release(L,R,1),_bidir_until(R,and(R,or(L,final)),1))
-  :- formula(_bidir_release(L,R,1)).
-define(_bidir_release(L,R,-1),_bidir_until(R,and(R,or(L,initial)),-1))
-  :- formula(_bidir_release(L,R,-1)).
-
 % define derived operators
-% release
-define(release(L,R),_bidir_release(L,R,1)) :- formula(release(L,R)).
-% always
+% release/2
+define(release(L,R),until(R,and(R,or(L,final)))) :- formula(release(L,R)).
+% always/1
 define(always(F),release(false,F)) :- formula(always(F)).
-% trigger
-define(trigger(L,R),_bidir_release(L,R,-1)) :- formula(trigger(L,R)).
-% always_before
+% trigger/2
+define(trigger(L,R),since(R,and(R,or(L,initial)))) :- formula(trigger(L,R)).
+% always_before/1
 define(always_before(F),trigger(false,F)) :- formula(always_before(F)).
 
 % suppress warning messages for missing reified output atoms
