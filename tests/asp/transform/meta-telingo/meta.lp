@@ -13,15 +13,8 @@ body(normal(B),T) :- rule(_,normal(B)), conjunction(B,T), time(T).
 { hold(A,T) : atom_tuple(H,A) } :- rule(     choice(H),B), body(B,T), time(T).
 
 time(0..lambda-1).
-
-% Only show formulas s for which we have a show statement #show show(s). in the input program
-
-#show.
-#show (S,T) : output(show(S),_), true(S,T).
-
 %
 % true(O,T) tells us that formula O holds at time point T.
-%
 % The implicit show statements (everything is shown unless #show. is
 % in the program) give us one output(O,B) with literal tuple B
 % containing 1 element L for each atom occurring in the input
@@ -29,16 +22,13 @@ time(0..lambda-1).
 % time point T as true(O,T) via hold(L,T). Note that O here is the
 % symbolic representation of the atom, allowing us to also define the
 % truth value of nested formulas.
-% 
 
 true(O,T) :- hold(L,T), output(O,B), literal_tuple(B,L).
 hold(L,T) :- true(O,T), output(O,B), literal_tuple(B,L).
 
-%
 % The next rule is also needed to represent the facts O of the input
 % logic program, for which clingo generates output(O,0) and no
 % literal_tuple of the form literal_tuple(0,L)
-%
 
 true(O,T) :- time(T), output(O,B), not literal_tuple(B,_).
 
@@ -47,6 +37,23 @@ formula(O) :- output(O,_).
 % mark subformulas as formulas
 formula(F;G) :- formula(and(F,G);or(F,G);until(F,G);since(F,G)).
 formula(F) :- formula(neg(F);next(F);prev(F)).
+% distinguish operator formulas
+not_atom(X) 
+  :- formula(X), 
+		 X=(true;false;initial;final;neg(_);next(_);prev(_);wprev(_);wnext(_);
+				eventually(_);eventually_before(_);always(_);always_before(_);
+				and(_,_);or(_,_);until(_,_);since(_,_);release(_,_);trigger(_,_)).
+
+#show.
+% Show all atomic formulas by default.
+#show (F,T) : formula(F), not not_atom(F), true(F,T), not output(show,_).
+% #show show. in the input program is interpreted similarly as #show. in plain ASP,
+% hiding all output, except for terms t specifically marked to be shown via a
+% #show show(t). statement
+#show (S,T) : output(show(S),_), true(S,T), output(show,_).
+
+
+%%% definitions of operators
 
 % true/0
 true(true,T) :- formula(true), time(T).
