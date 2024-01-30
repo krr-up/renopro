@@ -1,10 +1,4 @@
 * Decompose function should generate locations, in case downstream meta-encodings rely on it
 
-* Examine existing metaprogramming applications
 
-- HTLB
-- TLHTC
-- meta-telingo
-- Deontic logic
-- plingo meta encoding
-- unsat stuff with Susana
+* Fix meta-telingo external generation to handle pools and intervals as well.
