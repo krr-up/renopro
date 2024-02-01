@@ -34,13 +34,21 @@ location(function(F),Begin,End), Name, Arity)
     N=#count{ Operand: operand(function(F),Operand,_) },
 		N < Arity, func_arity(F,Arity), location(function(F),Begin,End).
 
+% conditionals are not supported
+#show log("error", "{}: Conditionals are not supported.", location(conditional_literal(L),Begin,End))
+  : conditional_literal(L,_,LS), literals(LS,_,literal(L)), literal(L,_,_),
+    location(conditional_literal(L),Begin,End).
+
+#show log("error", "{}: Conditional literals, aggregates and theory atoms are not supported.", 
+					location(body_aggregate(B),Begin,End))
+  : body_aggregate(B,_,_,,_), location(body_aggregate(B),Begin,End).
+
+#show log("error", "{}: Conditional literals, aggregates and theory atoms are not supported.", 
+					location(theory_atom(A),Begin,End))
+  : theory_atom(A,_,_,_), location(theory_atom(A),Begin,End).
+
 root_operator(Func)
   :- operator(Func), symbolic_atom(_,Func).
-
-desc_root_op(Func,Child) :- root_operator(Func), child(Func,Child).
-desc_root_op(Func,Child') :- desc_root_op(Func,Child), child(Child,Child').
-has_var(Func) :- desc_root_op(Func,variable(V)).
-
 
 operand_from_root(Root,Operand,Safety)
   :- root_operator(Root), operand(Root,Operand,Safety).
@@ -57,23 +65,17 @@ atom_sign(A,Sign)
   :- body_literal(_,Sign,symbolic_atom(A)), symbolic_atom(A,_).
 
 % determine which root operators occur in the head vs the body
-possible_head_root_op(Func)
-  :- root_operator(Func), symbolic_atom(S,Func), literal(L,_,symbolic_atom(S)),
-     not literals(_,_,literal(L)).
-% heads of conditional literals in the body of a rule are not
-% cosidered head operators.
--head_root_op(Func)
-  :- root_operator(Func), symbolic_atom(S,Func), literal(L,_,symbolic_atom(S)),
-     conditional_literal(CL,literal(L),_), 
-		 child((body_literals(_);aggregate_elements(_)),conditional_literal(CL)).
-% Head atoms that are negated or double negated are just body atoms in disguise
-%
+
+% negated or double negated head literals are shifted to the body with
+% an additional negation, so they are not really head literals, thus
+% we consider only positive ones.
+
 % todo: show that we can shift them to the body and add an additional
 % negation in the QTHT case as well, as clingo does this during
 % grounding, so we need to actually prove that it is correct.
--head_root_op(Func) :- root_operator(Func), func_sign(Func,(("not";"not not"))).
-head_root_op(Func) 
-  :- possible_head_root_op(Func), not -head_root_op(Func).
+head_root_op(Func)
+  :- root_operator(Func), symbolic_atom(S,Func), literal(L,"pos",symbolic_atom(S)),
+     not literals(_,_,literal(L)).
 body_root_op(Func) :- not head_root_op(Func), root_operator(Func).
 
 % positive atoms in the body that are not operators are safe atomic (sub)formulae
@@ -81,8 +83,8 @@ safe_atomic_subformula(Func,Func)
   :- symbolic_atom(A,Func), not root_operator(Func), atom_sign(A,"pos").
 % the safe leaf operands of positive operators are safe atomic subformulae
 safe_atomic_subformula(Func,Func')
-  :- symbolic_atom(A,Func), root_operator(Func), 
-		 atom_sign(A,"pos"), leaf_operand_from_root(Func,Func',safe).
+  :- symbolic_atom(A,Func), root_operator(Func), atom_sign(A,"pos"),
+		 leaf_operand_from_root(Func,Func',safe).
 
 % Map operators to atoms they are to be conditioned on.
 
@@ -95,26 +97,6 @@ root_op2extern_cond(Func,Func'')
 		 desc_stm(Statement,body_literal(BL)), body_literal(BL,"pos",symbolic_atom(S)),
      symbolic_atom(S,Func'), safe_atomic_subformula(Func',Func'').
 
-% todo: throw error of there is a conditional in the program, as this
-% is not supported, since we don't have a proof of correctness.
-%
-%
-%% If the operator is part of a condition (as head or as body), we also
-%% include the condition in the set of external conditions. Probably
-%% leave this out of the thesis as we have no proof of correctness for
-%% conditions.
-root_op2extern_cond(Func,Func'')
-  :- root_operator(Func), symbolic_atom(S,Func), literal(L,_,symbolic_atom(S)),
-		 conditional_literal(_,literal(L),literals(LS)), literals(LS,_,literal(L')),
-     literal(L',"pos",symbolic_atom(S')), symbolic_atom(S',Func'), 
-		 safe_atomic_subformula(Func',Func'').
-
-root_op2extern_cond(Func,Func'')
-  :- root_operator(Func), symbolic_atom(S,Func), literal(L,_,symbolic_atom(S)),
-		 literals(LS,_,literal(L)), literals(LS,_,literal(L')),
-     literal(L',Sign,symbolic_atom(S')), symbolic_atom(S',Func'), 
-		 safe_atomic_subformula(Func',Func'').
-
 
 % create a base subprogram under which the external will be added.
 ast(add(program(externals,"base",constants(externals),statements(externals)))).
@@ -122,7 +104,7 @@ ast(add(program(externals,"base",constants(externals),statements(externals)))).
 % head of external condition in head operator case.
 %
 % todo: check proof that it is enough to find leaf operands that are not in
-% the scope of negation.
+% the scope of negation, and only add those is so.
 ast(add(statements(externals,pos(Func,Operand),external(Operand));
 				external(Operand,symbolic_atom(Operand),body_literals(Func),false);
 				symbolic_atom(Operand,Operand)))
@@ -136,6 +118,10 @@ ast(add(statements(externals,pos(Func),external(Func));
 
 % body of external condition 
 % when we have a propositional operator in the body, we leave the condition empty
+desc_root_op(Func,Child) :- root_operator(Func), child(Func,Child).
+desc_root_op(Func,Child') :- desc_root_op(Func,Child), child(Child,Child').
+has_var(Func) :- desc_root_op(Func,variable(V)).
+
 ast(add(body_literals(Func,pos(Func'),body_literal(Func'));
 				body_literal(Func',"pos",symbolic_atom(Func'));
 				symbolic_atom(Func',Func')))

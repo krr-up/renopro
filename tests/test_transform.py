@@ -280,6 +280,14 @@ class TestTransformMetaTelingo(TestTransform):
             self.files_dir / "outputs" / "output-head.lp"
         )
 
+    def test_transform_meta_telingo_externals_no_cond(self):
+        """Test emission of external statements when we do not allow conditionals."""
+        self.assertTransformEqual(
+            [self.files_dir / "inputs" / "input-no-cond.lp"],
+            [[self.files_dir / "transform-add-externals.lp"]],
+            self.files_dir / "outputs" / "output-no-cond.lp"
+        )
+
     def test_transform_meta_telingo_theory_validation(self):
         """Test validation of theory terms in telingo theory atom elements."""
         self.assertTransformLogs(
