@@ -57,5 +57,6 @@ ast(fact(theory_term_definitions(X0,X1,X2,X3))) :- theory_term_definitions(X0,X1
 ast(fact(theory_guard_definition(X0,X1,X2))) :- theory_guard_definition(X0,X1,X2).
 ast(fact(theory_atom_definitions(X0,X1,X2,X3,X4,X5,X6))) :- theory_atom_definitions(X0,X1,X2,X3,X4,X5,X6).
 ast(fact(theory_definition(X0,X1,X2,X3))) :- theory_definition(X0,X1,X2,X3).
+ast(fact(comment(X0,X1,X2))) :- comment(X0,X1,X2).
 ast(fact(location(X0,X1,X2))) :- location(X0,X1,X2).
 ast(fact(child(X0,X1))) :- child(X0,X1).

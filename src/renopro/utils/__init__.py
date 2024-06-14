@@ -1,6 +1,7 @@
 """
 Utilities.
 """
+
 from typing import NoReturn
 
 

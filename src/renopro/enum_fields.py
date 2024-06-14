@@ -2,8 +2,9 @@
 import enum
 import inspect
 from types import new_class
-from typing import Type, TypeVar, Any
+from typing import Any, Type, TypeVar
 
+from clingo.ast import CommentType
 from clorm import BaseField, ConstantField, StringField
 
 
@@ -217,4 +218,15 @@ class TheoryAtomType(str, enum.Enum):
 
 TheoryAtomTypeField = define_enum_field(
     parent_field=ConstantField, enum_class=TheoryAtomType, name="TheoryAtomTypeField"
+)
+
+
+class CommentType(str, enum.Enum):
+    "String enum of clingo's comment types."
+    Line = "line"
+    Block = "block"
+
+
+CommentTypeField = define_enum_field(
+    parent_field=StringField, enum_class=CommentType, name="CommentTypeField"
 )

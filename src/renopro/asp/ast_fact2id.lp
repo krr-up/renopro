@@ -171,4 +171,7 @@ ast_fact2id(theory_atom_definitions(X0,X1,X2,X3,X4,X5,X6),theory_atom_definition
 ast_fact2id(theory_definition(X0,X1,X2,X3),theory_definition(X0))
   :- ast(fact(theory_definition(X0,X1,X2,X3));add(theory_definition(X0,X1,X2,X3));delete(theory_definition(X0,X1,X2,X3))).
 
+ast_fact2id(comment(X0,X1,X2),comment(X0))
+  :- ast(fact(comment(X0,X1,X2));add(comment(X0,X1,X2));delete(comment(X0,X1,X2))).
+
 ast_fact2id(location(Id,Begin,End),Id) :- ast(fact(location(Id,Begin,End));add(location(Id,Begin,End));delete(location(Id,Begin,End))).

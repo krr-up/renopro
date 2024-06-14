@@ -1,6 +1,7 @@
 """
 The main entry point for the application.
 """
+
 from renopro.rast import ReifiedAST
 
 from .utils.logger import setup_logger
@@ -35,9 +36,7 @@ def main():
         elif args.input_format == "reflected":
             rast.reify_files(args.infiles)
         for meta_encoding in args.meta_encodings:
-            rast.transform(
-                meta_files=meta_encoding, clingo_options=args.clingo_options
-            )
+            rast.transform(meta_files=meta_encoding, clingo_options=args.clingo_options)
         if args.output_format == "reified":
             print(rast.reified_string)
         elif args.output_format == "reflected":

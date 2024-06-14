@@ -3,7 +3,6 @@
 from itertools import count
 from pathlib import Path
 from unittest import TestCase
-import re
 
 from clingo import ast
 from clorm import FactBase, Predicate, UnifierNoMatchError
@@ -104,13 +103,16 @@ class TestReifyReflect(TestReifiedAST):
     base_str = "#program base.\n"
 
     def assertReifyEqual(
-        self, file_name: str, reify_location: bool = False, reify_child_relation: bool = False
+        self,
+        file_name: str,
+        reify_location: bool = False,
+        reify_child_relation: bool = False,
     ):  # pylint: disable=invalid-name
         """Assert that reification of file_name under reflected_files
         results in file_name under reified_files."""
         reified_file = reified_files / file_name
         reflected_file = reflected_files / file_name
-        reflected_str = reflected_file.read_text().strip()
+        reflected_str = reflected_file.read_text(encoding="utf-8").strip()
         rast1 = ReifiedAST()
         rast1.reify_string(reflected_str)
         reified_facts = rast1.reified_facts
@@ -128,7 +130,7 @@ class TestReifyReflect(TestReifiedAST):
         results in file_name under reflected_files."""
         reified_file = reified_files / file_name
         reflected_file = reflected_files / file_name
-        reflected_str = reflected_file.read_text().strip()
+        reflected_str = reflected_file.read_text(encoding="utf-8").strip()
         rast = ReifiedAST()
         rast.add_reified_files([reified_file])
         rast.reflect()
@@ -272,9 +274,7 @@ class TestReifyReflectErrors(TestReifyReflect):
         same position should fail"""
         rast = ReifiedAST()
         rast.add_reified_files([malformed_reified_files / "multiple_in_same_pos.lp"])
-        regex = (
-            r"(?s).*multiple child facts in the same position.*guards\(7\)"
-        )
+        regex = r"(?s).*multiple child facts in the same position.*guards\(7\)"
         with self.assertRaisesRegex(ChildrenQueryError, expected_regex=regex):
             rast.reflect()
 
@@ -413,3 +413,9 @@ class TestReifyReflectStatements(TestReifyReflect):
     def test_rast_theory_definition(self):
         "Test reification and reflection of a theory definition."
         self.assertReifyReflectEqual("theory_definition.lp")
+
+    def test_rast_comment(self):
+        "Test reification and reflection of comments."
+        self.assertReifyReflectEqual("comment_line.lp")
+        self.setUp()
+        self.assertReifyReflectEqual("comment_block.lp")

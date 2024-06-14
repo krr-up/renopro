@@ -1,9 +1,10 @@
 """Test cases for transformation of AST using a meta-encoding."""
+
 import re
+import unittest
 from itertools import count
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
-import unittest
 from unittest import TestCase
 
 import renopro.predicates as preds
@@ -15,7 +16,9 @@ test_transform_dir = tests_dir / "transform"
 
 class TestTransform(TestCase):
     """Tests for AST transformations defined via a meta-encodings."""
+
     maxDiff = None
+
     def setUp(self):
         # reset id generator between test cases so reification
         # auto-generates the expected integers
@@ -34,7 +37,7 @@ class TestTransform(TestCase):
             rast.transform(meta_files=meta_files)
         rast.reflect()
         transformed_str = rast.program_string.strip()
-        with expected_output_file.open("r") as f:
+        with expected_output_file.open("r", encoding="utf-8") as f:
             expected_str = self.base_str + f.read().strip()
         self.assertEqual(transformed_str, expected_str)
 
@@ -76,7 +79,9 @@ class TestTransform(TestCase):
                     reo = re.compile(message)
                     num_log_matches = len(reo.findall(logs))
                     self.assertEqual(
-                        num_log_matches, expected_num, msg=assert_msg + str(num_log_matches)
+                        num_log_matches,
+                        expected_num,
+                        msg=assert_msg + str(num_log_matches),
                     )
 
     base_str = "#program base.\n"
@@ -174,17 +179,21 @@ class TestTransformTheoryParsing(TestTransform):
         the appropriate theory term type should raise error."""
         self.assertTransformLogs(
             [self.files_dir / "inputs" / "clingo-unknown-operator.lp"],
-            [[
-                self.files_dir / "parse-unparsed-theory-terms.lp",
-                self.files_dir / "inputs" / "clingo-operator-table.lp",
-            ]],
+            [
+                [
+                    self.files_dir / "parse-unparsed-theory-terms.lp",
+                    self.files_dir / "inputs" / "clingo-operator-table.lp",
+                ]
+            ],
             "ERROR",
-            [{
-                r"1:8-19: No definition for operator '\*' of arity '1' found "
-                r"for theory term type 'clingo'\.": 1,
-                r"1:8-19: No definition for operator '~' of arity '2' found "
-                r"for theory term type 'clingo'\.": 1,
-            }],
+            [
+                {
+                    r"1:8-19: No definition for operator '\*' of arity '1' found "
+                    r"for theory term type 'clingo'\.": 1,
+                    r"1:8-19: No definition for operator '~' of arity '2' found "
+                    r"for theory term type 'clingo'\.": 1,
+                }
+            ],
         )
 
     def test_parse_unparsed_theory_terms_clingo(self):
@@ -194,17 +203,17 @@ class TestTransformTheoryParsing(TestTransform):
         """
         self.assertTransformEqual(
             [self.files_dir / "inputs" / "clingo-unparsed-theory-term.lp"],
-            [[
-                self.files_dir / "parse-unparsed-theory-terms.lp",
-                self.files_dir / "inputs" / "clingo-operator-table.lp",
-            ]],
+            [
+                [
+                    self.files_dir / "parse-unparsed-theory-terms.lp",
+                    self.files_dir / "inputs" / "clingo-operator-table.lp",
+                ]
+            ],
             self.files_dir / "outputs" / "clingo-unparsed-theory-term.lp",
         )
 
     def test_parse_theory_terms_clingo(self):
-        """Test that undefined operators are detected correctly.
-
-        """
+        """Test that undefined operators are detected correctly."""
         rast3 = ReifiedAST()
         rast3.add_reified_files(
             [self.files_dir / "inputs" / "clingo-theory-term-unknown-reified.lp"]
@@ -229,11 +238,11 @@ class TestTransformTheoryParsing(TestTransform):
     def test_parse_telingo(self):
         """Test that parsing of telingo theory terms works correctly."""
         self.assertTransformEqual(
-            [self.files_dir / "inputs" / "telingo-unparsed-term.lp",
-             self.files_dir / "inputs" / "telingo-theory-def.lp"],
-            [[
-                self.files_dir / "parse-theory-terms.lp"
-            ]],
+            [
+                self.files_dir / "inputs" / "telingo-unparsed-term.lp",
+                self.files_dir / "inputs" / "telingo-theory-def.lp",
+            ],
+            [[self.files_dir / "parse-theory-terms.lp"]],
             self.files_dir / "outputs" / "telingo-parsed-term.lp",
         )
 
@@ -242,15 +251,15 @@ class TestTransformTheoryParsing(TestTransform):
         context."""
         self.assertTransformLogs(
             [self.files_dir / "inputs" / "bad-occurrences.lp"],
-            [[
-                self.files_dir / "parse-theory-terms.lp"
-            ]],
+            [[self.files_dir / "parse-theory-terms.lp"]],
             "ERROR",
-            [{
-                r":13:2-3: Theory atom found in unexpected context, allowed context: 'head'.": 1,
-                r":14:2-3: Theory atom found in unexpected context, allowed context: 'body'.": 1,
-                r":15:2-3: Theory atom found in unexpected context, allowed context: 'directive'.": 1
-            }],
+            [
+                {
+                    r":13:2-3: Theory atom found in unexpected context, allowed context: 'head'.": 1,
+                    r":14:2-3: Theory atom found in unexpected context, allowed context: 'body'.": 1,
+                    r":15:2-3: Theory atom found in unexpected context, allowed context: 'directive'.": 1,
+                }
+            ],
         )
 
 
@@ -265,9 +274,11 @@ class TestTransformMetaTelingo(TestTransform):
         operators in the body."""
         self.assertTransformEqual(
             [self.files_dir / "inputs" / "input-body.lp"],
-            [[self.files_dir / "transform-subprogram.lp"], 
-             [self.files_dir / "transform-add-externals.lp"]],
-            self.files_dir / "outputs" / "output-body.lp"
+            [
+                [self.files_dir / "transform-subprogram.lp"],
+                [self.files_dir / "transform-add-externals.lp"],
+            ],
+            self.files_dir / "outputs" / "output-body.lp",
         )
 
     def test_transform_meta_telingo_externals_head(self):
@@ -275,9 +286,11 @@ class TestTransformMetaTelingo(TestTransform):
         operators in the head."""
         self.assertTransformEqual(
             [self.files_dir / "inputs" / "input-head.lp"],
-            [[self.files_dir / "transform-subprogram.lp"],
-             [self.files_dir / "transform-add-externals.lp"]],
-            self.files_dir / "outputs" / "output-head.lp"
+            [
+                [self.files_dir / "transform-subprogram.lp"],
+                [self.files_dir / "transform-add-externals.lp"],
+            ],
+            self.files_dir / "outputs" / "output-head.lp",
         )
 
     def test_transform_meta_telingo_externals_no_cond(self):
@@ -285,33 +298,52 @@ class TestTransformMetaTelingo(TestTransform):
         self.assertTransformEqual(
             [self.files_dir / "inputs" / "input-no-cond.lp"],
             [[self.files_dir / "transform-add-externals.lp"]],
-            self.files_dir / "outputs" / "output-no-cond.lp"
+            self.files_dir / "outputs" / "output-no-cond.lp",
         )
 
     def test_transform_meta_telingo_theory_validation(self):
         """Test validation of theory terms in telingo theory atom elements."""
         self.assertTransformLogs(
-            [self.files_dir / "inputs" / "telingo-input-bad-term.lp",
-             test_transform_dir / "theory-parsing" / "inputs" / "telingo-theory-def.lp"],
-            [[test_transform_dir / "theory-parsing" / "parse-theory-terms.lp"],
-             [self.files_dir / "transform-theory-to-symbolic.lp"]],
+            [
+                self.files_dir / "inputs" / "telingo-input-bad-term.lp",
+                test_transform_dir
+                / "theory-parsing"
+                / "inputs"
+                / "telingo-theory-def.lp",
+            ],
+            [
+                [test_transform_dir / "theory-parsing" / "parse-theory-terms.lp"],
+                [self.files_dir / "transform-theory-to-symbolic.lp"],
+            ],
             "ERROR",
-            [{},
-             {r":1:2-5: The term tuple of tel theory atom elements must contain a single \(temporal\) formula.": 1,
-              r":2:2-5: The term tuple of tel theory atom elements must contain a single \(temporal\) formula.": 1,
-              r":3:10-16: Theory sequences not allowed in tel theory atoms, found sequence type \(\).": 1,
-              r":4:5-8: tel theory atoms occurring in the body may only have one element.": 1}])
+            [
+                {},
+                {
+                    r":1:2-5: The term tuple of tel theory atom elements must contain a single \(temporal\) formula.": 1,
+                    r":2:2-5: The term tuple of tel theory atom elements must contain a single \(temporal\) formula.": 1,
+                    r":3:10-16: Theory sequences not allowed in tel theory atoms, found sequence type \(\).": 1,
+                    r":4:5-8: tel theory atoms occurring in the body may only have one element.": 1,
+                },
+            ],
+        )
 
     def test_transform_meta_telingo_theory_to_symbol(self):
         """Test transformation of temporal formulas in theory format to symbolic."""
         self.assertTransformEqual(
-            [self.files_dir / "inputs" / "telingo-input.lp",
-             test_transform_dir / "theory-parsing" / "inputs" / "telingo-theory-def.lp"],
-            [[test_transform_dir / "theory-parsing" / "parse-theory-terms.lp"],
-             [self.files_dir / "transform-theory-to-symbolic.lp"],
-             [self.files_dir / "transform-subprogram.lp"],
-             [self.files_dir / "transform-add-externals.lp"]],
-            self.files_dir / "outputs" / "telingo-output.lp"
+            [
+                self.files_dir / "inputs" / "telingo-input.lp",
+                test_transform_dir
+                / "theory-parsing"
+                / "inputs"
+                / "telingo-theory-def.lp",
+            ],
+            [
+                [test_transform_dir / "theory-parsing" / "parse-theory-terms.lp"],
+                [self.files_dir / "transform-theory-to-symbolic.lp"],
+                [self.files_dir / "transform-subprogram.lp"],
+                [self.files_dir / "transform-add-externals.lp"],
+            ],
+            self.files_dir / "outputs" / "telingo-output.lp",
         )
 
 

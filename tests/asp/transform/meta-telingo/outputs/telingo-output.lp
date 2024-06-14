@@ -1,3 +1,18 @@
+% previous
+% weak previous
+% eventually-
+% always-
+% initially
+% next
+% weak next
+% eventually+
+% always+
+% release
+% until
+% trigger
+% since
+% and
+% or
 #theory tel {
   formula {
     < : 5, unary;

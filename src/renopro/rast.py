@@ -13,15 +13,15 @@ from typing import (
     Callable,
     Dict,
     Iterator,
+    List,
     Literal,
     Optional,
     Sequence,
     Tuple,
     Type,
     Union,
-    overload,
     cast,
-    List,
+    overload,
 )
 
 from clingo import Control, ast, symbol
@@ -167,7 +167,10 @@ class ReifiedAST:
     def __init__(self) -> None:
         self._reified = FactBase()
         self._program_ast: List[AST] = []
-        self._current_statement: Tuple[Optional[preds.IdentifierPredicate], int] = (None, 0)
+        self._current_statement: Tuple[Optional[preds.IdentifierPredicate], int] = (
+            None,
+            0,
+        )
         self._tuple_pos: Iterator[int] = count()
         self._init_overrides()
         self._parent_id_term: Optional[preds.IdentifierPredicate] = None
@@ -771,6 +774,13 @@ class ReifiedAST:
             elif clorm_enum := getattr(field, "enum", None):
                 ast_enum = getattr(ast, clorm_enum.__name__)
                 ast_enum_member = convert_enum(field_val, ast_enum)
+                # temporary fix due to bug in clingo ast CommentType
+                # https://github.com/potassco/clingo/issues/506
+                if ast_enum == ast.CommentType:
+                    if ast_enum_member == ast.CommentType.Block:
+                        ast_enum_member = 1
+                    elif ast_enum_member == ast.CommentType.Line:
+                        ast_enum_member = 0
                 kwargs_dict.update({key: ast_enum_member})
             elif child_type in [str, int]:
                 kwargs_dict.update({key: field_val})
@@ -883,9 +893,11 @@ class ReifiedAST:
                         )
                     level = log_lvl_str2int[log_lvl_symb.string]
                     log_strings = [
-                        location_symb2str(s)
-                        if s.match("location", 3)
-                        else str(s).strip('"')
+                        (
+                            location_symb2str(s)
+                            if s.match("location", 3)
+                            else str(s).strip('"')
+                        )
                         for s in symb.arguments[2:]
                     ]
                     msg_str = msg_format_str.format(*log_strings)

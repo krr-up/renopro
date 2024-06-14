@@ -1,4 +1,3 @@
-%
 &tel{ >? fail(X) } :- &tel { shoot(X) & < <? shoot(X) & <* unloaded(X) }.
 &tel{ shoot(X) & unloaded(X) & > unloaded(X) & > > (unloaded(X) >? < shoot(X)) } 
   :- &tel{ initial & firearm(X) }.

@@ -4,8 +4,9 @@ import inspect
 import re
 from itertools import count
 from types import new_class
-from typing import TYPE_CHECKING, Any, Protocol, Sequence, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Protocol, Sequence, Type, Union
 
+import clingo
 from clingo import Symbol
 from clorm import (
     BaseField,
@@ -22,6 +23,7 @@ from clorm.orm.core import _PredicateMeta
 from renopro.enum_fields import (
     AggregateFunctionField,
     BinaryOperatorField,
+    CommentTypeField,
     ComparisonOperatorField,
     SignField,
     TheoryAtomTypeField,
@@ -84,7 +86,7 @@ def combine_fields(
 # by default we use integer identifiers, but allow arbitrary symbols as well
 # for flexibility when these are user generated
 IntegerOrRawField = combine_fields([IntegerField, RawField], name="IntegerOrRawField")
-IntegerOrRawField = IntegerOrRawField(default=lambda: next(id_count))  # type: ignore
+IntegerOrRawField = IntegerOrRawField(default_factory=lambda: clingo.Number(next(id_count)))  # type: ignore
 
 # Metaclass shenanigans to dynamically create unary versions of AST predicates,
 # which are used to identify child AST facts
@@ -127,8 +129,7 @@ class IdentifierPredicate(Predicate):
 
 
 class IdentifierPredicateConstructor(Protocol):
-    def __call__(self, id: Any = ..., /) -> IdentifierPredicate:
-        ...
+    def __call__(self, id: Any = ..., /) -> IdentifierPredicate: ...
 
 
 class AstPredicate(Predicate, metaclass=_AstPredicateMeta):
@@ -263,7 +264,6 @@ class ExternalFunction(AstPredicate):
 
 
 class Pool(AstPredicate):
-
     """Predicate representing a pool of terms.
 
     id: Identifier of the pool.
@@ -454,7 +454,9 @@ class BooleanConstant(AstPredicate):
 # have a pool argument.
 
 
-FunctionOrPoolField = combine_fields([Function.unary.Field, Pool.unary.Field], name="FunctionOrPoolField")
+FunctionOrPoolField = combine_fields(
+    [Function.unary.Field, Pool.unary.Field], name="FunctionOrPoolField"
+)
 
 
 class SymbolicAtom(AstPredicate):
@@ -1071,6 +1073,18 @@ class TheoryDefinition(AstPredicate):
     atoms = TheoryAtomDefinitions.unary.Field
 
 
+class Comment(AstPredicate):
+    """Predicate representing a comment statement.
+
+    id: The identifier of the comment statement.
+    value: The string value the comment comprises of.
+    comment_type: The type of the comment, "block" or "line"."""
+
+    id = IntegerOrRawField
+    value = StringField
+    comment_type = CommentTypeField
+
+
 StatementField.fields.extend(
     [
         External.unary.Field,
@@ -1079,6 +1093,7 @@ StatementField.fields.extend(
         ProjectAtom.unary.Field,
         ProjectSignature.unary.Field,
         TheoryDefinition.unary.Field,
+        Comment.unary.Field,
     ]
 )
 
@@ -1140,11 +1155,14 @@ AstPreds = (
     TheoryTermDefinitions,
     TheoryGuardDefinition,
     TheoryAtomDefinitions,
-    TheoryDefinition
+    TheoryDefinition,
+    Comment,
 )
 
 
-AstIdentifierTermField = combine_fields([pred.unary.Field for pred in AstPreds], name="AstIdentifierTermField")
+AstIdentifierTermField = combine_fields(
+    [pred.unary.Field for pred in AstPreds], name="AstIdentifierTermField"
+)
 
 
 class Position(ComplexTerm):
@@ -1170,6 +1188,7 @@ class Child(Predicate):
 
     parent = AstIdentifierTermField
     child = AstIdentifierTermField
+
 
 AstPreds = AstPreds + (Location, Child)
 
@@ -1230,9 +1249,10 @@ AstPred = Union[
     TheoryTermDefinitions,
     TheoryGuardDefinition,
     TheoryAtomDefinitions,
+    Comment,
     TheoryDefinition,
     Location,
-    Child
+    Child,
 ]
 
 
@@ -1250,6 +1270,7 @@ SubprogramStatements = (
     ProjectAtom,
     ProjectSignature,
     TheoryDefinition,
+    Comment,
 )
 
 FlattenedTuples = (

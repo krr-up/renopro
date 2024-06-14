@@ -1,4 +1,5 @@
 """Test cases for utilities related to our clorm fact format."""
+
 from unittest import TestCase
 
 from clingo.symbol import String

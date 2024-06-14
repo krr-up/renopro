@@ -57,5 +57,6 @@
 #defined theory_guard_definition/3.
 #defined theory_atom_definitions/7.
 #defined theory_definition/4.
+#defined comment/3.
 #defined location/3.
 #defined child/2.
