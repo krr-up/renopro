@@ -1,6 +1,6 @@
 theory_opertor2symbol(
-  "<",1,prev ; "<:",1,wprev ; "<?",1,eventually_before; "<*",1,always_before ;
-	 ">",1,next ; ">:",1,wnext ; ">?",1,eventually ; ">*",1,always ;
+  "<",1,prev ; "<:",1,weak_prev ; "<?",1,eventually_before; "<*",1,always_before ;
+	 ">",1,next ; ">:",1,weak_next ; ">?",1,eventually_after ; ">*",1,always_after ;
 	 ">*",2,release ; ">?",2,until ; "<*",2,trigger ; "<?",2,since ;
 	 "&",1,keyword_prefix ; "~",1,neg ; "&",2,and ; "|",2,or 
 ).

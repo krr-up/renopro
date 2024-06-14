@@ -4,9 +4,9 @@ car(1). car(2).
 road(lisbon,madrid). road(madrid,paris).
 road(boston,ny). road(ny,nj).
 
-wnext(at(X,A)) :- driveto(X,A).
+weak_next(at(X,A)) :- driveto(X,A).
 driveto(X,B); no_driveto(X,B) :- at(X,A), road(A,B).
-wnext(at(X,A)) :- at(X,A), not no_at(X,A).
+weak_next(at(X,A)) :- at(X,A), not no_at(X,A).
 no_at(X,A) :- at(X,B), A!=B, city(A).
 
 :- at(X,A), at(X,B), A!=B.

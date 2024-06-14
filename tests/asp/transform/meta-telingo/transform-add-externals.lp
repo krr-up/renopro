@@ -1,11 +1,11 @@
 operator_arity((initial;final),0).
-operator_arity((prev;wprev;next;wnext;neg;
-							 always;always_before;eventually;eventually_before),1).
+operator_arity((prev;weak_prev;next;weak_next;neg;
+							 always_after;always_before;eventually_after;eventually_before),1).
 operator_arity((until;since;release;trigger;and;or),2).
 % Naturally, default negation is unsafe.
-% wnext/wprev are unsafe, as they are satisfied in the final/initial time step
+% weak_next/weak_prev are unsafe, as they are satisfied in the final/initial time step
 % even if their operand is not.
-arg((wprev;wnext),0,unsafe).
+arg((weak_prev;weak_next),0,unsafe).
 % the left operand of binary temporal operators are considered unsafe,
 % as they can be satisfied even if their left operand is not.
 arg((until;since;release;trigger),0,unsafe).

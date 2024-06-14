@@ -8,5 +8,5 @@ l :- m.
 e :- prev(prev(b)), until(c,prev(d)).
 a(X) :- until(b(X),next(c(X+Y))) : next(d(Y)); e(X).
 f(X) :- #sum{1:prev(h(Y))} > 3, i(X).
-j(X) :- next(wprev(k(X))).
+j(X) :- next(weak_prev(k(X))).
 

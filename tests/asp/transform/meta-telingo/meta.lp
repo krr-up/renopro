@@ -38,10 +38,10 @@ formula(O) :- output(O,_).
 formula(F;G) :- formula(and(F,G);or(F,G);until(F,G);since(F,G)).
 formula(F) :- formula(neg(F);next(F);prev(F)).
 % distinguish operator formulas
-not_atom(X) 
+not_atom(X)
   :- formula(X), 
-		 X=(true;false;initial;final;neg(_);next(_);prev(_);wprev(_);wnext(_);
-				eventually(_);eventually_before(_);always(_);always_before(_);
+		 X=(true;false;initial;final;neg(_);next(_);prev(_);weak_prev(_);weak_next(_);
+				eventually_after(_);eventually_before(_);always_after(_);always_before(_);
 				and(_,_);or(_,_);until(_,_);since(_,_);release(_,_);trigger(_,_)).
 
 #show.
@@ -95,46 +95,46 @@ true(next(F),T) :- true(F,T+1), formula(next(F)), time(T).
 true(F,T-1): time(T-1) :- formula(prev(F)), true(prev(F),T).
 true(prev(F),T) :- true(F,T-1), formula(prev(F)), time(T).
 
-% wprev/1
-define(wprev(F),or(prev(F),initial)) :- formula(wprev(F)).
+% weak_prev/1
+define(weak_prev(F),or(prev(F),initial)) :- formula(weak_prev(F)).
 
-% wnext/1
-define(wnext(F),or(next(F),final)) :- formula(wnext(F)).
+% weak_next/1
+define(weak_next(F),or(next(F),final)) :- formula(weak_next(F)).
 
 % until/2
-true(until(L,R),(T,J)): T<=J, time(J)
+true(until_then(L,R,J),T): T<=J, time(J)
   :- formula(until(L,R)), true(until(L,R),T), time(T).
 true(until(L,R),T)
-  :- formula(until(L,R)), true(until(L,R),(T,_)).
+  :- formula(until(L,R)), true(until_then(L,R,_),T).
 
-true(L,K) :- true(until(L,R),(T,J)), K=T..J-1.
-true(R,J) :- true(until(L,R),(T,J)).
-true(until(L,R),(T,J))
+true(L,K) :- true(until_then(L,R,J),T), K=T..J-1.
+true(R,J) :- true(until_then(L,R,J),T).
+true(until_then(L,R,J),T)
   :- formula(until(L,R)), time(T), time(J), T<=J, true(R,J), 
      true(L,K) : K=T..J-1.
 
 % since/2.
-true(since(L,R),(T,J)): J<=T, time(J)
+true(since_then(L,R,J),T): J<=T, time(J)
   :- formula(since(L,R)), true(since(L,R),T), time(T).
 true(since(L,R),T)
-  :- formula(since(L,R)), true(since(L,R),(T,_)).
+  :- formula(since(L,R)), true(since_then(L,R,_),T).
 
-true(L,K) :- true(since(L,R),(T,J)), K=J+1..T.
-true(R,J) :- true(since(L,R),(T,J)).
-true(since(L,R),(T,J))
+true(L,K) :- true(since(L,R,J),T), K=J+1..T.
+true(R,J) :- true(since(L,R,J),T).
+true(since(L,R,J),T)
   :- formula(since(L,R)), time(T), time(J), J<=T, true(R,J), 
      true(L,K) : K=J+1..T.
 
-% eventually/1
-define(eventually(F),until(true,F)) :- formula(eventually(F)).
+% eventually_after/1
+define(eventually_after(F),until(true,F)) :- formula(eventually_after(F)).
 % eventually_before/1
 define(eventually_before(F),since(true,F)) :- formula(eventually_before(F)).
 
 % define derived operators
 % release/2
 define(release(L,R),until(R,and(R,or(L,final)))) :- formula(release(L,R)).
-% always/1
-define(always(F),release(false,F)) :- formula(always(F)).
+% always_after/1
+define(always_after(F),release(false,F)) :- formula(always_after(F)).
 % trigger/2
 define(trigger(L,R),since(R,and(R,or(L,initial)))) :- formula(trigger(L,R)).
 % always_before/1

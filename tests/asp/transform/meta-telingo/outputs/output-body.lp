@@ -8,7 +8,7 @@ l :- not initial; m.
 e :- prev(prev(b)); until(c,prev(d)).
 a(X) :- until(b(X),next(c((X+Y)))): next(d(Y)); e(X).
 f(X) :- 3 < #sum { 1: prev(h(Y)) }; i(X).
-j(X) :- next(wprev(k(X))).
+j(X) :- next(weak_prev(k(X))).
 #program base.
 #external initial. [false]
 #external initial. [false]
@@ -18,4 +18,4 @@ j(X) :- next(wprev(k(X))).
 #external until(b(X),next(c((X+Y)))) : d(Y); e(X). [false]
 #external next(d(Y)) : d(Y); e(X). [false]
 #external prev(h(Y)) : h(Y); i(X). [false]
-#external next(wprev(k(X))). [false]
+#external next(weak_prev(k(X))). [false]
