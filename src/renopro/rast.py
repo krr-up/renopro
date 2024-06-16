@@ -25,6 +25,7 @@ from typing import (
 )
 
 from clingo import Control, ast, symbol
+from clingo.application import clingo_main
 from clingo.ast import (
     AST,
     ASTSequence,
@@ -36,7 +37,8 @@ from clingo.ast import (
     parse_string,
 )
 from clingo.script import enable_python
-from clingo.symbol import Symbol, SymbolType
+from clingo.solving import Model
+from clingo.symbol import Function, Symbol, SymbolType
 from clorm import (
     BaseField,
     FactBase,
@@ -174,6 +176,15 @@ class ReifiedAST:
         self._tuple_pos: Iterator[int] = count()
         self._init_overrides()
         self._parent_id_term: Optional[preds.IdentifierPredicate] = None
+        
+    def add_reified_symbols(self, reified_symbols: Iterator[Symbol]) -> None:
+        unifier = Unifier(preds.AstPreds)
+        # couldn't find a way in clorm to directly add a set of facts
+        # while checking unification, so we have to unify against the
+        # underlying symbols
+        with TryUnify():
+            unified_facts = unifier.iter_unify(reified_symbols, raise_nomatch=True)
+            self._reified.update(unified_facts)
 
     def add_reified_facts(self, reified_facts: Iterator[preds.AstPred]) -> None:
         """Add iterator of reified AST facts to internal factbase."""
@@ -181,11 +192,7 @@ class ReifiedAST:
         # couldn't find a way in clorm to directly add a set of facts
         # while checking unification, so we have to unify against the
         # underlying symbols
-        with TryUnify():
-            unified_facts = unifier.iter_unify(
-                [fact.symbol for fact in reified_facts], raise_nomatch=True
-            )
-            self._reified.update(unified_facts)
+        self.add_reified_symbols([fact.symbol for fact in reified_facts])
 
     def add_reified_string(self, reified_string: str) -> None:
         """Add string of reified facts into internal factbase."""
@@ -655,7 +662,7 @@ class ReifiedAST:
     def _reflect_child(
         self,
         parent_fact: preds.AstPred,
-        child_id_fact,
+        child_id_fact: Any,
         expected_children_num: Literal["1"],
     ) -> AST:  # nocoverage
         ...
@@ -664,7 +671,7 @@ class ReifiedAST:
 
     @overload
     def _reflect_child(
-        self, parent_fact: preds.AstPred, child_id_fact
+        self, parent_fact: preds.AstPred, child_id_fact: Any
     ) -> AST:  # nocoverage
         ...
 
@@ -672,7 +679,7 @@ class ReifiedAST:
     def _reflect_child(
         self,
         parent_fact: preds.AstPred,
-        child_id_fact,
+        child_id_fact: Any,
         expected_children_num: Literal["?"],
     ) -> Optional[AST]:  # nocoverage
         ...
@@ -681,7 +688,7 @@ class ReifiedAST:
     def _reflect_child(
         self,
         parent_fact: preds.AstPred,
-        child_id_fact,
+        child_id_fact: Any,
         expected_children_num: Literal["*", "+"],
     ) -> Sequence[AST]:  # nocoverage
         ...
@@ -689,7 +696,7 @@ class ReifiedAST:
     def _reflect_child(
         self,
         parent_fact: preds.AstPred,
-        child_id_fact,
+        child_id_fact: Any,
         expected_children_num: Literal["1", "?", "+", "*"] = "1",
     ) -> Union[None, AST, Sequence[AST]]:
         """Utility function that takes a unary ast predicate
@@ -830,8 +837,7 @@ class ReifiedAST:
 
     def transform(
         self,
-        meta_str: Optional[str] = None,
-        meta_files: Optional[Sequence[Path]] = None,
+        meta_files: Sequence[Path],
         clingo_options: Optional[Sequence[str]] = None,
     ) -> None:
         """Transform the reified AST using meta encoding.
@@ -840,10 +846,8 @@ class ReifiedAST:
         meta-encoding, or the meta-encoding in string form.
 
         """
-        if len(self._reified) == 0:
+        if len(self._reified) == 0: 
             logger.warning("Reified AST to be transformed is empty.")
-        if meta_str is None and meta_files is None:
-            raise ValueError("No meta-program provided for transformation.")
         clingo_logger = get_clingo_logger_callback(logger)
         clingo_options = [] if clingo_options is None else clingo_options
         ctl = Control(clingo_options, logger=clingo_logger)
@@ -854,11 +858,9 @@ class ReifiedAST:
             "Reified facts before applying transformation:\n%s", self.reified_string
         )
         control_add_facts(ctl, self._reified)
-        if meta_str:
-            ctl.add(meta_str)
         ctl.load("./src/renopro/asp/transform.lp")
         ctl.ground()
-        with ctl.solve(yield_=True) as handle:  # type: ignore
+        with ctl.solve(yield_=True) as handle:
             model_iterator = iter(handle)
             try:
                 model = next(model_iterator)
@@ -867,7 +869,7 @@ class ReifiedAST:
                     "Transformation encoding is unsatisfiable."
                 ) from e
             ast_symbols = []
-            logs = {40: [], 30: [], 20: [], 10: []}
+            logs: dict[int, List[str]] = {40: [], 30: [], 20: [], 10: []}
             logger.debug(
                 "Stable model obtained via transformation:\n%s",
                 "\n".join([str(s) for s in model.symbols(shown=True)]),

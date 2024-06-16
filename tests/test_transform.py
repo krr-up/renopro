@@ -96,7 +96,7 @@ class TestTransformSimple(TestTransform):
         rast = ReifiedAST()
         pattern = r"Transformation encoding is unsatisfiable."
         with self.assertRaisesRegex(TransformationError, pattern):
-            rast.transform(meta_str="#false.")
+            rast.transform(meta_files=[test_transform_dir / "log" / "unsat.lp"])
 
     def test_transform_log(self):
         "Test logging capabilities of transform."
@@ -107,7 +107,7 @@ class TestTransformSimple(TestTransform):
             r"symbols: 'debug', 'info', 'warning', 'error'"
         )
         with self.assertRaisesRegex(TransformationError, pattern):
-            rast.transform(meta_str="#show log('hello', 'world') : #true.")
+            rast.transform(meta_files=[files_dir / "hello.lp"])
         self.assertTransformLogs(
             [files_dir / "input.lp"],
             [[files_dir / "info_with_loc.lp"]],
@@ -138,10 +138,7 @@ class TestTransformSimple(TestTransform):
         rast = ReifiedAST()
         # should log warning if rast has no facts before transformation
         with self.assertLogs("renopro.rast", level="WARNING"):
-            rast.transform(meta_str="")
-        # should raise error if no meta program is provided
-        with self.assertRaises(ValueError):
-            rast.transform()
+            rast.transform(meta_files=[test_transform_dir / "log" / "nothing.lp"])
 
     def test_transform_not_bad(self):
         """Test adding an additional literal to the body of rules.

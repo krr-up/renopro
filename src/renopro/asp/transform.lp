@@ -15,8 +15,9 @@ transformed(A) :- ast(add(A)), not ast(delete(A)).
 
 transformed(ast_fact2id(Fact,FactId)) :- transformed(Fact), ast_fact2id(Fact,FactId).
 
+% root
 final(program(P,Name,Params,Stms)) :- transformed(program(P,Name,Params,Stms)).
-
+% children
 final(child(ParentId,ChildId);ChildFact) 
   :- final(ParentFact), transformed(ast_fact2id(ParentFact,ParentId)),
 		 transformed(child(ParentId,ChildId)), transformed(ast_fact2id(ChildFact,ChildId)).
