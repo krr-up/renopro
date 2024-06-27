@@ -1,1 +1,1 @@
-#show log('hello', 'world') : #true.
+log("hello", "world").

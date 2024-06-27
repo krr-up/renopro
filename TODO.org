@@ -2,3 +2,14 @@
 
 
 * Fix meta-telingo external generation to handle pools and intervals as well.
+
+* Change reified facts to be within ast/1 "namespace"
+This will allow us to avoid wrapping the facts int ast() at each time step, saving some grounding time. Will make it a bit more annoying to write transform encodings, but oh well.
+
+* Change idenfier of facts to also be "typed"
+e.g. instead of =string(1,"hello")= we would have =string(string(1),"hello")=
+While this might duplicate information a bit, it allows us for example to write bodies like
+=terms(T,Pos,S), string(S,"hello")=
+instead of
+=terms(T,Pos,string(S)), string(S,"hello")=
+While this may seem like a minor benefit, the latter solution becomes more and more unwieldy with longer predicate names.

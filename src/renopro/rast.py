@@ -13,6 +13,7 @@ from typing import (
     Callable,
     Dict,
     Iterator,
+    Iterable,
     List,
     Literal,
     Optional,
@@ -54,11 +55,9 @@ import renopro.enum_fields as enums
 import renopro.predicates as preds
 from renopro.enum_fields import convert_enum
 from renopro.utils import assert_never
-from renopro.utils.logger import get_clingo_logger_callback
+from renopro.transformer import MetaTransformerApp
 
 logger = logging.getLogger(__name__)
-
-enable_python()
 
 
 class ChildQueryError(Exception):
@@ -73,11 +72,6 @@ class ChildrenQueryError(Exception):
     fact cannot be found.
 
     """
-
-
-class TransformationError(Exception):
-    """Exception raised when a transformation meta-encoding derives an
-    error or is unsatisfiable."""
 
 
 class TryUnify(AbstractContextManager):  # type: ignore
@@ -152,15 +146,6 @@ NodeAttr = Union[Node, Sequence[Symbol], ASTSequence, str, int, StrSequence]
 log_lvl_str2int = {"debug": 10, "info": 20, "warning": 30, "error": 40}
 
 
-def location_symb2str(location: Symbol) -> str:
-    pairs = []
-    for pair in zip(location.arguments[1].arguments, location.arguments[2].arguments):
-        pairs.append(
-            str(pair[0]) if pair[0] == pair[1] else str(pair[0]) + "-" + str(pair[1])
-        )
-    return ":".join(pairs)
-
-
 class ReifiedAST:
     """Class for converting between reified and non-reified
     representation of ASP programs.
@@ -176,8 +161,8 @@ class ReifiedAST:
         self._tuple_pos: Iterator[int] = count()
         self._init_overrides()
         self._parent_id_term: Optional[preds.IdentifierPredicate] = None
-        
-    def add_reified_symbols(self, reified_symbols: Iterator[Symbol]) -> None:
+
+    def add_reified_symbols(self, reified_symbols: Iterable[Symbol]) -> None:
         unifier = Unifier(preds.AstPreds)
         # couldn't find a way in clorm to directly add a set of facts
         # while checking unification, so we have to unify against the
@@ -835,105 +820,24 @@ class ReifiedAST:
             self._program_ast.extend(subprogram)
         logger.debug("Reflected program string:\n%s", self.program_string)
 
-    def transform(
-        self,
-        meta_files: Sequence[Path],
-        clingo_options: Optional[Sequence[str]] = None,
-    ) -> None:
-        """Transform the reified AST using meta encoding.
-
-        Parameter meta_prog may be a string path to file containing
-        meta-encoding, or the meta-encoding in string form.
-
-        """
-        if len(self._reified) == 0: 
-            logger.warning("Reified AST to be transformed is empty.")
-        clingo_logger = get_clingo_logger_callback(logger)
-        clingo_options = [] if clingo_options is None else clingo_options
-        ctl = Control(clingo_options, logger=clingo_logger)
-        if meta_files:
-            for meta_file in meta_files:
-                ctl.load(str(meta_file))
-        logger.debug(
-            "Reified facts before applying transformation:\n%s", self.reified_string
-        )
-        control_add_facts(ctl, self._reified)
-        ctl.load("./src/renopro/asp/transform.lp")
-        ctl.ground()
-        with ctl.solve(yield_=True) as handle:
-            model_iterator = iter(handle)
-            try:
-                model = next(model_iterator)
-            except StopIteration as e:
-                raise TransformationError(
-                    "Transformation encoding is unsatisfiable."
-                ) from e
-            ast_symbols = []
-            logs: dict[int, List[str]] = {40: [], 30: [], 20: [], 10: []}
-            logger.debug(
-                "Stable model obtained via transformation:\n%s",
-                "\n".join([str(s) for s in model.symbols(shown=True)]),
-            )
-            for symb in model.symbols(shown=True):
-                if (
-                    symb.type == SymbolType.Function
-                    and symb.positive is True
-                    and symb.name == "log"
-                    and len(symb.arguments) > 1
-                ):
-                    log_lvl_symb = symb.arguments[0]
-                    msg_format_str = str(symb.arguments[1])
-                    log_lvl_strings = log_lvl_str2int.keys()
-                    if (
-                        log_lvl_symb.type != SymbolType.String
-                        or log_lvl_symb.string not in log_lvl_strings
-                    ):
-                        raise TransformationError(
-                            "First argument of log term must be one of the string symbols: '"
-                            + "', '".join(log_lvl_strings)
-                            + "'"
-                        )
-                    level = log_lvl_str2int[log_lvl_symb.string]
-                    log_strings = [
-                        (
-                            location_symb2str(s)
-                            if s.match("location", 3)
-                            else str(s).strip('"')
-                        )
-                        for s in symb.arguments[2:]
-                    ]
-                    msg_str = msg_format_str.format(*log_strings)
-                    logs[level].append(msg_str)
-                elif symb.match("final", 1):
-                    ast_symbols.append(symb.arguments[0])
-            for level, msgs in logs.items():
-                for msg in msgs:
-                    if level == 40:
-                        logger.error(
-                            msg, exc_info=logger.getEffectiveLevel() == logging.DEBUG
-                        )
-                    else:
-                        logger.log(level, msg)
-            if msgs := logs[40]:
-                raise TransformationError("\n".join(msgs))
-            unifier = Unifier(preds.AstPreds)
-            with TryUnify():
-                ast_facts = unifier.iter_unify(ast_symbols, raise_nomatch=True)
-                self._reified = FactBase(ast_facts)
-            try:
-                next(model_iterator)
-            except StopIteration:
-                pass
-            else:  # nocoverage
-                logger.warning(
-                    (
-                        "Transformation encoding produced multiple models, "
-                        "ignoring additional ones."
-                    )
-                )
-        logger.debug(
-            "Reified facts after applying transformation:\n%s", self.reified_string
-        )
+    # def transform(
+    #     input_files: List[Path] meta_files: List[Path], options: Optional[List[str]] = None
+    # ) -> List[FactBase]:
+    #     """Transform the reified AST using meta encoding."""
+    #     options = [] if options is None else options
+    #     options += [f"-m {str(meta_file.resolve())}" for meta_file in meta_files]
+    #     if len(self._reified) == 0:
+    #         logger.info("Reified AST to be transformed is empty.")
+    #     meta_tf_app = MetaTransformerApp()
+    #     args = options + ["--outf=3"]
+    #     clingo_main(meta_tf_app, args)
+    #     transformed_models: List[FactBase] = []
+    #     unifier = Unifier(preds.AstPreds)
+    #     for model in meta_tf_app.transformed_models:
+    #         with TryUnify():
+    #             ast_facts = unifier.iter_unify(model, raise_nomatch=True)
+    #             transformed_models.append(FactBase(ast_facts))
+    #     return transformed_models
 
 
 if __name__ == "__main__":  # nocoverage

@@ -1,17 +1,27 @@
 # nocoverage
 from pathlib import Path
-from typing import Any
+from typing import Any, List
+import json
 
 import renopro.predicates as preds
 
 
-def is_child_field(field: Any) -> bool:
-    "Check if field identifies a child predicate."
-    # Only complex or combined fields which are not IntegerOrRawField
-    # identify child predicates
-    return field.complex is not None or (
-        hasattr(field, "fields") and not field is preds.IntegerOrRawField
-    )
+pred_name2child_idx: dict[str, List[int]] = {}
+
+
+def build_pred_name2child_idx() -> None:
+    for predicate in preds.AstPreds:
+        idx_list: List[int] = []
+        for idx, key in enumerate(predicate.meta.keys()):
+            if key == "id":
+                continue
+            field = getattr(predicate, key).meta.field
+            # these are the fields that contain a child identifier
+            if field.complex is not None or (
+                hasattr(field, "fields") and field is not preds.IntegerOrRawField
+            ):
+                idx_list.append(idx)
+        pred_name2child_idx[predicate.meta.name] = idx_list
 
 
 def generate_replace() -> None:
@@ -19,24 +29,14 @@ def generate_replace() -> None:
     program = (
         "% replace(A,B) replaces a child predicate identifier A\n"
         "% with child predicate identifier B in each AST fact where A\n"
-        "% occurs as a term.\n\n"
+        "% occurs as a term.\n\n#program always.\n"
     )
     for predicate in preds.AstPreds:
-        if predicate is preds.Location or predicate is preds.Child:
+        if predicate in [preds.Location, preds.Child]:
             continue
-        replacements = []
         name = predicate.meta.name
         arity = predicate.meta.arity
-        for idx, key in enumerate(predicate.meta.keys()):
-            if key == "id":
-                continue
-            field = getattr(predicate, key).meta.field
-            # we only care about replacing and combined
-            # fields - these are the terms that identify a child
-            # predicate
-            if is_child_field(field):
-                replacements.append(idx)
-        for idx in replacements:
+        for idx in pred_name2child_idx[predicate.meta.name]:
             old_args = ",".join(
                 ["X" + str(i) if i != idx else "A" for i in range(arity)]
             )
@@ -56,20 +56,15 @@ def generate_add_child() -> None:
     """Generate rules to create child relations for all facts added
     via ast add, and rules to replace identifiers via
     ast replace."""
-    add_child_program = "% Add child relations for facts added via ast add.\n\n"
+    add_child_program = (
+        "% Add child relations for facts added via ast add.\n\n#program always.\n"
+    )
     for predicate in preds.AstPreds:
         if predicate is preds.Location or predicate is preds.Child:
             continue
-        child_arg_indices = []
         name = predicate.meta.name
         arity = predicate.meta.arity
-        for idx, key in enumerate(predicate.meta.keys()):
-            if key == "id":
-                continue
-            field = getattr(predicate, key).meta.field
-            if is_child_field(field):
-                child_arg_indices.append(idx)
-        for idx in child_arg_indices:
+        for idx in pred_name2child_idx[predicate.meta.name]:
             add_child_args = ",".join(
                 ["X" + str(i) if i != idx else "Child" for i in range(arity)]
             )
@@ -82,37 +77,29 @@ def generate_add_child() -> None:
         )
 
 
-def generate_ast_fact2id() -> None:
-    "Generate rules mapping AST facts to their identifiers"
-    program = "% map ast facts to their identifiers.\n\n"
-    for predicate in preds.AstPreds:
-        if predicate is preds.Location:
-            location = "location(Id,Begin,End)"
-            program += f"ast_fact2id({location},Id) :- ast(fact({location});add({location});delete({location})).\n"
-            continue
-        if predicate is preds.Child:
-            continue
-        name = predicate.meta.name
-        arity = predicate.meta.arity
-        args = ",".join(["X" + str(i) for i in range(arity)])
-        fact = f"{name}({args})"
-        identifier = f"{name}(X0)"
-        program += f"ast_fact2id({fact},{identifier})\n  :- ast(fact({fact});add({fact});delete({fact})).\n\n"
-    path = Path("src", "renopro", "asp", "ast_fact2id.lp")
-    path.write_text(program, encoding="utf-8")
-
-
-def generate_ast() -> None:
+def generate_wrap_ast() -> None:
     "Generate rules to tag AST facts."
-    program = "% Rules to tag AST facts.\n\n"
+    program = "% Rules to tag AST facts.\n\n#program always.\n"
     for predicate in preds.AstPreds:
         name = predicate.meta.name
         arity = predicate.meta.arity
         args = ",".join(["X" + str(i) for i in range(arity)])
         fact = f"{name}({args})"
-        rule = f"ast(fact({fact})) :- {fact}.\n"
+        rule = f"ast(fact({fact})) :- {fact}, not &final.\n"
         program += rule
-    Path("src", "renopro", "asp", "ast.lp").write_text(program, encoding="utf-8")
+    Path("src", "renopro", "asp", "wrap_ast.lp").write_text(program, encoding="utf-8")
+
+
+def generate_unwrap_ast()  -> None:
+    program = "% Rules to unwrap tagged AST facts for next step of transformation.\n\n#program always.\n"
+    for predicate in preds.AstPreds:
+        name = predicate.meta.name
+        arity = predicate.meta.arity
+        args = ",".join(["X" + str(i) for i in range(arity)])
+        fact = f"{name}({args})"
+        rule = f"{fact} :- 'final({fact}).\n"
+        program += rule
+    Path("src", "renopro", "asp", "unwrap_ast.lp").write_text(program, encoding="utf-8")
 
 
 def generate_defined() -> None:
@@ -126,9 +113,30 @@ def generate_defined() -> None:
     Path("src", "renopro", "asp", "defined.lp").write_text(program, encoding="utf-8")
 
 
+def dump_json() -> None:
+    """Serialize data used by embedded python scripts in clingo to json.
+
+    This allows us to avoid having to re-run the modules within the
+    embedded python interpreter, saving us some precious start-up time
+    when doing e.g. transformation.
+    """
+    data_path = Path("src", "renopro", "data")
+    (data_path / "pred_names.json").write_text(
+        json.dumps(preds.pred_names), encoding="utf-8"
+    )
+    (data_path / "composed_pred_names.json").write_text(
+        json.dumps(preds.composed_pred_names), encoding="utf-8"
+    )
+    (data_path / "pred_name2child_idx.json").write_text(
+        json.dumps(pred_name2child_idx), encoding="utf-8"
+    )
+
+
 if __name__ == "__main__":
+    build_pred_name2child_idx()
     generate_replace()
     generate_add_child()
-    generate_ast()
+    generate_wrap_ast()
+    generate_unwrap_ast()
     generate_defined()
-    generate_ast_fact2id()
+    dump_json()

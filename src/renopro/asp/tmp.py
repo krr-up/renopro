@@ -1,13 +1,15 @@
-#script (python)
 
 import json
 from pathlib import Path
 
-from clingo.symbol import Function, Number, SymbolType, Symbol, List
+from clingo.symbol import Function, Number, SymbolType, Symbol, String, List
 
 data_dir = Path("src", "renopro", "data")
 pred_names = json.loads((data_dir / "pred_names.json").read_text("utf-8"))
 composed_pred_names = json.loads((data_dir / "composed_pred_names.json").read_text("utf-8"))
+pred_name2child_idx = json.loads(
+    Path("src", "renopro", "data", "pred_name2child_idx.json").read_text("utf-8")
+)
 
 
 def _decompose(f: Symbol, top_id: Symbol, asts: List[Symbol], i: int, top_level=False, override_id=None):
@@ -37,5 +39,19 @@ def decompose(f: Symbol):
     _decompose(f, Function(f.name, f.arguments[:1]), asts, 0, top_level=True)
     return asts
 
+def ast_fact2id(fact: Symbol) -> Symbol:
+    return Function(fact.name, fact.arguments[:1])
 
-#end.
+def ast_fact2children(fact):
+    try:
+        return [fact.arguments[idx] for idx in pred_name2child_idx[fact.name]]
+    except KeyError:
+        return String("invalid_signature")
+
+def location2str(location: Symbol) -> Symbol:
+    pairs = []
+    for pair in zip(location.arguments[1].arguments, location.arguments[2].arguments):
+        pairs.append(
+            str(pair[0]) if pair[0] == pair[1] else str(pair[0]) + "-" + str(pair[1])
+        )
+    return String(":".join(pairs))

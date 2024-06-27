@@ -28,24 +28,24 @@ operand(function(F),function(F'),Safety)
 
 % an operator must have the same amount of function operands as it's arity
 % if not, raise an error.
-#show log("error", "{}: All arguments of operator '{}/{}' must be functions.", 
+log("error", "{}: All arguments of operator '{}/{}' must be functions.", 
 location(function(F),Begin,End), Name, Arity)
-  : operator(function(F)), function(F,Name,terms(T)), 
-    N=#count{ Operand: operand(function(F),Operand,_) },
-		N < Arity, func_arity(F,Arity), location(function(F),Begin,End).
+  :- operator(function(F)), function(F,Name,terms(T)), 
+     N=#count{ Operand: operand(function(F),Operand,_) },
+		 N < Arity, func_arity(F,Arity), location(function(F),Begin,End).
 
 % conditionals are not supported
-#show log("error", "{}: Conditionals are not supported.", location(conditional_literal(L),Begin,End))
-  : conditional_literal(L,_,LS), literals(LS,_,literal(L)), literal(L,_,_),
-    location(conditional_literal(L),Begin,End).
+log("error", "{}: Conditionals are not supported.", location(conditional_literal(L),Begin,End))
+  :- conditional_literal(L,_,LS), literals(LS,_,literal(L)), literal(L,_,_),
+     location(conditional_literal(L),Begin,End).
 
-#show log("error", "{}: Conditional literals, aggregates and theory atoms are not supported.", 
+log("error", "{}: Conditional literals, aggregates and theory atoms are not supported.", 
 					location(body_aggregate(B),Begin,End))
-  : body_aggregate(B,_,_,,_), location(body_aggregate(B),Begin,End).
+  :- body_aggregate(B,_,_,,_), location(body_aggregate(B),Begin,End).
 
-#show log("error", "{}: Conditional literals, aggregates and theory atoms are not supported.", 
+log("error", "{}: Conditional literals, aggregates and theory atoms are not supported.", 
 					location(theory_atom(A),Begin,End))
-  : theory_atom(A,_,_,_), location(theory_atom(A),Begin,End).
+  :- theory_atom(A,_,_,_), location(theory_atom(A),Begin,End).
 
 root_operator(Func)
   :- operator(Func), symbolic_atom(_,Func).

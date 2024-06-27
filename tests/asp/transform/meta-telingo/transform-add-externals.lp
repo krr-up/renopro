@@ -28,11 +28,11 @@ operand(function(F),function(F'),Safety)
 
 % an operator must have the same amount of function operands as it's arity
 % if not, raise an error.
-#show log("error", "{}: All arguments of operator '{}/{}' must be functions.", 
+log("error", "{}: All arguments of operator '{}/{}' must be functions.", 
 location(function(F),Begin,End), Name, Arity)
-  : operator(function(F)), function(F,Name,terms(T)), 
-    N=#count{ Operand: operand(function(F),Operand,_) },
-		N < Arity, func_arity(F,Arity), location(function(F),Begin,End).
+  :- operator(function(F)), function(F,Name,terms(T)), 
+     N=#count{ Operand: operand(function(F),Operand,_) },
+		 N < Arity, func_arity(F,Arity), location(function(F),Begin,End).
 
 root_operator(Func)
   :- operator(Func), symbolic_atom(_,Func).

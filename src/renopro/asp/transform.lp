@@ -1,26 +1,29 @@
-#include "ast.lp".
-#include "defined.lp".
-#include "replace_id.lp".
-#include "decompose.lp".
-#include "add-children.lp".
-#include "ast_fact2id.lp".
+%% #include "ast.lp".
+%% #include "defined.lp".
+%% #include "replace_id.lp".
+%% #include "ast_fact2id.lp".
+
+#program always.
+
+% add operation should also generate an appropriate child/2 fact to link the new fact
+% to it's children
+ast(add(child(@ast_fact2id(Fact),@ast_fact2children(Fact)))) :- ast(add(Fact)), #false: Fact=child(_,_).
 
 ast(delete(A);add(B)) :- ast(replace(A,B)).
-ast(_replace_id(AId,BId))  :- ast(replace(A,B)), ast_fact2id(A,AId), ast_fact2id(B,BId).
 
-% delete stops inertia from old ast
-transformed(A) :- ast(fact(A)), not ast(delete(A)).
-% and even overrides adding of new ast
-transformed(A) :- ast(add(A)), not ast(delete(A)).
+ast(_replace_id(@ast_fact2id(A),@ast_fact2id(B)))  :- ast(replace(A,B)).
 
-transformed(ast_fact2id(Fact,FactId)) :- transformed(Fact), ast_fact2id(Fact,FactId).
+transform_step :- ast(add(X);delete(X)).
 
-% root
-final(program(P,Name,Params,Stms)) :- transformed(program(P,Name,Params,Stms)).
-% children
-final(child(ParentId,ChildId);ChildFact) 
-  :- final(ParentFact), transformed(ast_fact2id(ParentFact,ParentId)),
-		 transformed(child(ParentId,ChildId)), transformed(ast_fact2id(ChildFact,ChildId)).
+% delete stops inertia from old ast, and even deletes asts that would have been added
+transformed(A) :- transform_step, ast((fact(A);add(A))), not ast(delete(A)).
 
-#show final/1.
-
+% Only preserve AST facts which are reachable from the root
+% AST facts. These are the facts over signature program/4.
+reachable(program(P)) :- transformed(program(P,Name,Params,Stms)).
+reachable(ChildID) :- reachable(ParentID), transformed(child(ParentID,ChildID)).
+final(child(ParentID,ChildID)) :- reachable(ParentID), transformed(child(ParentID,ChildID)).
+final(Fact) :- transformed(Fact), ID=@ast_fact2id(Fact), reachable(ID).
+	
+#program final.
+not transform_step.

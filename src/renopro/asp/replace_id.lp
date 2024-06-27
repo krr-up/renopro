@@ -2,6 +2,7 @@
 % with child predicate identifier B in each AST fact where A
 % occurs as a term.
 
+#program always.
 ast(add(unary_operation(X0,X1,B));delete(unary_operation(X0,X1,A)))
  :- ast(_replace_id(A,B)), ast(fact(unary_operation(X0,X1,A));add(unary_operation(X0,X1,A))).
 

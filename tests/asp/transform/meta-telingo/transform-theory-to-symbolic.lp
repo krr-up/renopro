@@ -1,6 +1,6 @@
 theory_opertor2symbol(
-  "<",1,prev ; "<:",1,weak_prev ; "<?",1,eventually_before; "<*",1,always_before ;
-	 ">",1,next ; ">:",1,weak_next ; ">?",1,eventually_after ; ">*",1,always_after ;
+  "<",1,prev ; "<:",1,wprev ; "<?",1,eventually_before; "<*",1,always_before ;
+	 ">",1,next ; ">:",1,wnext ; ">?",1,eventually ; ">*",1,always ;
 	 ">*",2,release ; ">?",2,until ; "<*",2,trigger ; "<?",2,since ;
 	 "&",1,keyword_prefix ; "~",1,neg ; "&",2,and ; "|",2,or 
 ).
@@ -23,18 +23,25 @@ tel_root_term_desc(Term,Child') :- tel_root_term_desc(Term,Child), child(Child,C
 % theory function in it's term tuple, as we rewrite elements as
 % conditional literals or body literals, and these may only have one literal in their
 % head.
-#show log("error","{}: The term tuple of tel theory atom elements must contain a single (temporal) formula.",Loc)
-  : tel_theory_atom_terms(TTS,Loc), theory_terms(TTS,0,X), #false: X=theory_function(_);
+log("error","{}: The term tuple of tel theory atom elements must contain a single (temporal) formula.",Loc)
+  :- tel_theory_atom_terms(TTS,Loc), theory_terms(TTS,0,X), #false: X=theory_function(_);
     #false: X=function(_).
 
-#show log("error","{}: The term tuple of tel theory atom elements must contain a single (temporal) formula.",Loc)
-  : tel_theory_atom_terms(TTS,Loc), #count{ P: theory_terms(TTS,P,_) } != 1.
+log("error","{}: The term tuple of tel theory atom elements must contain a single (temporal) formula.",Loc)
+  :- tel_theory_atom_terms(TTS,Loc), #count{ P: theory_terms(TTS,P,_) } != 1.
 
-#show log("error", "{}: Theory sequences not allowed in tel theory atoms, found sequence type {}.",location(theory_sequence(TS),Begin,End),SequenceType)
-  : tel_root_term_desc(Term,theory_sequence(TS)), theory_sequence(TS,SequenceType,_),
+log("error", "{}: Theory sequences not allowed in tel theory atoms, found sequence type {}.",location(theory_sequence(TS),Begin,End),SequenceType)
+  :- tel_root_term_desc(Term,theory_sequence(TS)), theory_sequence(TS,SequenceType,_),
     location(theory_sequence(TS),Begin,End).
 
-#include "string-to-const.lp".
+#script (python)
+
+from clingo.symbol import String, Function
+
+def string_to_const(string: String):
+    return Function(string.string, [])
+
+#end.
 
 % Due to the way theory parsing is implemented upstream, we know that
 % theory function names can syntactically be operators if they are
@@ -57,11 +64,11 @@ ast(replace(theory_function(TF,Name,theory_terms(TTS)),function(TF,Const,terms(T
 % body they are interpreted as conditional literals. As such, in the
 % body, they may only have one element.
 
-#show log("error", "{}: tel theory atoms occurring in the body may only have one element.",Loc)
-  : body_literals(BLS,_,body_literal(BL)),
-    body_literal(BL,_,theory_atom(A)), tel_theory_atom(A,Loc), 
-		theory_atom(A,_,theory_atom_elements(E),_),
-		#count{ P: theory_atom_elements(E,P,_,_) } > 1.
+log("error", "{}: tel theory atoms occurring in the body may only have one element.",Loc)
+  :- body_literals(BLS,_,body_literal(BL)),
+     body_literal(BL,_,theory_atom(A)), tel_theory_atom(A,Loc), 
+		 theory_atom(A,_,theory_atom_elements(E),_),
+		 #count{ P: theory_atom_elements(E,P,_,_) } > 1.
 
 % body case
 

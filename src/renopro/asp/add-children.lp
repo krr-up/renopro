@@ -1,5 +1,6 @@
 % Add child relations for facts added via ast add.
 
+#program always.
 ast(add(child(unary_operation(X0),Child)))
   :- ast(add(unary_operation(X0,X1,Child))).
 
