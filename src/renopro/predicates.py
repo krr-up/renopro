@@ -132,6 +132,7 @@ class IdentifierPredicateConstructor(Protocol):
     def __call__(self, id: Any = ..., /) -> IdentifierPredicate: ...
 
 
+
 class AstPredicate(Predicate, metaclass=_AstPredicateMeta):
     """A predicate representing an AST node."""
 
@@ -1288,8 +1289,9 @@ composed_pred_names = tuple(predicate.meta.name + "_" for predicate in AstPreds)
 
 name2arity2pred = {pred.meta.name: {pred.meta.arity: pred} for pred in AstPreds}
 
+ast_fact_field = combine_fields([pred.Field for pred in AstPreds])
 
 class Final(Predicate):
     """Wrapper predicate to distinguish output AST facts of a transformation."""
 
-    ast = combine_fields([pred.Field for pred in AstPreds])
+    ast = ast_fact_field

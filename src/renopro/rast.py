@@ -20,7 +20,6 @@ from typing import (
     Sequence,
     Tuple,
     Type,
-    Union,
     cast,
     overload,
 )
@@ -141,7 +140,7 @@ DUMMY_LOC = Location(Position("<string>", 1, 1), Position("<string>", 1, 1))
 
 Node = AST | Symbol
 NodeConstructor = Callable[..., None]
-NodeAttr = Union[Node, Sequence[Symbol], ASTSequence, str, int, StrSequence]
+NodeAttr = Node | Sequence[Symbol] | ASTSequence | str | int | StrSequence
 
 log_lvl_str2int = {"debug": 10, "info": 20, "warning": 30, "error": 40}
 
@@ -150,6 +149,9 @@ class ReifiedAST:
     """Class for converting between reified and non-reified
     representation of ASP programs.
     """
+
+    _unifier_preds = preds.AstPreds
+    _unifier = Unifier(_unifier_preds)
 
     def __init__(self) -> None:
         self._reified = FactBase()
@@ -162,18 +164,20 @@ class ReifiedAST:
         self._init_overrides()
         self._parent_id_term: Optional[preds.IdentifierPredicate] = None
 
-    def add_reified_symbols(self, reified_symbols: Iterable[Symbol]) -> None:
-        unifier = Unifier(preds.AstPreds)
+    def add_reified_symbols(
+        self, reified_symbols: Iterable[Symbol]
+    ) -> None:
         # couldn't find a way in clorm to directly add a set of facts
         # while checking unification, so we have to unify against the
         # underlying symbols
         with TryUnify():
-            unified_facts = unifier.iter_unify(reified_symbols, raise_nomatch=True)
+            unified_facts = self._unifier.iter_unify(
+                reified_symbols, raise_nomatch=True
+            )
             self._reified.update(unified_facts)
 
     def add_reified_facts(self, reified_facts: Iterator[preds.AstPred]) -> None:
         """Add iterator of reified AST facts to internal factbase."""
-        unifier = Unifier(preds.AstPreds)
         # couldn't find a way in clorm to directly add a set of facts
         # while checking unification, so we have to unify against the
         # underlying symbols
@@ -181,10 +185,12 @@ class ReifiedAST:
 
     def add_reified_string(self, reified_string: str) -> None:
         """Add string of reified facts into internal factbase."""
-        unifier = preds.AstPreds
         with TryUnify():
             facts = parse_fact_string(
-                reified_string, unifier=unifier, raise_nomatch=True, raise_nonfact=True
+                reified_string,
+                unifier=self._unifier_preds,
+                raise_nomatch=True,
+                raise_nonfact=True,
             )
         self._reified.update(facts)
 
@@ -194,7 +200,7 @@ class ReifiedAST:
         with TryUnify():
             facts = parse_fact_files(
                 reified_files_str,
-                unifier=preds.AstPreds,
+                unifier=self._unifier_preds,
                 raise_nomatch=True,
                 raise_nonfact=True,
             )
@@ -251,9 +257,13 @@ class ReifiedAST:
         """String representation of reified AST facts, encoding a
         non-ground ASP program, with comments describing the schema of
         occurring facts.
-
         """
         return self._reified.asp_str(commented=True)
+
+    def _add_ast_facts(
+        self, f: preds.AstPredicate | Iterable[preds.AstPredicate]
+    ) -> None:
+        self._reified.add(f)
 
     def _init_overrides(self) -> None:
         """Initialize override functions that change the default
@@ -356,7 +366,7 @@ class ReifiedAST:
         }
 
     @staticmethod
-    def _get_node_type(node: Node) -> Union[ASTType, SymbolType]:
+    def _get_node_type(node: Node) -> ASTType | SymbolType:
         """Return the type (enum member) of input ast node."""
         if isinstance(node, Symbol):
             ast_type = node.type
@@ -380,15 +390,15 @@ class ReifiedAST:
 
     def _reify_ast_sequence(
         self,
-        ast_seq: Union[ASTSequence, Sequence[Symbol], Sequence[str]],
+        ast_seq: ASTSequence | Sequence[Symbol] | Sequence[str],
         tuple_predicate: Type[preds.AstPredicate],
     ) -> preds.IdentifierPredicate:
         "Reify an ast sequence into a list of facts of type tuple_predicate."
         tuple_id_term = tuple_predicate.unary()
-        self._reified.add(preds.Child(self._parent_id_term, tuple_id_term))
+        facts: List[preds.AstPredicate] = []
+        facts.append(preds.Child(self._parent_id_term, tuple_id_term))
         old_parent_id_term = self._parent_id_term
         self._parent_id_term = tuple_id_term
-        reified_tuple_facts = []
         # Flattened tuples have arity > 3, so we reify it's attributes
         # and then construct the tuple.
         if tuple_predicate in preds.FlattenedTuples:
@@ -399,7 +409,7 @@ class ReifiedAST:
                     node, {"id": tuple_id_term.id}, tuple_predicate
                 )
                 reified_tuple_fact = tuple_predicate(**kwargs_dict)
-                reified_tuple_facts.append(reified_tuple_fact)
+                facts.append(reified_tuple_fact)
             self._tuple_pos = tmp
         # Theory operators are just a list of strings in clingo AST,
         # we need to wrap these in TheoryOperators predicate
@@ -408,7 +418,7 @@ class ReifiedAST:
                 reified_tuple_fact = tuple_predicate(
                     tuple_id_term.id, position, operator
                 )
-                reified_tuple_facts.append(reified_tuple_fact)
+                facts.append(reified_tuple_fact)
         # We represent body literals explicitly in our ASP
         # representation, and categorize conditional literals separately,
         elif tuple_predicate is preds.BodyLiterals:
@@ -418,20 +428,20 @@ class ReifiedAST:
                     reified_tuple_fact = preds.BodyLiterals(
                         tuple_id_term.id, position, cond_lit1
                     )
-                    reified_tuple_facts.append(reified_tuple_fact)
+                    facts.append(reified_tuple_fact)
                 else:
                     body_lit1 = preds.BodyLiteral.unary()
                     reified_tuple_fact = preds.BodyLiterals(
                         tuple_id_term.id, position, body_lit1
                     )
-                    self._reified.add(preds.Child(self._parent_id_term, body_lit1))
+                    facts.append(preds.Child(self._parent_id_term, body_lit1))
                     self._parent_id_term = body_lit1
                     clorm_sign = convert_enum(ast.Sign(lit.sign), enums.Sign)
                     body_lit = preds.BodyLiteral(
                         body_lit1.id, clorm_sign, self.reify_node(lit.atom)
                     )
-                    self._reified.add(body_lit)
-                    reified_tuple_facts.append(reified_tuple_fact)
+                    facts.append(body_lit)
+                    facts.append(reified_tuple_fact)
                     self._parent_id_term = tuple_id_term
         # All other tuples we can reify in the usual way.
         else:
@@ -440,8 +450,8 @@ class ReifiedAST:
                 reified_tuple_fact = tuple_predicate(
                     tuple_id_term.id, position, child_fact_unary
                 )
-                reified_tuple_facts.append(reified_tuple_fact)
-        self._reified.add(reified_tuple_facts)
+                facts.append(reified_tuple_fact)
+        self._add_ast_facts(facts)
         self._parent_id_term = old_parent_id_term
         return tuple_id_term
 
@@ -517,8 +527,9 @@ class ReifiedAST:
             predicate = getattr(preds, node_type.name)
             location = getattr(node, "location", None)
         id_term = predicate.unary()
+        facts: List[preds.AstPredicate] = []
         if self._parent_id_term is not None:
-            self._reified.add(preds.Child(self._parent_id_term, id_term))
+            facts.append(preds.Child(self._parent_id_term, id_term))
         old_parent_id_term = self._parent_id_term
         self._parent_id_term = id_term
         if location:
@@ -526,17 +537,18 @@ class ReifiedAST:
         kwargs_dict = {"id": id_term.id}
         kwargs_dict = self._reify_node_attrs(node, kwargs_dict, predicate)
         reified_fact = predicate(**kwargs_dict)
-        self._reified.add(reified_fact)
+        facts.append(reified_fact)
         if predicate is preds.Program:
             stms_id_term = reified_fact.statements
             self._current_statement = (stms_id_term, 0)
-            self._reified.add(preds.Child(id_term, stms_id_term))
+            facts.append(preds.Child(id_term, stms_id_term))
             old_parent_id_term = stms_id_term
         elif predicate in preds.SubprogramStatements:
             stms_id_term, position = self._current_statement
             statement = preds.Statements(stms_id_term.id, position, id_term)
-            self._reified.add(statement)
+            facts.append(statement)
             self._current_statement = (stms_id_term, position + 1)
+        self._add_ast_facts(facts)
         self._parent_id_term = old_parent_id_term
         return id_term
 
@@ -549,7 +561,7 @@ class ReifiedAST:
         end = preds.Position(
             location.end.filename, location.end.line, location.end.column
         )
-        self._reified.add(preds.Location(id_term, begin, end))
+        self._add_ast_facts(preds.Location(id_term, begin, end))
 
     def _override_symbolic_term(
         self, node: AST
@@ -593,11 +605,11 @@ class ReifiedAST:
     def _get_children(
         self,
         parent_fact: preds.AstPred,
-        child_id_fact: Any,
+        child_id_term: Any,
         expected_children_num: Literal["1", "?", "+", "*"] = "1",
     ) -> Sequence[AST]:
-        identifier = child_id_fact.id
-        child_ast_pred = getattr(preds, type(child_id_fact).__name__.rstrip("1"))
+        identifier = child_id_term.id
+        child_ast_pred = getattr(preds, type(child_id_term).__name__.rstrip("1"))
         query = self._reified.query(child_ast_pred).where(
             child_ast_pred.id == identifier
         )
@@ -608,7 +620,7 @@ class ReifiedAST:
             if num_child_facts == 1:
                 return child_facts
             msg = (
-                f"Expected 1 child fact for identifier '{child_id_fact}'"
+                f"Expected 1 child fact for identifier '{child_id_term}'"
                 f", found {num_child_facts}."
             )
             raise ChildQueryError(base_msg + msg)
@@ -619,7 +631,7 @@ class ReifiedAST:
                 return child_facts
             msg = (
                 f"Expected 0 or 1 child fact for identifier "
-                f"'{child_id_fact}', found {num_child_facts}."
+                f"'{child_id_term}', found {num_child_facts}."
             )
             raise ChildQueryError(base_msg + msg)
         #  pylint: disable=consider-using-in
@@ -631,13 +643,13 @@ class ReifiedAST:
             if num_child_facts != len(set(tup.position for tup in child_facts)):
                 msg = (
                     "Found multiple child facts in the same position for "
-                    f"identifier '{child_id_fact}'."
+                    f"identifier '{child_id_term}'."
                 )
                 raise ChildrenQueryError(base_msg + msg)
             if expected_children_num == "+" and num_child_facts == 0:
                 msg = (
                     f"Expected 1 or more child facts for identifier "
-                    f"'{child_id_fact}', found 0."
+                    f"'{child_id_term}', found 0."
                 )
                 raise ChildrenQueryError(base_msg + msg)
             return child_facts
@@ -683,7 +695,7 @@ class ReifiedAST:
         parent_fact: preds.AstPred,
         child_id_fact: Any,
         expected_children_num: Literal["1", "?", "+", "*"] = "1",
-    ) -> Union[None, AST, Sequence[AST]]:
+    ) -> None | AST | Sequence[AST]:
         """Utility function that takes a unary ast predicate
         identifying a child predicate, queries reified factbase for
         child predicate, and returns the child node obtained by
