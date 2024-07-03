@@ -1291,7 +1291,7 @@ name2arity2pred = {pred.meta.name: {pred.meta.arity: pred} for pred in AstPreds}
 
 ast_fact_field = combine_fields([pred.Field for pred in AstPreds])
 
-class Final(Predicate):
+class Transformed(Predicate):
     """Wrapper predicate to distinguish output AST facts of a transformation."""
 
     ast = ast_fact_field

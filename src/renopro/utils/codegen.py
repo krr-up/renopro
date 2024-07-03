@@ -85,7 +85,7 @@ def generate_wrap_ast() -> None:
         arity = predicate.meta.arity
         args = ",".join(["X" + str(i) for i in range(arity)])
         fact = f"{name}({args})"
-        rule = f"ast(fact({fact})) :- {fact}, not &final.\n"
+        rule = f"ast(fact({fact})) :- {fact}, not final.\n"
         program += rule
     Path("src", "renopro", "asp", "wrap_ast.lp").write_text(program, encoding="utf-8")
 
@@ -97,7 +97,7 @@ def generate_unwrap_ast()  -> None:
         arity = predicate.meta.arity
         args = ",".join(["X" + str(i) for i in range(arity)])
         fact = f"{name}({args})"
-        rule = f"{fact} :- 'final({fact}).\n"
+        rule = f"{fact} :- 'transformed({fact}).\n"
         program += rule
     Path("src", "renopro", "asp", "unwrap_ast.lp").write_text(program, encoding="utf-8")
 

@@ -43,7 +43,7 @@ def decompose(f: Symbol):
 def ast_fact2id(fact: Symbol) -> Symbol:
     return Function(fact.name, fact.arguments[:1])
 
-def ast_fact2children(fact):
+def ast_fact2children_ids(fact):
     try:
         return [fact.arguments[idx] for idx in pred_name2child_idx[fact.name]]
     except KeyError:
