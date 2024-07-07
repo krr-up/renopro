@@ -1,3 +1,5 @@
+#program step(prev_to_timepoints).
+#const prev_to_timepoints=0.
 % auxiliary atoms
 max_arg_index(TT,Idx)
 :- Idx = #max{ Pos : terms(TT,Pos,_); -1 }, function(_,_,terms(TT)).

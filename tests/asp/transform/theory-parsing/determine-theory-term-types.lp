@@ -1,3 +1,5 @@
+#program step(parse_unparsed_theory_terms).
+
 #script (python)
 
 from clingo.symbol import String, Number
@@ -37,13 +39,13 @@ theory_atom_occurrence(A,directive)
 theory_atom_occurrence(A,any) :- theory_atom_occurrence(A,_).
 
 log("error", "{}: No theory atom definition of name '{}' and arity '{}'.",
-		location(theory_atom(A),Begin,End),AtomName,Arity)
+		@loc2str(location(theory_atom(A),Begin,End)),AtomName,Arity)
   :- theory_atom(A,function(F),_,_), function(F,AtomName,_), 
   	 func_arity(F,Arity), not atom_table((AtomName,Arity),_,_,_),
 		 location(theory_atom(A),Begin,End).
 
 log("error", "{}: Theory atom found in unexpected context, allowed context: '{}'.",
-					location(theory_atom(A),Begin,End),AtomType)
+					@loc2str(location(theory_atom(A),Begin,End)),AtomType)
   :- theory_atom(A,function(F),_,_), function(F,AtomName,_), 
      func_arity(F,Arity), atom_table((AtomName,Arity),AtomType,_,_),
      not theory_atom_occurrence(A,AtomType), location(theory_atom(A),Begin,End).

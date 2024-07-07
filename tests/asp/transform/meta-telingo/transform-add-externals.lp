@@ -1,3 +1,6 @@
+#program step(meta_telingo_externals).
+#const meta_telingo_externals=0.
+
 operator_arity((initial;final),0).
 operator_arity((prev;weak_prev;next;weak_next;neg;
 							 always_after;always_before;eventually_after;eventually_before),1).

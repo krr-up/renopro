@@ -17,7 +17,8 @@ from clingo.solving import Model
 from clingo.symbol import SymbolType, Function, Symbol
 from clingo.core import MessageCode
 from clingo.script import enable_python
-from renopro.utils.logger import get_clingo_logger_callback
+
+from renopro.utils.logger import get_clingo_logger_callback, setup_logger, log_string2level
 import renopro.rast
 
 Trace = dict[int, List[Symbol]]
@@ -44,37 +45,17 @@ class InputTransformer(ast.Transformer):
         DUMMY_LOC, 0, ast.SymbolicAtom(ast.Function(DUMMY_LOC, "initial", [], 0))
     )
 
-    def visit_Rule(self, node: ast.AST):
-        # node.update(body=node.body.append(self.initial))
-        node.body.append(self.initial)
+    def visit_SymbolicAtom(self, node: ast.AST):
+        node.symbol.arguments.append(ast.SymbolicTerm(DUMMY_LOC, symbol.Number(0)))
         return node
 
 
 class MetaEncodingTransformer(ast.Transformer):
     """Transforms meta-encodings."""
 
-    @staticmethod
-    def create_literal(name: str, args: List[ast.AST], sign: int) -> ast.AST:
-        return ast.Literal(
-            DUMMY_LOC, sign, ast.SymbolicAtom(ast.Function(DUMMY_LOC, name, args, 0))
-        )
-
-    @staticmethod
-    def create_external(name: str, args: List[ast.AST], body: List[ast.AST]):
-        return ast.External(
-            DUMMY_LOC,
-            ast.SymbolicAtom(ast.Function(DUMMY_LOC, name, args, 0)),
-            body,
-            ast.SymbolicTerm(DUMMY_LOC, symbol.Function("false", [])),
-        )
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.current_program: Tuple[str, Optional[str]] = ("initial", None)
-        self.external_statements: List[ast.AST] = [
-            self.create_external("initial", [], []),
-            self.create_external("final", [], []),
-        ]
 
     def visit_Program(self, node: ast.AST):
         if len(node.parameters) == 0:
@@ -83,25 +64,52 @@ class MetaEncodingTransformer(ast.Transformer):
                     self.current_program = (prog_name, None)
         elif len(node.parameters) == 1 and node.name == "step":
             self.current_program = ("step", node.parameters[0].name)
-            param_ast = ast.Function(DUMMY_LOC, node.parameters[0].name, [], 0)
-            self.external_statements.append(
-                self.create_external("step", [param_ast], [])
-            )
         return ast.Program(node.location, "base", [])
 
     def visit_Rule(self, node: ast.AST):
-        prog_name, param = self.current_program
-        if param is None:
-            if prog_name in ["initial", "final"]:
-                node.body.append(self.create_literal(prog_name, [], 0))
-            elif prog_name == "dynamic":
-                node.body.append(self.create_literal("initial", [], 1))
-        elif param is not None and prog_name == "step":
+        prog_name, _ = self.current_program
+        self.visit_children(node)
+        if prog_name == "dynamic":
             node.body.append(
-                self.create_literal(
-                    prog_name, [ast.Function(DUMMY_LOC, param, [], 0)], 0
+                ast.Literal(
+                    DUMMY_LOC,
+                    0,
+                    ast.Comparison(
+                        ast.Variable(DUMMY_LOC, "_TimePoint"),
+                        [
+                            ast.Guard(
+                                ast.ComparisonOperator.LessThan,
+                                ast.Function(DUMMY_LOC, "transform_steps", [], 0),
+                            )
+                        ],
+                    ),
                 )
             )
+        return node
+
+    def _visit_Atom(self, atom: ast.AST):
+        prog_name, param = self.current_program
+        if param is None:
+            if prog_name == "initial":
+                atom.arguments.append(ast.SymbolicTerm(DUMMY_LOC, symbol.Number(0)))
+            elif prog_name == "final":
+                atom.arguments.append(ast.Function(DUMMY_LOC, "transform_steps", [], 0))
+            elif prog_name in ["always", "dynamic"]:
+                atom.arguments.append(ast.Variable(DUMMY_LOC, "_TimePoint"))
+        elif param is not None and prog_name == "step":
+            atom.arguments.append(ast.Function(DUMMY_LOC, param, [], 0))
+
+    def visit_SymbolicAtom(self, node: ast.AST):
+        prog_name, param = self.current_program
+        if node.symbol.ast_type is ast.ASTType.Pool:
+            for item in node.symbol.arguments:
+                self._visit_Atom(item)
+        elif node.symbol.ast_type is ast.ASTType.Function:
+            self._visit_Atom(node.symbol)
+        elif node.symbol.ast_type is ast.ASTType.UnaryOperation:
+            self._visit_Atom(node.symbol.argument)
+        else:
+            raise RuntimeError("Branch should be unreachable.")
         return node
 
 
@@ -121,9 +129,11 @@ class MetaTransformerApp(Application):  # type: ignore
         self._reify_input = Flag(False)
         self._reflect_output = Flag(False)
         self._meta_encodings: List[str] = []
-        self._lambda: int = 2
+        self._transform_steps: int = 1
         self.traces: List[Trace] = []
         self.transformed_asts: List[List[Symbol]] = []
+        self._log_level: int = logging.WARNING
+        self._exception: Optional[Exception] = None
 
     def logger(self, code: MessageCode, message: str) -> None:
         clingo_logger(code, message)
@@ -132,12 +142,21 @@ class MetaTransformerApp(Application):  # type: ignore
         self._meta_encodings.append(value.strip())
         return True
 
-    def _parse_lambda(self, value) -> bool:
-        self._lambda = int(value)
+    def _parse_transform_steps(self, value) -> bool:
+        self._transform_steps = int(value)
         return True
+
+    def _parse_log_levels(self, value) -> bool:
+        if value in log_lvl_str2int.keys():
+            self._log_level = log_lvl_str2int[value]
+            return True
+        return False
 
     def register_options(self, options: ApplicationOptions):
         group = "Meta-Transformer Options"
+        options.add(group, "log,l", 
+                    "Set log level. Valid values are error, warning, info, debug.",
+                    self._parse_log_levels)
         options.add(
             group,
             "meta-encoding,m",
@@ -165,20 +184,48 @@ class MetaTransformerApp(Application):  # type: ignore
         )
         options.add(
             group,
-            "lambda,l",
-            "Number of time steps in the transformation.",
-            self._parse_lambda,
+            "transform-steps",
+            "Number of time steps in the transformation meta-encoding.",
+            self._parse_transform_steps,
         )
 
     def _on_model(self, model: Model):
         trace: Trace = defaultdict(list)
-        for sym in model.symbols(shown=True):
-            print(sym)
-            trace[sym.arguments[1].number].append(sym.arguments[0])
+        logs: dict[int, List[str]] = {40: [], 30: [], 20: [], 10: []}
+        for symb in model.symbols(shown=True):
+            # print(symb)
+            trace[symb.arguments[-1].number].append(
+                symbol.Function(symb.name, symb.arguments[:-1], symb.positive)
+            )
+            if (
+                symb.type == SymbolType.Function
+                and symb.positive is True
+                and symb.name == "log"
+                and len(symb.arguments) > 1
+            ):
+                self._log_log(symb, logs)
         self.traces.append(trace)
-        self.transformed_asts.append(trace[self._lambda - 1])
+        ast_facts = [
+            sym.arguments[0].arguments[0]
+            for sym in trace[self._transform_steps]
+            if sym.match("ast", 1) and sym.arguments[0].match("fact", 1)
+        ]
+        self.transformed_asts.append(ast_facts)
+        for level, msgs in logs.items():
+            for msg in msgs:
+                if level == 40:
+                    logger.error(
+                        msg, exc_info=logger.getEffectiveLevel() == logging.DEBUG
+                    )
+                else:
+                    logger.log(level, msg)
+        if msgs := logs[40]:
+            exception = TransformationError("\n".join(msgs))
+            self._exception = exception
+            raise exception
 
     def main(self, control: Control, files: Sequence[str]) -> None:
+        setup_logger("renopro", self._log_level)
         input_string = ""
         input_files: List[str] = [path for path in files if path != "-"]
         expect_stdin: bool = "-" in files
@@ -191,14 +238,6 @@ class MetaTransformerApp(Application):  # type: ignore
         else:
             if expect_stdin:
                 input_string += sys.stdin.read()
-        transform_files = [
-            "./src/renopro/asp/transform.lp",
-            "./src/renopro/asp/wrap_ast.lp",
-            "./src/renopro/asp/unwrap_ast.lp",
-            "./src/renopro/asp/defined.lp",
-            "./src/renopro/asp/replace_id.lp",
-            "./src/renopro/asp/scripts.lp",
-        ] + self._meta_encodings
         # need to do some transformations on input and transform files
         input_tf = InputTransformer()
         transformed_stms: List[ast.AST] = []
@@ -210,127 +249,96 @@ class MetaTransformerApp(Application):  # type: ignore
             input_string, lambda stm: transformed_stms.append(input_tf(stm))
         )
         meta_enc_tf = MetaEncodingTransformer()
-        ast.parse_files(
-            transform_files, lambda stm: transformed_stms.append(meta_enc_tf(stm))
-        )
-        transformed_stms.extend(meta_enc_tf.external_statements)
-        prog_str = "\n".join([str(stm) for stm in transformed_stms])
-        reified_prog = subprocess.run(
-            ["clingo", "--output=reify"],
-            input=prog_str,
-            encoding="utf-8",
-            capture_output=True,
-            check=True,
-        ).stdout
-        """
-        when just adding the reified program string via control.add, 
-        I get parsing error unexpected EOF from clingo. No idea why. 
-        As a temporary workaround, we save the string to a temp file and then 
-        load, which seems to work for some reason.
-        """
-        tmp = tempfile.NamedTemporaryFile()
-        with open(tmp.name, "w", encoding="utf-8") as f:
-            f.write(reified_prog)
-        # print("% Reified program:\n")
-        # print(reified_prog)
-        # control.add(reified_prog, [], "base")
-        control.load(tmp.name)
-        control.load("./tests/asp/transform/meta-telingo/meta.lp")
-        control.add(f"#const lambda={self._lambda}.")
+        if len(self._meta_encodings) > 0:
+            ast.parse_files(
+                self._meta_encodings, lambda stm: transformed_stms.append(meta_enc_tf(stm))
+            )
+        transformed_prog_str = "\n".join([str(stm) for stm in transformed_stms])
+        # print(transformed_prog_str)
+        control.add(transformed_prog_str)
+        transform_files = [
+            "./src/renopro/asp/transform.lp",
+            "./src/renopro/asp/wrap_ast.lp",
+            "./src/renopro/asp/unwrap_ast.lp",
+            "./src/renopro/asp/defined.lp",
+            "./src/renopro/asp/replace_id.lp",
+            "./src/renopro/asp/scripts.lp",
+            "./src/renopro/asp/ast_fact2id.lp",
+        ]
+        for f in transform_files:
+            control.load(f)
+        control.add(f"#const transform_steps={self._transform_steps}.")
         control.ground()
         control.solve(on_model=self._on_model)
 
     def _log_log(self, symb: Symbol, logs: dict[int, List[str]]) -> None:
         log_lvl_symb = symb.arguments[0]
-        msg_format_str = str(symb.arguments[1])
+        log_step = symb.arguments[-1].number
+        msg_format_str = str(symb.arguments[1]).strip('"')
         log_lvl_strings = log_lvl_str2int.keys()
         if (
             log_lvl_symb.type != SymbolType.String
             or log_lvl_symb.string not in log_lvl_strings
         ):
-            raise TransformationError(
+            exception = TransformationError(
                 "First argument of log term must be one of the string symbols: '"
                 + "', '".join(log_lvl_strings)
                 + "'"
             )
+            self._exception = exception
+            raise exception
         level = log_lvl_str2int[log_lvl_symb.string]
-        log_strings = [str(s).strip('"') for s in symb.arguments[2:]]
+        log_strings = [str(s).strip('"') for s in symb.arguments[2:-1]]
         msg_str = msg_format_str.format(*log_strings)
         logs[level].append(msg_str)
 
-    def _print_step(
-        self, step: int, trace: Trace, print_step: bool, reflect: bool
-    ) -> None:
+    def _print_step(self, step: int, trace: Trace) -> None:
         symbols = trace[step]
-        logs: dict[int, List[str]] = {40: [], 30: [], 20: [], 10: []}
         sys.stdout.write(f"% State {step}:")
         s = ""
         sig = None
         ast_symbols: List[Symbol] = []
         for symb in sorted(symbols):
-            if print_step:
-                if reflect:
-                    if symb.match("ast", 1) and symb.arguments[0].match("fact", 1):
-                        ast_symbols.append(symb.arguments[0].arguments[0])
-                else:
-                    if (symb.name, len(symb.arguments), symb.positive) != sig:
-                        s += "\n"
-                        sig = (symb.name, len(symb.arguments), symb.positive)
-                    s += f" {symb}."
-            if (
-                symb.type == SymbolType.Function
-                and symb.positive is True
-                and symb.name == "log"
-                and len(symb.arguments) > 1
-            ):
-                self._log_log(symb, logs)
-        if reflect:
+            if self._reflect_output.flag:
+                if symb.match("ast", 1) and symb.arguments[0].match("fact", 1):
+                    ast_symbols.append(symb.arguments[0].arguments[0])
+            else:
+                if (symb.name, len(symb.arguments), symb.positive) != sig:
+                    s += "\n"
+                    sig = (symb.name, len(symb.arguments), symb.positive)
+                s += f" {symb}."
+        if self._reflect_output.flag:
             rast = renopro.rast.ReifiedAST()
             rast.add_reified_symbols(ast_symbols)
             rast.reflect()
-            sys.stdout.write(rast.program_string + "\n")
+            sys.stdout.write("\n" + rast.program_string)
         s += "\n"
         sys.stdout.write(s)
-        for level, msgs in logs.items():
-            for msg in msgs:
-                if level == 40:
-                    logger.error(
-                        msg, exc_info=logger.getEffectiveLevel() == logging.DEBUG
-                    )
-                else:
-                    logger.log(level, msg)
-        if msgs := logs[40]:
-            raise TransformationError("\n".join(msgs))
 
     def print_model(self, model: Model, printer: Callable[[], None]) -> None:
-        horizon = self._lambda - 1
+        horizon = self._transform_steps
         trace = self.traces[-1]
-        for step in range(horizon):
-            self._print_step(
-                step, trace, self._print_inter.flag, self._reflect_output.flag
-            )
-        if self._reflect_output.flag:
-            self._print_step(horizon, trace, False, False)
-            rast = renopro.rast.ReifiedAST()
-            rast.add_reified_symbols(self.transformed_asts[0])
-            rast.reflect()
-            sys.stdout.write(rast.program_string + "\n")
-        else:
-            self._print_step(horizon, trace, True, False)
+        if self._print_inter.flag:
+            for step in range(horizon):
+                self._print_step(step, trace)
+        self._print_step(horizon, trace)
 
 
 def transform(
-    meta_files: List[Path],
     input_files: Optional[List[Path]] = None,
+    meta_files: Optional[List[Path]] = None,
     options: Optional[List[str]] = None,
 ) -> List[List[Symbol]]:
     """Transform the reified AST using meta encoding."""
     input_files = [] if input_files is None else input_files
+    meta_files = [] if meta_files is None else meta_files
     options = [] if options is None else options
     options += [f"-m {str(meta_file)}" for meta_file in meta_files]
     meta_tf_app = MetaTransformerApp()
-    args = [str(f) for f in input_files] + options + ["--quiet=2,2,2", "-V0"]
+    args = [str(f) for f in input_files] + options + ["--outf=3"]
     clingo_main(meta_tf_app, args)
+    if meta_tf_app._exception is not None:
+        raise meta_tf_app._exception
     return meta_tf_app.transformed_asts
 
 

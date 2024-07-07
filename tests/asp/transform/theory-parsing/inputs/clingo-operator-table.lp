@@ -3,6 +3,7 @@
 % 1 stands for left associative
 % and 0 stands for right associative 
 % or no associativity in unary case.
+#program step(parse_unparsed_theory_terms).
 
 operator_table(clingo,("-",1),(5,0)).
 operator_table(clingo,("~",1),(5,0)).

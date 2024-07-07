@@ -1,12 +1,15 @@
 % transform initial, dynamic, always and final subprograms
 
+#program step(meta_telingo_subprograms).
+#const meta_telingo_subprograms=0.
+
 temporal_program(P) 
   :- program(P,X,constants(CS),_), not constants(CS,_,_),
 		 X=("initial";"dynamic";"always";"final").
 
 % move all the temporal subprograms into the base subprogram
-ast(delete(program(P,X,constants(CS),statements(STS)));
-		add(program(P,"base",constants(CS),statements(STS))))
+ast(replace(program(P,X,constants(CS),statements(STS)),
+						program(P,"base",constants(CS),statements(STS))))
   :- program(P,X,constants(CS),statements(STS)), temporal_program(P).
 
 % tag bodies to be modified with temporal subprogram they appear in

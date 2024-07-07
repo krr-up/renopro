@@ -18,6 +18,13 @@ COLORS = {
     "NORMAL": "\033[0m",
 }
 
+log_string2level = {
+    "error": logging.ERROR,
+    "warning": logging.WARNING,
+    "info": logging.INFO,
+    "debug": logging.DEBUG,
+}
+
 
 class SingleLevelFilter(logging.Filter):
     """

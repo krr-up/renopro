@@ -53,8 +53,8 @@ def loc2str(location: Symbol) -> Symbol:
     pairs = []
     for pair in zip(location.arguments[1].arguments, location.arguments[2].arguments):
         pairs.append(
-            str(pair[0]) if pair[0] == pair[1] else str(pair[0]) + "-" + str(pair[1])
+            str(pair[0]).strip('"') if pair[0] == pair[1] else str(pair[0]).strip('"') + "-" + str(pair[1]).strip('"')
         )
-    return String(":".join(pairs))
+    return String(":".join(pairs).strip('"'))
 
 #end.

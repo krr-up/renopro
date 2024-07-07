@@ -132,7 +132,6 @@ class IdentifierPredicateConstructor(Protocol):
     def __call__(self, id: Any = ..., /) -> IdentifierPredicate: ...
 
 
-
 class AstPredicate(Predicate, metaclass=_AstPredicateMeta):
     """A predicate representing an AST node."""
 
@@ -455,8 +454,9 @@ class BooleanConstant(AstPredicate):
 # have a pool argument.
 
 
-FunctionOrPoolField = combine_fields(
-    [Function.unary.Field, Pool.unary.Field], name="FunctionOrPoolField"
+SymbolicAtomSymbolField = combine_fields(
+    [Function.unary.Field, Pool.unary.Field, UnaryOperation.unary.Field],
+    name="SymbolicAtomSymbolField",
 )
 
 
@@ -464,11 +464,11 @@ class SymbolicAtom(AstPredicate):
     """Predicate representing a symbolic atom.
 
     id: Identifier of the atom.
-    symbol: The function symbol constituting the atom.
+    symbol: The symbol constituting the atom.
     """
 
     id = IntegerOrRawField
-    symbol = FunctionOrPoolField
+    symbol = SymbolicAtomSymbolField
 
 
 AtomField = combine_fields(
@@ -1290,6 +1290,7 @@ composed_pred_names = tuple(predicate.meta.name + "_" for predicate in AstPreds)
 name2arity2pred = {pred.meta.name: {pred.meta.arity: pred} for pred in AstPreds}
 
 ast_fact_field = combine_fields([pred.Field for pred in AstPreds])
+
 
 class Transformed(Predicate):
     """Wrapper predicate to distinguish output AST facts of a transformation."""

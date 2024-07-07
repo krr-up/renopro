@@ -1,64 +1,62 @@
-% Rules to tag AST facts.
+% Rules to tag initial AST facts.
 
-#program always.
-ast(fact(string(X0,X1))) :- string(X0,X1), not final.
-ast(fact(number(X0,X1))) :- number(X0,X1), not final.
-ast(fact(variable(X0,X1))) :- variable(X0,X1), not final.
-ast(fact(unary_operation(X0,X1,X2))) :- unary_operation(X0,X1,X2), not final.
-ast(fact(binary_operation(X0,X1,X2,X3))) :- binary_operation(X0,X1,X2,X3), not final.
-ast(fact(interval(X0,X1,X2))) :- interval(X0,X1,X2), not final.
-ast(fact(terms(X0,X1,X2))) :- terms(X0,X1,X2), not final.
-ast(fact(function(X0,X1,X2))) :- function(X0,X1,X2), not final.
-ast(fact(external_function(X0,X1,X2))) :- external_function(X0,X1,X2), not final.
-ast(fact(pool(X0,X1))) :- pool(X0,X1), not final.
-ast(fact(theory_terms(X0,X1,X2))) :- theory_terms(X0,X1,X2), not final.
-ast(fact(theory_sequence(X0,X1,X2))) :- theory_sequence(X0,X1,X2), not final.
-ast(fact(theory_function(X0,X1,X2))) :- theory_function(X0,X1,X2), not final.
-ast(fact(theory_operators(X0,X1,X2))) :- theory_operators(X0,X1,X2), not final.
-ast(fact(theory_unparsed_term_elements(X0,X1,X2,X3))) :- theory_unparsed_term_elements(X0,X1,X2,X3), not final.
-ast(fact(theory_unparsed_term(X0,X1))) :- theory_unparsed_term(X0,X1), not final.
-ast(fact(guard(X0,X1,X2))) :- guard(X0,X1,X2), not final.
-ast(fact(guards(X0,X1,X2))) :- guards(X0,X1,X2), not final.
-ast(fact(comparison(X0,X1,X2))) :- comparison(X0,X1,X2), not final.
-ast(fact(boolean_constant(X0,X1))) :- boolean_constant(X0,X1), not final.
-ast(fact(symbolic_atom(X0,X1))) :- symbolic_atom(X0,X1), not final.
-ast(fact(literal(X0,X1,X2))) :- literal(X0,X1,X2), not final.
-ast(fact(literals(X0,X1,X2))) :- literals(X0,X1,X2), not final.
-ast(fact(conditional_literal(X0,X1,X2))) :- conditional_literal(X0,X1,X2), not final.
-ast(fact(aggregate_elements(X0,X1,X2))) :- aggregate_elements(X0,X1,X2), not final.
-ast(fact(aggregate(X0,X1,X2,X3))) :- aggregate(X0,X1,X2,X3), not final.
-ast(fact(theory_atom_elements(X0,X1,X2,X3))) :- theory_atom_elements(X0,X1,X2,X3), not final.
-ast(fact(theory_guard(X0,X1,X2))) :- theory_guard(X0,X1,X2), not final.
-ast(fact(theory_atom(X0,X1,X2,X3))) :- theory_atom(X0,X1,X2,X3), not final.
-ast(fact(body_aggregate_elements(X0,X1,X2,X3))) :- body_aggregate_elements(X0,X1,X2,X3), not final.
-ast(fact(body_aggregate(X0,X1,X2,X3,X4))) :- body_aggregate(X0,X1,X2,X3,X4), not final.
-ast(fact(body_literal(X0,X1,X2))) :- body_literal(X0,X1,X2), not final.
-ast(fact(body_literals(X0,X1,X2))) :- body_literals(X0,X1,X2), not final.
-ast(fact(head_aggregate_elements(X0,X1,X2,X3))) :- head_aggregate_elements(X0,X1,X2,X3), not final.
-ast(fact(head_aggregate(X0,X1,X2,X3,X4))) :- head_aggregate(X0,X1,X2,X3,X4), not final.
-ast(fact(conditional_literals(X0,X1,X2))) :- conditional_literals(X0,X1,X2), not final.
-ast(fact(disjunction(X0,X1))) :- disjunction(X0,X1), not final.
-ast(fact(rule(X0,X1,X2))) :- rule(X0,X1,X2), not final.
-ast(fact(definition(X0,X1,X2,X3))) :- definition(X0,X1,X2,X3), not final.
-ast(fact(show_signature(X0,X1,X2,X3))) :- show_signature(X0,X1,X2,X3), not final.
-ast(fact(defined(X0,X1,X2,X3))) :- defined(X0,X1,X2,X3), not final.
-ast(fact(show_term(X0,X1,X2))) :- show_term(X0,X1,X2), not final.
-ast(fact(minimize(X0,X1,X2,X3,X4))) :- minimize(X0,X1,X2,X3,X4), not final.
-ast(fact(script(X0,X1,X2))) :- script(X0,X1,X2), not final.
-ast(fact(statements(X0,X1,X2))) :- statements(X0,X1,X2), not final.
-ast(fact(constants(X0,X1,X2))) :- constants(X0,X1,X2), not final.
-ast(fact(program(X0,X1,X2,X3))) :- program(X0,X1,X2,X3), not final.
-ast(fact(external(X0,X1,X2,X3))) :- external(X0,X1,X2,X3), not final.
-ast(fact(edge(X0,X1,X2,X3))) :- edge(X0,X1,X2,X3), not final.
-ast(fact(heuristic(X0,X1,X2,X3,X4,X5))) :- heuristic(X0,X1,X2,X3,X4,X5), not final.
-ast(fact(project_atom(X0,X1,X2))) :- project_atom(X0,X1,X2), not final.
-ast(fact(project_signature(X0,X1,X2,X3))) :- project_signature(X0,X1,X2,X3), not final.
-ast(fact(theory_operator_definitions(X0,X1,X2,X3,X4))) :- theory_operator_definitions(X0,X1,X2,X3,X4), not final.
-ast(fact(theory_term_definitions(X0,X1,X2,X3))) :- theory_term_definitions(X0,X1,X2,X3), not final.
-ast(fact(theory_guard_definition(X0,X1,X2))) :- theory_guard_definition(X0,X1,X2), not final.
-ast(fact(theory_atom_definitions(X0,X1,X2,X3,X4,X5,X6))) :- theory_atom_definitions(X0,X1,X2,X3,X4,X5,X6), not final.
-ast(fact(theory_definition(X0,X1,X2,X3))) :- theory_definition(X0,X1,X2,X3), not final.
-ast(fact(comment(X0,X1,X2))) :- comment(X0,X1,X2), not final.
-ast(fact(location(X0,X1,X2))) :- location(X0,X1,X2), not final.
-ast(fact(child(X0,X1))) :- child(X0,X1), not final.
-#external final.
+ast(fact(string(X0,X1)),0) :- string(X0,X1,0).
+ast(fact(number(X0,X1)),0) :- number(X0,X1,0).
+ast(fact(variable(X0,X1)),0) :- variable(X0,X1,0).
+ast(fact(unary_operation(X0,X1,X2)),0) :- unary_operation(X0,X1,X2,0).
+ast(fact(binary_operation(X0,X1,X2,X3)),0) :- binary_operation(X0,X1,X2,X3,0).
+ast(fact(interval(X0,X1,X2)),0) :- interval(X0,X1,X2,0).
+ast(fact(terms(X0,X1,X2)),0) :- terms(X0,X1,X2,0).
+ast(fact(function(X0,X1,X2)),0) :- function(X0,X1,X2,0).
+ast(fact(external_function(X0,X1,X2)),0) :- external_function(X0,X1,X2,0).
+ast(fact(pool(X0,X1)),0) :- pool(X0,X1,0).
+ast(fact(theory_terms(X0,X1,X2)),0) :- theory_terms(X0,X1,X2,0).
+ast(fact(theory_sequence(X0,X1,X2)),0) :- theory_sequence(X0,X1,X2,0).
+ast(fact(theory_function(X0,X1,X2)),0) :- theory_function(X0,X1,X2,0).
+ast(fact(theory_operators(X0,X1,X2)),0) :- theory_operators(X0,X1,X2,0).
+ast(fact(theory_unparsed_term_elements(X0,X1,X2,X3)),0) :- theory_unparsed_term_elements(X0,X1,X2,X3,0).
+ast(fact(theory_unparsed_term(X0,X1)),0) :- theory_unparsed_term(X0,X1,0).
+ast(fact(guard(X0,X1,X2)),0) :- guard(X0,X1,X2,0).
+ast(fact(guards(X0,X1,X2)),0) :- guards(X0,X1,X2,0).
+ast(fact(comparison(X0,X1,X2)),0) :- comparison(X0,X1,X2,0).
+ast(fact(boolean_constant(X0,X1)),0) :- boolean_constant(X0,X1,0).
+ast(fact(symbolic_atom(X0,X1)),0) :- symbolic_atom(X0,X1,0).
+ast(fact(literal(X0,X1,X2)),0) :- literal(X0,X1,X2,0).
+ast(fact(literals(X0,X1,X2)),0) :- literals(X0,X1,X2,0).
+ast(fact(conditional_literal(X0,X1,X2)),0) :- conditional_literal(X0,X1,X2,0).
+ast(fact(aggregate_elements(X0,X1,X2)),0) :- aggregate_elements(X0,X1,X2,0).
+ast(fact(aggregate(X0,X1,X2,X3)),0) :- aggregate(X0,X1,X2,X3,0).
+ast(fact(theory_atom_elements(X0,X1,X2,X3)),0) :- theory_atom_elements(X0,X1,X2,X3,0).
+ast(fact(theory_guard(X0,X1,X2)),0) :- theory_guard(X0,X1,X2,0).
+ast(fact(theory_atom(X0,X1,X2,X3)),0) :- theory_atom(X0,X1,X2,X3,0).
+ast(fact(body_aggregate_elements(X0,X1,X2,X3)),0) :- body_aggregate_elements(X0,X1,X2,X3,0).
+ast(fact(body_aggregate(X0,X1,X2,X3,X4)),0) :- body_aggregate(X0,X1,X2,X3,X4,0).
+ast(fact(body_literal(X0,X1,X2)),0) :- body_literal(X0,X1,X2,0).
+ast(fact(body_literals(X0,X1,X2)),0) :- body_literals(X0,X1,X2,0).
+ast(fact(head_aggregate_elements(X0,X1,X2,X3)),0) :- head_aggregate_elements(X0,X1,X2,X3,0).
+ast(fact(head_aggregate(X0,X1,X2,X3,X4)),0) :- head_aggregate(X0,X1,X2,X3,X4,0).
+ast(fact(conditional_literals(X0,X1,X2)),0) :- conditional_literals(X0,X1,X2,0).
+ast(fact(disjunction(X0,X1)),0) :- disjunction(X0,X1,0).
+ast(fact(rule(X0,X1,X2)),0) :- rule(X0,X1,X2,0).
+ast(fact(definition(X0,X1,X2,X3)),0) :- definition(X0,X1,X2,X3,0).
+ast(fact(show_signature(X0,X1,X2,X3)),0) :- show_signature(X0,X1,X2,X3,0).
+ast(fact(defined(X0,X1,X2,X3)),0) :- defined(X0,X1,X2,X3,0).
+ast(fact(show_term(X0,X1,X2)),0) :- show_term(X0,X1,X2,0).
+ast(fact(minimize(X0,X1,X2,X3,X4)),0) :- minimize(X0,X1,X2,X3,X4,0).
+ast(fact(script(X0,X1,X2)),0) :- script(X0,X1,X2,0).
+ast(fact(statements(X0,X1,X2)),0) :- statements(X0,X1,X2,0).
+ast(fact(constants(X0,X1,X2)),0) :- constants(X0,X1,X2,0).
+ast(fact(program(X0,X1,X2,X3)),0) :- program(X0,X1,X2,X3,0).
+ast(fact(external(X0,X1,X2,X3)),0) :- external(X0,X1,X2,X3,0).
+ast(fact(edge(X0,X1,X2,X3)),0) :- edge(X0,X1,X2,X3,0).
+ast(fact(heuristic(X0,X1,X2,X3,X4,X5)),0) :- heuristic(X0,X1,X2,X3,X4,X5,0).
+ast(fact(project_atom(X0,X1,X2)),0) :- project_atom(X0,X1,X2,0).
+ast(fact(project_signature(X0,X1,X2,X3)),0) :- project_signature(X0,X1,X2,X3,0).
+ast(fact(theory_operator_definitions(X0,X1,X2,X3,X4)),0) :- theory_operator_definitions(X0,X1,X2,X3,X4,0).
+ast(fact(theory_term_definitions(X0,X1,X2,X3)),0) :- theory_term_definitions(X0,X1,X2,X3,0).
+ast(fact(theory_guard_definition(X0,X1,X2)),0) :- theory_guard_definition(X0,X1,X2,0).
+ast(fact(theory_atom_definitions(X0,X1,X2,X3,X4,X5,X6)),0) :- theory_atom_definitions(X0,X1,X2,X3,X4,X5,X6,0).
+ast(fact(theory_definition(X0,X1,X2,X3)),0) :- theory_definition(X0,X1,X2,X3,0).
+ast(fact(comment(X0,X1,X2)),0) :- comment(X0,X1,X2,0).
+ast(fact(location(X0,X1,X2)),0) :- location(X0,X1,X2,0).
+ast(fact(child(X0,X1)),0) :- child(X0,X1,0).

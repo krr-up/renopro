@@ -155,7 +155,7 @@ class ReifiedAST:
 
     def __init__(self) -> None:
         self._reified = FactBase()
-        self._program_ast: List[AST] = []
+        self.program_stms: List[AST] = []
         self._current_statement: Tuple[Optional[preds.IdentifierPredicate], int] = (
             None,
             0,
@@ -164,9 +164,7 @@ class ReifiedAST:
         self._init_overrides()
         self._parent_id_term: Optional[preds.IdentifierPredicate] = None
 
-    def add_reified_symbols(
-        self, reified_symbols: Iterable[Symbol]
-    ) -> None:
+    def add_reified_symbols(self, reified_symbols: Iterable[Symbol]) -> None:
         # couldn't find a way in clorm to directly add a set of facts
         # while checking unification, so we have to unify against the
         # underlying symbols
@@ -209,37 +207,37 @@ class ReifiedAST:
     def reify_string(self, prog_str: str) -> None:
         """Reify input program string, adding reified facts to the
         internal factbase."""
-        self._program_ast = []
-        parse_string(prog_str, self._program_ast.append)
-        self.reify_ast(self._program_ast)
+        self.program_stms = []
+        parse_string(prog_str, self.program_stms.append)
+        self.reify_ast(self.program_stms)
 
     def reify_files(self, files: Sequence[Path]) -> None:
         """Reify input program files, adding reified facts to the
         internal factbase."""
-        self._program_ast = []
+        self.program_stms = []
         for f in files:
             if not f.is_file():  # nocoverage
                 raise IOError(f"File {f} does not exist.")
         files_str = [str(f) for f in files]
         parse_files(files_str, self.program_ast.append)
-        self.reify_ast(self._program_ast)
+        self.reify_ast(self.program_stms)
 
     def reify_ast(self, asts: List[AST]) -> None:
         """Reify input sequence of AST nodes, adding reified facts to
         the internal factbase."""
-        self._program_ast = asts
-        for statement in self._program_ast:
+        self.program_stms = asts
+        for statement in self.program_stms:
             self.reify_node(statement)
 
     @property
     def program_string(self) -> str:
         """String representation of reflected AST facts."""
-        return "\n".join([str(statement) for statement in self._program_ast])
+        return "\n".join([str(statement) for statement in self.program_stms])
 
     @property
     def program_ast(self) -> List[AST]:
         """AST nodes attained via reflection of AST facts."""
-        return self._program_ast
+        return self.program_stms
 
     @property
     def reified_facts(self) -> FactBase:
@@ -825,11 +823,11 @@ class ReifiedAST:
 
         """
         # reset list of program statements before population via reflect
-        self._program_ast = []
+        self.program_stms = []
         # should probably define an order in which programs are queried
         for prog in self._reified.query(preds.Program).all():
             subprogram = self.reflect_fact(prog)
-            self._program_ast.extend(subprogram)
+            self.program_stms.extend(subprogram)
         logger.debug("Reflected program string:\n%s", self.program_string)
 
     # def transform(

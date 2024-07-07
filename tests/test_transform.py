@@ -4,9 +4,11 @@ import re
 import unittest
 from itertools import count
 from pathlib import Path
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Sequence
 from unittest import TestCase
 import tempfile
+
+from clingo import ast
 
 import renopro.predicates as preds
 from renopro.rast import ReifiedAST
@@ -31,18 +33,50 @@ class TestTransform(TestCase):
         input_files: List[Path],
         meta_files: List[Path],
         expected_output_file: Path,
-        rast: Optional[ReifiedAST] = None,
+        options: Optional[List[str]] = None,
     ):
+        options = [] if options is None else options
         transformed_models = transform(
-            meta_files=meta_files, input_files=input_files, options=["--reify"]
+            input_files=input_files,
+            meta_files=meta_files,
+            options=options + ["--reify"],
         )
         rast = ReifiedAST()
         rast.add_reified_symbols(transformed_models[0])
         rast.reflect()
-        transformed_str = rast.program_string.strip()
-        with expected_output_file.open("r", encoding="utf-8") as f:
-            expected_str = self.base_str + f.read().strip()
-            self.assertEqual(transformed_str, expected_str)
+        # we re-parse the string as the mapping
+        # from statements to their string representation is not bijective
+        transformed_stms = []
+        ast.parse_string(rast.program_string, transformed_stms.append)
+        # print([str(s) for s in transformed_stms])
+        expected_stms = []
+        ast.parse_string("#program base.", expected_stms.append)
+        ast.parse_files([str(expected_output_file)], expected_stms.append)
+        expected_prog_blocks, transformed_prog_blocks = set(), set()
+        for stms, prog_blocks in zip(
+            [expected_stms, transformed_stms],
+            [expected_prog_blocks, transformed_prog_blocks],
+        ):
+            prog_block = []
+            for stm in stms:
+                if stm.ast_type is ast.ASTType.Program:
+                    prog_blocks.add(tuple(prog_block))
+                    prog_block = [stm]
+                else:
+                    prog_block.append(stm)
+            prog_blocks.add(tuple(prog_block))
+        first_not_second = transformed_prog_blocks.difference(expected_prog_blocks)
+        second_not_first = expected_prog_blocks.difference(transformed_prog_blocks)
+        divider = "\n----------------------------------------------------\n"
+        str1 = divider.join(
+            ["\n".join([str(stm) for stm in block]) for block in first_not_second]
+        )
+        str2 = divider.join(
+            ["\n".join([str(stm) for stm in block]) for block in second_not_first]
+        )
+        msg = f"\nSuperfluous program blocks found in transformed program:{divider}{str1}{divider}"
+        msg += f"Program blocks missing from transformed program:{divider}{str2}"
+        self.assertTrue(transformed_prog_blocks == expected_prog_blocks, msg=msg)
 
     def assertTransformLogs(
         self,
@@ -50,10 +84,16 @@ class TestTransform(TestCase):
         meta_files: List[Path],
         level: Literal["DEBUG", "INFO", "WARNING", "ERROR"],
         message2num_matches: Dict[str, int],
+        options: Optional[List[str]] = None,
     ):
-        with self.assertLogs("renopro.transform", level=level) as cm:
+        options = [] if options is None else options
+        with self.assertLogs("renopro.transformer", level=level) as cm:
             try:
-                transform(input_files, meta_files, ["--reify"])
+                transform(
+                    input_files=input_files,
+                    meta_files=meta_files,
+                    options=options + ["--reify"],
+                )
             except TransformationError as e:
                 if level != "ERROR":
                     raise e
@@ -85,43 +125,51 @@ class TestTransform(TestCase):
     base_str = "#program base.\n"
 
 
-class TestTransformSimple(TestTransform):
-    """Test case for testing basic transform functionality and simple
-    transformations"""
+class TestTransformLog(TestTransform):
+    """Test case for testing logging functionality during transformation."""
 
-    def test_transform_log(self):
-        "Test logging capabilities of transform."
-        files_dir = test_transform_dir / "log"
+    files_dir = test_transform_dir / "log"
+
+    def test_transform_log_incorrect_level(self):
         pattern = (
             r"First argument of log term must be one of the string "
             r"symbols: 'debug', 'info', 'warning', 'error'"
         )
-        with self.assertRaises(Exception):
-            transform(meta_files=[files_dir / "hello.lp"])
+        with self.assertRaises(TransformationError):
+            transform(meta_files=[self.files_dir / "hello.lp"])
+
+    def test_transform_log_info(self):
         self.assertTransformLogs(
-            [files_dir / "input.lp"],
-            [files_dir / "info_with_loc.lp"],
+            [self.files_dir / "input.lp"],
+            [self.files_dir / "info_with_loc.lp"],
             "INFO",
-            {r"7:12-13: Found function with name a.": 1},
+            {r"1:1-2: Found function with name a.": 1},
         )
         self.assertTransformLogs(
-            [files_dir / "input.lp"],
-            [files_dir / "info_no_loc.lp"],
+            [self.files_dir / "input.lp"],
+            [self.files_dir / "info_no_loc.lp"],
             "INFO",
             {r"Found function with name a. Sorry, no location.": 1},
         )
+
+    def test_transform_log_error(self):
         self.assertTransformLogs(
-            [files_dir / "input.lp"],
-            [files_dir / "error_no_loc.lp"],
+            [self.files_dir / "input.lp"],
+            [self.files_dir / "error_no_loc.lp"],
             "ERROR",
             {r"Found function with name a. Sorry, no location.": 1},
         )
         self.assertTransformLogs(
-            [files_dir / "input.lp"],
-            [files_dir / "error_with_loc.lp"],
+            [self.files_dir / "input.lp"],
+            [self.files_dir / "error_with_loc.lp"],
             "ERROR",
-            {r"7:12-13: Found function with name a.": 1},
+            {r"1:1-2: Found function with name a.": 1},
         )
+
+
+class TestTransformSimple(TestTransform):
+    """Test case for testing basic transform functionality and simple
+    transformations"""
 
     def test_transform_not_bad(self):
         """Test adding an additional literal to the body of rules.
@@ -158,8 +206,7 @@ class TestTransformTheoryParsing(TestTransform):
         """Theory operators without an entry in the operator table of
         the appropriate theory term type should raise error."""
         self.assertTransformLogs(
-            [self.files_dir / "inputs" / "clingo-unknown-operator.lp",
-             self.files_dir / "inputs" / "clingo-theory-def.lp"],
+            [self.files_dir / "inputs" / "clingo-unknown-operator.lp"],
             [
                 self.files_dir / "parse-unparsed-theory-terms.lp",
                 self.files_dir / "inputs" / "clingo-operator-table.lp",
@@ -179,10 +226,7 @@ class TestTransformTheoryParsing(TestTransform):
 
         """
         self.assertTransformEqual(
-            [
-                self.files_dir / "inputs" / "clingo-unparsed-theory-term.lp",
-                self.files_dir / "inputs" / "clingo-theory-def.lp",
-            ],
+            [self.files_dir / "inputs" / "clingo-unparsed-theory-term.lp"],
             [
                 self.files_dir / "parse-unparsed-theory-terms.lp",
                 self.files_dir / "inputs" / "clingo-operator-table.lp",
@@ -265,6 +309,7 @@ class TestTransformMetaTelingo(TestTransform):
                 self.files_dir / "transform-add-externals.lp",
             ],
             self.files_dir / "outputs" / "output-body.lp",
+            options=["-c", "meta_telingo_externals=1", "--transform-steps=2"],
         )
 
     def test_transform_meta_telingo_externals_head(self):
@@ -277,6 +322,7 @@ class TestTransformMetaTelingo(TestTransform):
                 self.files_dir / "transform-add-externals.lp",
             ],
             self.files_dir / "outputs" / "output-head.lp",
+            options=["-c meta_telingo_externals=1", "--transform-steps=2"],
         )
 
     def test_transform_meta_telingo_externals_no_cond(self):
@@ -337,6 +383,12 @@ class TestTransformMetaTelingo(TestTransform):
                 self.files_dir / "transform-add-externals.lp",
             ],
             self.files_dir / "outputs" / "telingo-output.lp",
+            options=[
+                "--transform-steps=4",
+                "-c tel_theory_to_symbolic=1",
+                "-c meta_telingo_subprograms=2",
+                "-c meta_telingo_externals=3",
+            ],
         )
 
 
