@@ -1,8 +1,16 @@
 #script (python)
 
-from clingo.symbol import Function, Number, SymbolType, Symbol, List
+import json
+from pathlib import Path
 
-from renopro.predicates import pred_names, composed_pred_names
+from clingo.symbol import Function, Number, SymbolType, Symbol, String, List
+
+data_dir = Path("src", "renopro", "data")
+pred_names = json.loads((data_dir / "pred_names.json").read_text("utf-8"))
+composed_pred_names = json.loads((data_dir / "composed_pred_names.json").read_text("utf-8"))
+pred_name2child_idx = json.loads(
+    Path("src", "renopro", "data", "pred_name2child_idx.json").read_text("utf-8")
+)
 
 
 def _decompose(f: Symbol, top_id: Symbol, asts: List[Symbol], i: int, top_level=False, override_id=None):
@@ -31,5 +39,22 @@ def decompose(f: Symbol):
     asts = []
     _decompose(f, Function(f.name, f.arguments[:1]), asts, 0, top_level=True)
     return asts
+
+def ast_fact2id(fact: Symbol) -> Symbol:
+    return Function(fact.name, fact.arguments[:1])
+
+def ast_fact2children_ids(fact):
+    try:
+        return [fact.arguments[idx] for idx in pred_name2child_idx[fact.name]]
+    except KeyError:
+        return String("invalid_signature")
+
+def loc2str(location: Symbol) -> Symbol:
+    pairs = []
+    for pair in zip(location.arguments[1].arguments, location.arguments[2].arguments):
+        pairs.append(
+            str(pair[0]).strip('"') if pair[0] == pair[1] else str(pair[0]).strip('"') + "-" + str(pair[1]).strip('"')
+        )
+    return String(":".join(pairs).strip('"'))
 
 #end.

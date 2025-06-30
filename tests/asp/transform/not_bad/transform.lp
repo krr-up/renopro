@@ -14,6 +14,8 @@
 % good(dog(X,"spotty")) :- cute(dog(X,"spotty")), not bad(dog(X,"spotty")).
 
 % auxiliary predicate to get maximal index within a tuple of rule body literals
+#program step(not_bad).
+#const not_bad=0.
 max_lit_index(LT,Idx)
 :- Idx = #max{ P : body_literals(LT,P,_); -1 }, rule(_,_,body_literals(LT)).
 

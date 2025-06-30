@@ -86,53 +86,8 @@ def get_parser() -> ArgumentParser:
         help="Reflect input reified facts into their program string representation.",
         parents=[common_arg_parser],
     )
-    transform_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "transform",
         help="Apply AST transformation to input reified facts via a meta-encoding.",
-        parents=[common_arg_parser],
     )
-    transform_parser.add_argument(
-        "--meta-encodings",
-        "-m",
-        action="append",
-        nargs="+",
-        type=Path,
-        help="Meta-encodings to be applied to reified facts.",
-        required=True,
-    )
-    transform_parser.add_argument(
-        "--input-format",
-        "-i",
-        help=(
-            "Format of input to be transformed, either reified facts or a "
-            "reflected program string. If input format is set to reflected, "
-            "the input reflected program string is first reified into facts "
-            "before transformation."
-        ),
-        choices=["reified", "reflected"],
-        default="reflected",
-    )
-    transform_parser.add_argument(
-        "--output-format",
-        "-o",
-        help=(
-            "Format of output to be printed after transformation, either "
-            "reified facts or a reflected program string. If output format is "
-            "set to reflected, the transformed facts are reflected into a "
-            "program string before printing."
-        ),
-        choices=["reified", "reflected"],
-        default="reflected",
-    )
-    transform_parser.add_argument(
-        "--clingo-options",
-        "-C",
-        nargs=REMAINDER,
-        help=(
-            "Additional arguments passed to clingo for grounding/solving "
-            "logic program consisting of meta-encoding and input reified facts. "
-            "All arguments after this option will be passed to clingo."
-        ),
-    )
-
     return parser

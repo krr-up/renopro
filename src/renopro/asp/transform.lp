@@ -1,25 +1,29 @@
-#include "ast.lp".
-#include "defined.lp".
-#include "replace_id.lp".
-#include "decompose.lp".
-#include "add-children.lp".
-#include "ast_fact2id.lp".
+%% #include "wrap_ast.lp".
+%% #include "unwrap_ast.lp".
+%% #include "defined.lp".
+%% #include "replace_id.lp".
+%% #include "scripts.lp".
 
-ast(delete(A);add(B)) :- ast(replace(A,B)).
-ast(_replace_id(AId,BId))  :- ast(replace(A,B)), ast_fact2id(A,AId), ast_fact2id(B,BId).
+% add operation should also generate an appropriate child/2 fact to link the new fact
+% to it's children
+ast(add(child(Id,@ast_fact2children_ids(Fact))),T) 
+  :- ast(add(Fact),T), ast_fact2id(Fact,Id,T),  #false: Fact=child(_,_).
 
-% delete stops inertia from old ast
-transformed(A) :- ast(fact(A)), not ast(delete(A)).
-% and even overrides adding of new ast
-transformed(A) :- ast(add(A)), not ast(delete(A)).
+ast((delete(A);add(B)),T) :- ast(replace(A,B),T).
 
-transformed(ast_fact2id(Fact,FactId)) :- transformed(Fact), ast_fact2id(Fact,FactId).
+ast(replace_id(AId,BId),T) 
+  :- ast(replace(A,B),T), ast_fact2id(A,AId,T), ast_fact2id(B,BId,T).
 
-final(program(P,Name,Params,Stms)) :- transformed(program(P,Name,Params,Stms)).
+% delete stops inertia from old ast, and even deletes asts that would have been added
+_transformed(A,T) :- ast((fact(A);add(A)),T), not ast(delete(A),T).
 
-final(child(ParentId,ChildId);ChildFact) 
-  :- final(ParentFact), transformed(ast_fact2id(ParentFact,ParentId)),
-		 transformed(child(ParentId,ChildId)), transformed(ast_fact2id(ChildFact,ChildId)).
+% Only preserve AST facts which are reachable from the root
+% AST facts (facts over signature program/4).
+reachable_id(program(P),T) :- _transformed(program(P,_,_,_),T).
+reachable_id(ChildID,T) :- reachable_id(ParentID,T), _transformed(child(ParentID,ChildID),T).
 
-#show final/1.
+transformed(Fact,T) :- _transformed(Fact,T), ast_fact2id(Fact,ID,T), reachable_id(ID,T).
+transformed(child(ParentID,ChildID),T) :- reachable_id(ParentID,T), _transformed(child(ParentID,ChildID),T).
+transformed(location(Id,Beg,End),T) :- reachable_id(Id,T), _transformed(location(Id,Beg,End),T).
 
+ast(fact(Fact),T+1) :- transformed(Fact,T), T < transform_steps.

@@ -1,6 +1,9 @@
 % determine implicit arities of theory operators based on their position in the
 % unparsed theory term.
 
+#program step(parse_unparsed_theory_terms).
+#const parse_unparsed_theory_terms=0.
+
 % the first operator of the first unparsed term element must be unary
 arity(theory_operators(Ops,0,Opname),1)
   :- theory_operators(Ops,0,Opname), 
@@ -18,10 +21,10 @@ arity(theory_operators(Ops,P,Opname),1)
 
 % check that the implicit arities of all unparsed theory term operators
 % match the arity in the operator table
-#show log("error",
-					"{}: No definition for operator '{}' of arity '{}' found for theory term type '{}'.",
-					Location,Opname,Arity,Type)
-  :  undefined_operator(Type,Opname,Arity,Location).
+log("error",
+		"{}: No definition for operator '{}' of arity '{}' found for theory term type '{}'.",
+		@loc2str(Location),Opname,Arity,Type)
+  :-  undefined_operator(Type,Opname,Arity,Location).
 
 undefined_operator(Type,Opname,Arity,location(theory_unpared_term(Id),Begin,End))
   :- theory_unparsed_term(Id,theory_unparsed_term_elements(Elements)),
@@ -45,13 +48,13 @@ prio_assoc(theory_operators(Ops,P,Opname),(Prio,Assoc))
 % We will go from back to front as it makes dealing with
 % unary operators easier.
 
-last_operator(theory_operators(O,P',N))
-  :- theory_operators(O,_,_), P'=#max{P: theory_operators(O,P,_)},
-		 theory_operators(O,P',N).
+last_operator(theory_operators(O,P1,N))
+  :- theory_operators(O,_,_), P1=#max{P: theory_operators(O,P,_)},
+		 theory_operators(O,P1,N).
 
-first_operator(theory_operators(O,P',N))
+first_operator(theory_operators(O,P1,N))
   :- theory_operators(O,_,_),
-		 T'=#min{P: theory_operators(O,P,_)}, theory_operators(O,P',N).
+		 P1=#min{P: theory_operators(O,P,_)}, theory_operators(O,P1,N).
 
 _next(theory_operators(Ops,OpPos,OpName),TheoryTerm)
   :- theory_unparsed_term_elements(Elements,P,theory_operators(Ops),TheoryTerm),
@@ -65,8 +68,8 @@ _next(TheoryTerm,theory_operators(O,P,N))
 		 theory_unparsed_term_elements(E,EP,theory_operators(O),_),
 		 theory_unparsed_term_elements(E,EP-1,_,TheoryTerm).
 
-next(X,Y) :- _next(X,Y).
 % add a marker before the end of the next chain for use when parsing
+next(X,Y) :- _next(X,Y).
 next(alpha,X) :- _next(X,_), not _next(_,X).
 last(T) :- next(_,T), not next(T,_).
 
@@ -104,21 +107,21 @@ recur(parse(Limit,Operator,Token),
 % If the next token is a binary operator with higher precedence than
 % the limit, we start a child parser from the left operand with a new
 % precedence limit, adjusted by the associativity of the operator.
-call(parse(Prec-Assoc,Next,Token'))
+call(parse(Prec-Assoc,Next,Token1))
   :- call(parse(Limit,Operator,Token)), arity(Operator,2),
 		 prio_assoc(Operator,(Prec,Assoc)), Prec>Limit, 
-		 next(Next,Token'), next(Token',Operator).
+		 next(Next,Token1), next(Token1,Operator).
 
 % and recur, having applied the binary operator to the token and
 % whatever new token the child parser returned
 recur(parse(Limit,Operator,Token),
-			parse(Limit,Next',theory_function_(Name,(theory_terms_(0,Token''),
+			parse(Limit,Next1,theory_function_(Name,(theory_terms_(0,Token2),
 																				       theory_terms_(1,Token)))))
   :- call(parse(Limit,Operator,Token)), arity(Operator,2),
 		 prio_assoc(Operator,(Prec,Assoc)), Prec>Limit,
-		 next(Next,Token'), next(Token',Operator),
+		 next(Next,Token1), next(Token1,Operator),
 		 name(Operator,Name), 
-		 return(parse(Prec-Assoc,Next,Token'),(Next',Token'')).
+		 return(parse(Prec-Assoc,Next,Token1),(Next1,Token2)).
 	 
 % If an operator has lower precedence than the limit, we are
 % not allowed to parse it yet, just return.
@@ -131,22 +134,22 @@ return(parse(Limit,alpha,Token),(alpha,Token))
   :- call(parse(Limit,alpha,Token)).
 
 % Start off recursion at the first token with precedence level 0.
-call(parse(0,T',T)) :- last(T), next(T',T).
+call(parse(0,T1,T)) :- last(T), next(T1,T).
 
-#show log("debug", "{}: Output of theory term parser: '{}'", 
-					location(theory_unparsed_term(UT),Begin,End), 
-					theory_function_(Name,Args))
-  :  return(parse(0,T',T),(_,theory_function_(Name,Args))),
-     last(T), next(T',T), 
-		 theory_unparsed_term_elements(E,_,_,T),
-		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
-		 location(theory_unparsed_term(UT),Begin,End).
+log("debug", "{}: Output of theory term parser: '{}'", 
+		@loc2str(location(theory_unparsed_term(UT),Begin,End)),
+		theory_function_(Name,Args))
+  :-  return(parse(0,T1,T),(_,theory_function_(Name,Args))),
+			last(T), next(T1,T), 
+			theory_unparsed_term_elements(E,_,_,T),
+			theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
+			location(theory_unparsed_term(UT),Begin,End).
 
 % Finally, add the output of out Pratt parser to the AST in the correct place
 
 parsed(@decompose(theory_function(UT,Name,Args)))
-  :- return(parse(0,T',T),(_,theory_function_(Name,Args))),
-		 last(T), next(T',T),
+  :- return(parse(0,T1,T),(_,theory_function_(Name,Args))),
+		 last(T), next(T1,T),
 		 theory_unparsed_term_elements(E,_,_,T),
 		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)).
 
@@ -154,12 +157,8 @@ ast(add(A)) :- parsed(A).
 
 ast(replace(theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
 						theory_function(UT,Name,A)))
-  :- return(parse(0,T',T),(_,theory_function_(Name,Args))),
-		 last(T), next(T',T),
+  :- return(parse(0,T1,T),(_,theory_function_(Name,Args))),
+		 last(T), next(T1,T),
 		 theory_unparsed_term_elements(E,_,_,T),
 		 theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
 		 parsed(theory_function(UT,Name,A)).
-
-%% theory_unparsed_term(UT,theory_unparsed_term_elements(E)),
-%% 		 parsed(theory_function(UT,Name,A)).
-

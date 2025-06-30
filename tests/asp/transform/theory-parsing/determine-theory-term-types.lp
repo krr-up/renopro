@@ -1,3 +1,15 @@
+#program step(parse_unparsed_theory_terms).
+
+#script (python)
+
+from clingo.symbol import String, Number
+
+def is_operator_name(name: String):
+    name_str = name.string																	
+    return Number(1) if (name_str and name_str[0] in "/!<=>+-*\\?&@|:;~^.") or (name_str == "not") else Number(0)
+
+#end.
+
 func_arity(F,A) :- function(F,_,terms(TS)), A = #count{ P: terms(TS,P,_) }.
 
 operator_table(TermType,(Name,1),(Prio,0))
@@ -26,17 +38,17 @@ theory_atom_occurrence(A,directive)
 
 theory_atom_occurrence(A,any) :- theory_atom_occurrence(A,_).
 
-#show log("error", "{}: No theory atom definition of name '{}' and arity '{}'.",
-					location(theory_atom(A),Begin,End),AtomName,Arity)
-  : theory_atom(A,function(F),_,_), function(F,AtomName,_), 
-  	func_arity(F,Arity), not atom_table((AtomName,Arity),_,_,_),
-		location(theory_atom(A),Begin,End).
+log("error", "{}: No theory atom definition of name '{}' and arity '{}'.",
+		@loc2str(location(theory_atom(A),Begin,End)),AtomName,Arity)
+  :- theory_atom(A,function(F),_,_), function(F,AtomName,_), 
+  	 func_arity(F,Arity), not atom_table((AtomName,Arity),_,_,_),
+		 location(theory_atom(A),Begin,End).
 
-#show log("error", "{}: Theory atom found in unexpected context, allowed context: '{}'.",
-					location(theory_atom(A),Begin,End),AtomType)
-  : theory_atom(A,function(F),_,_), function(F,AtomName,_), 
-    func_arity(F,Arity), atom_table((AtomName,Arity),AtomType,_,_),
-    not theory_atom_occurrence(A,AtomType), location(theory_atom(A),Begin,End).
+log("error", "{}: Theory atom found in unexpected context, allowed context: '{}'.",
+					@loc2str(location(theory_atom(A),Begin,End)),AtomType)
+  :- theory_atom(A,function(F),_,_), function(F,AtomName,_), 
+     func_arity(F,Arity), atom_table((AtomName,Arity),AtomType,_,_),
+     not theory_atom_occurrence(A,AtomType), location(theory_atom(A),Begin,End).
 
 
 descendant(theory_atom_elements(X),Y):- child(theory_atom_elements(X),Y).
@@ -68,8 +80,6 @@ theory_term_type(TU,Type)
 
 % check that theory functions that represent operations agree with the
 % grammar
-
-#include "is-operator-name.lp".
 
 undefined_operator(Type,N,Arity,location(theory_function(TF),Begin,End))
 :- theory_function(TF,N,theory_terms(TT)),

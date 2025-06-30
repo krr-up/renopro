@@ -2,7 +2,12 @@
 The main entry point for the application.
 """
 
+import sys
+
+from clingo import clingo_main
+
 from renopro.rast import ReifiedAST
+from renopro.transformer import MetaTransformerApp
 
 from .utils.logger import setup_logger
 from .utils.parser import get_parser
@@ -13,9 +18,12 @@ def main():
     Run the main function.
     """
     parser = get_parser()
-    args = parser.parse_args()
-    setup_logger("renopro", args.log)
-    if args.command == "reify":
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit()
+    if sys.argv[1] == "reify":
+        args = parser.parse_args()
+        setup_logger("renopro", args.log)
         rast = ReifiedAST()
         rast.reify_files(args.infiles)
         if args.commented:
@@ -23,25 +31,18 @@ def main():
         else:
             print(rast.reified_string)
 
-    elif args.command == "reflect":
+    elif sys.argv[1] == "reflect":
+        args = parser.parse_args()
+        setup_logger("renopro", args.log)
         rast = ReifiedAST()
         rast.add_reified_files(args.infiles)
         rast.reflect()
         print(rast.program_string)
-
-    elif args.command == "transform":
-        rast = ReifiedAST()
-        if args.input_format == "reified":
-            rast.add_reified_files(args.infiles)
-        elif args.input_format == "reflected":
-            rast.reify_files(args.infiles)
-        for meta_encoding in args.meta_encodings:
-            rast.transform(meta_files=meta_encoding, clingo_options=args.clingo_options)
-        if args.output_format == "reified":
-            print(rast.reified_string)
-        elif args.output_format == "reflected":
-            rast.reflect()
-            print(rast.program_string)
+    elif sys.argv[1] == "transform":
+        sys.exit(int(clingo_main(MetaTransformerApp(), sys.argv[2:])))
+    else:
+        parser.print_help()
+        sys.exit()
 
 
 if __name__ == "__main__":
