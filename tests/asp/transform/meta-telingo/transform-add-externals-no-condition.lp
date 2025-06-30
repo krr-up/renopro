@@ -41,7 +41,7 @@ log("error", "{}: Conditionals are not supported.", location(conditional_literal
 
 log("error", "{}: Conditional literals, aggregates and theory atoms are not supported.", 
 					location(body_aggregate(B),Begin,End))
-  :- body_aggregate(B,_,_,,_), location(body_aggregate(B),Begin,End).
+  :- body_aggregate(B,_,_,_), location(body_aggregate(B),Begin,End).
 
 log("error", "{}: Conditional literals, aggregates and theory atoms are not supported.", 
 					location(theory_atom(A),Begin,End))

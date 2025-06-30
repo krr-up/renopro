@@ -202,7 +202,7 @@ class TestTransformTheoryParsing(TestTransform):
 
     files_dir = test_transform_dir / "theory-parsing"
 
-    def test_parse_theory_unparsed_theory_term_clingo_unknown(self):
+    def test_transform_parse_theory_unparsed_theory_term_clingo_unknown(self):
         """Theory operators without an entry in the operator table of
         the appropriate theory term type should raise error."""
         self.assertTransformLogs(
@@ -220,7 +220,7 @@ class TestTransformTheoryParsing(TestTransform):
             },
         )
 
-    def test_parse_unparsed_theory_terms_clingo(self):
+    def test_transform_parse_unparsed_theory_terms_clingo(self):
         """Test that unparsed theory terms with clingo operators
         (using provided operator table) are parsed correctly.
 
@@ -234,7 +234,7 @@ class TestTransformTheoryParsing(TestTransform):
             self.files_dir / "outputs" / "clingo-unparsed-theory-term.lp",
         )
 
-    def test_parse_theory_terms_clingo(self):
+    def test_transform_parse_theory_terms_clingo(self):
         """Test that undefined operators are detected correctly."""
         pattern = r"No definition for operator '\+' of arity '1' found"
         with self.assertRaisesRegex(TransformationError, pattern):
@@ -261,7 +261,7 @@ class TestTransformTheoryParsing(TestTransform):
                 ],
             )
 
-    def test_parse_telingo(self):
+    def test_transform_parse_telingo(self):
         """Test that parsing of telingo theory terms works correctly."""
         self.assertTransformEqual(
             [
@@ -275,7 +275,7 @@ class TestTransformTheoryParsing(TestTransform):
             self.files_dir / "outputs" / "telingo-parsed-term.lp",
         )
 
-    def test_bad_theory_atom_occurrence(self):
+    def test_transform_bad_theory_atom_occurrence(self):
         """Error should be raised when theory atoms occur in incorrect
         context."""
         self.assertTransformLogs(
