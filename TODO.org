@@ -13,3 +13,9 @@ While this might duplicate information a bit, it allows us for example to write 
 instead of
 =terms(T,Pos,string(S)), string(S,"hello")=
 While this may seem like a minor benefit, the latter solution becomes more and more unwieldy with longer predicate names.
+
+* Consider adding nested representation of terms to AST and representing functions as =function(Arity,Name,Arglist)=
+
+For example, the function =f(4,5)= would be =function(2,f,(4,(5,())))=
+
+This would result in the nested reified representation of ast terms sharing the same as their reflected counterparts, which would enable meta-encoders to use the comparison operator and equality in the same way in the reified form.

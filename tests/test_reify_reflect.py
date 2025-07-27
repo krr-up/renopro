@@ -86,13 +86,13 @@ class TestReifiedASTInterface(TestReifiedAST):
         "Test accessibility of program AST nodes."
         prog_str = "a."
         stms = []
-        ast.parse_string(prog_str, stms.append)
+        ast.ast.parse_string(prog_str, stms.append)
         rast = ReifiedAST()
         rast.reify_string(prog_str)
         rast.reflect()
         self.assertListEqual(stms, rast.program_ast)
         reified = rast.reified_facts
-        rast.reify_ast(stms)
+        rast.reify_program(stms)
         self.assertSetEqual(reified, rast.reified_facts)
 
 

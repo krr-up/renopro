@@ -1,25 +1,20 @@
-import sys
-import io
-import os
-from typing import List, Sequence, Callable, Optional, Tuple
 import logging
-from pathlib import Path
-from contextlib import redirect_stdout
-import subprocess
-import tempfile
+import sys
 from collections import defaultdict
+from pathlib import Path
+from typing import Callable, List, Optional, Sequence, Tuple
 
-from clingo import Control
 import clingo.ast as ast
 import clingo.symbol as symbol
-from clingo.application import Application, ApplicationOptions, clingo_main, Flag
-from clingo.solving import Model
-from clingo.symbol import SymbolType, Function, Symbol
+from clingo import Control
+from clingo.application import Application, ApplicationOptions, Flag, clingo_main
 from clingo.core import MessageCode
 from clingo.script import enable_python
+from clingo.solving import Model
+from clingo.symbol import Function, Symbol, SymbolType
 
-from renopro.utils.logger import get_clingo_logger_callback, setup_logger, log_string2level
 import renopro.rast
+from renopro.utils.logger import get_clingo_logger_callback, setup_logger
 
 Trace = dict[int, List[Symbol]]
 
@@ -154,9 +149,12 @@ class MetaTransformerApp(Application):  # type: ignore
 
     def register_options(self, options: ApplicationOptions):
         group = "Meta-Transformer Options"
-        options.add(group, "log,l", 
-                    "Set log level. Valid values are error, warning, info, debug.",
-                    self._parse_log_levels)
+        options.add(
+            group,
+            "log,l",
+            "Set log level. Valid values are error, warning, info, debug.",
+            self._parse_log_levels,
+        )
         options.add(
             group,
             "meta-encoding,m",
@@ -245,13 +243,14 @@ class MetaTransformerApp(Application):  # type: ignore
             ast.parse_files(
                 input_files, lambda stm: transformed_stms.append(input_tf(stm))
             )
-        ast.parse_string(
+        ast.ast.parse_string(
             input_string, lambda stm: transformed_stms.append(input_tf(stm))
         )
         meta_enc_tf = MetaEncodingTransformer()
         if len(self._meta_encodings) > 0:
             ast.parse_files(
-                self._meta_encodings, lambda stm: transformed_stms.append(meta_enc_tf(stm))
+                self._meta_encodings,
+                lambda stm: transformed_stms.append(meta_enc_tf(stm)),
             )
         transformed_prog_str = "\n".join([str(stm) for stm in transformed_stms])
         # print(transformed_prog_str)
@@ -273,7 +272,7 @@ class MetaTransformerApp(Application):  # type: ignore
 
     def _log_log(self, symb: Symbol, logs: dict[int, List[str]]) -> None:
         log_lvl_symb = symb.arguments[0]
-        log_step = symb.arguments[-1].number
+        symb.arguments[-1].number
         msg_format_str = str(symb.arguments[1]).strip('"')
         log_lvl_strings = log_lvl_str2int.keys()
         if (

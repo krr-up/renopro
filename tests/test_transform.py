@@ -4,9 +4,8 @@ import re
 import unittest
 from itertools import count
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Sequence
+from typing import Dict, List, Literal, Optional
 from unittest import TestCase
-import tempfile
 
 from clingo import ast
 
@@ -47,10 +46,10 @@ class TestTransform(TestCase):
         # we re-parse the string as the mapping
         # from statements to their string representation is not bijective
         transformed_stms = []
-        ast.parse_string(rast.program_string, transformed_stms.append)
+        ast.ast.parse_string(rast.program_string, transformed_stms.append)
         # print([str(s) for s in transformed_stms])
         expected_stms = []
-        ast.parse_string("#program base.", expected_stms.append)
+        ast.ast.parse_string("#program base.", expected_stms.append)
         ast.parse_files([str(expected_output_file)], expected_stms.append)
         expected_prog_blocks, transformed_prog_blocks = set(), set()
         for stms, prog_blocks in zip(

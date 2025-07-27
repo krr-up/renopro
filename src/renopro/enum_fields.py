@@ -1,11 +1,16 @@
 "Definitions of enum fields to be used in AST predicates."
+
 import enum
 import inspect
 from types import new_class
 from typing import Any, Type, TypeVar
 
-from clingo.ast import CommentType
-from clorm import BaseField, ConstantField, StringField
+import clorm.orm.core
+from clorm import BaseField, StringField
+
+# We monkey patch the define_enum_field function from clorm, such that
+# restricted subfield definitions of predicates defined via enum
+# annotations will now preserve the enum for later access
 
 
 def define_enum_field(
@@ -59,10 +64,14 @@ def define_enum_field(
         return val
 
     def body(ns: dict[str, Any]) -> None:
-        ns.update({"pytocl": _pytocl, "cltopy": enum_class, "enum": enum_class})
+        ns.update(
+            {"pytocl": _pytocl, "cltopy": lambda cl: enum_class(cl), "enum": enum_class}
+        )
 
     return new_class(subclass_name, (parent_field,), {}, body)
 
+
+clorm.orm.core.define_enum_field = define_enum_field
 
 A = TypeVar("A", bound=enum.Enum)
 B = TypeVar("B", bound=enum.Enum)
@@ -84,6 +93,7 @@ def convert_enum(enum_member: A, other_enum: Type[B]) -> B:
 
 class UnaryOperator(str, enum.Enum):
     "String enum of clingo's unary operators."
+
     Absolute = "||"  # For taking the absolute value.
     Minus = "-"  # For unary minus and classical negation.
     Negation = "~"  # For bitwise negation
@@ -96,6 +106,7 @@ UnaryOperatorField = define_enum_field(
 
 class BinaryOperator(str, enum.Enum):
     "String enum of clingo's binary operators."
+
     And = "&"  # bitwise and
     Division = "/"  # arithmetic division
     Minus = "-"  # arithmetic subtraction
@@ -130,6 +141,13 @@ ComparisonOperatorField = define_enum_field(
     enum_class=ComparisonOperator,
     name="ComparisonOperatorField",
 )
+
+
+class Bool(str, enum.Enum):
+    """String enum of true and false values."""
+
+    True_ = "true"
+    False_ = "false"
 
 
 class TheorySequenceType(str, enum.Enum):
@@ -180,6 +198,7 @@ SignField = define_enum_field(
 
 class AggregateFunction(str, enum.Enum):
     "String enum of clingo's aggregate functions."
+
     Count = "#count"
     Max = "#max"
     Min = "#min"
@@ -196,13 +215,14 @@ AggregateFunctionField = define_enum_field(
 
 class TheoryOperatorType(str, enum.Enum):
     "String enum of clingo's theory definition types"
+
     BinaryLeft = "binary_left"
     BinaryRight = "binary_right"
     Unary = "unary"
 
 
 TheoryOperatorTypeField = define_enum_field(
-    parent_field=ConstantField,
+    parent_field=StringField,
     enum_class=TheoryOperatorType,
     name="TheoryOperatorTypeField",
 )
@@ -210,6 +230,7 @@ TheoryOperatorTypeField = define_enum_field(
 
 class TheoryAtomType(str, enum.Enum):
     "String enum of clingo's theory atom types."
+
     Any = "any"
     Body = "body"
     Directive = "directive"
@@ -217,12 +238,24 @@ class TheoryAtomType(str, enum.Enum):
 
 
 TheoryAtomTypeField = define_enum_field(
-    parent_field=ConstantField, enum_class=TheoryAtomType, name="TheoryAtomTypeField"
+    parent_field=StringField, enum_class=TheoryAtomType, name="TheoryAtomTypeField"
 )
+
+
+class HeuristicModifier(str, enum.Enum):
+    "String enumeration of clingo's heuristic modifiers"
+
+    Sign = "sign"
+    Level = "level"
+    True_ = "true"
+    False_ = "false"
+    Init = "init"
+    Factor = "factor"
 
 
 class CommentType(str, enum.Enum):
     "String enum of clingo's comment types."
+
     Line = "line"
     Block = "block"
 

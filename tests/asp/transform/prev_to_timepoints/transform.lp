@@ -1,48 +1,30 @@
 #program step(prev_to_timepoints).
 #const prev_to_timepoints=0.
-% auxiliary atoms
-max_arg_index(TT,Idx)
-:- Idx = #max{ Pos : terms(TT,Pos,_); -1 }, function(_,_,terms(TT)).
 
-arity(F,N+1) :- function(F,_,terms(T)), max_arg_index(T,N).
+prev_path(A,(F,()))
+  :- node(A), A = symbolic_atom(F), F = function(1,"prev",_).
 
-prev_chain(A,function(F),O)
-:- symbolic_atom(A,function(F)), function(F,prev,terms(T)), arity(F,1),
-	 terms(T,0,O).
-
-prev_chain(A,function(F),O)
-:- prev_chain(A,_,function(F)), function(F,prev,terms(T)), arity(F,1),
-	 terms(T,0,O).
+prev_path(A,(O,P))
+  :- prev_path(A,P), P=(F,R), F = function(1,"prev",(O,())).
 
 % final operand must be a constant or function, as e.g. prev(1) is not a prev operation
-final_operand(A,O)
-:- prev_chain(A,F,O), not prev_chain(A,O,_),
-	 O=function(_).
+final_operand(A,F)
+  :- prev_path(A,(F,R)), F = function(_,Name,_), Name != "prev".
 
-num_prevs(A,N) :- N = #count{ F : prev_chain(A,F,_) }, prev_chain(A,_,_).
+num_prevs(A,N-1) :- prev_path(A,); N = #count{ P : prev_path(A,P) }.
 
-first_prev(A,F) :- prev_chain(A,F,O), not prev_chain(A,_,F).
-
-
-% when an symbolic_atom is not prev.
-
-% add time point constant as additional argument
+% when a symbolic_atom is not prev, add time point constant as additional argument
 ast(
-		add(terms(T,N+1,function(new_id(T)));
-				function(new_id(T),t,terms(new_id(T)))))
-:- symbolic_atom(A,function(F)), function(F,Name,terms(T)),
-	 Name!=prev, max_arg_index(T,N).
+		replace(A,
+						symbolic_atom(function(Arity+1,Name,(function(0,"t",()),Terms)))))
+  :- node(A), A = symbolic_atom(F), F = function(Arity,Name,Terms), Name!="prev".
 
-% when an symbolic_atom is a prev.
-
-% replace function symbol of symbolic_atom with final operand, appending
-% appropriate time point as additional argument.
-ast(
-		delete(function(F,N,T1));
-		add(function(F,Name,terms(T2));
-				terms(T2,I+1,binary_operation(new_id(O)));
-				binary_operation(new_id(O),"-",function(new_id(O)),number(new_id(O)));
-				function(new_id(O),t,terms(new_id(O)));
-				number(new_id(O),Num)))
-:- first_prev(A,function(F)), function(F,N,T1), final_operand(A,function(O)),
-	 function(O,Name,terms(T2)),  max_arg_index(T2,I), num_prevs(A,Num).
+% when a symbolic_atom is a prev, replace function symbol of
+% symbolic_atom with final operand, appending appropriate time point
+% as additional argument.
+ast(replace(A,
+						symbolic_atom(function(Arity,Name,
+																	 (binary_operation("-",function(0,"t",()),
+																										     number(Num)),
+													Terms)))))
+  :- final_operand(A,function(Arity,Name,Terms)), num_preds(A,Num).

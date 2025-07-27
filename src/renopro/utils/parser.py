@@ -4,7 +4,7 @@ The command line parser for the project.
 
 import logging
 import sys
-from argparse import REMAINDER, ArgumentParser
+from argparse import ArgumentParser
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Optional, cast

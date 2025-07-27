@@ -10,46 +10,43 @@ def is_operator_name(name: String):
 
 #end.
 
-func_arity(F,A) :- function(F,_,terms(TS)), A = #count{ P: terms(TS,P,_) }.
-
 operator_table(TermType,(Name,1),(Prio,0))
-  :- theory_term_definitions(_,_,TermType,theory_operator_definitions(OD)),
-		 theory_operator_definitions(OD,_,Name,Prio,unary).
+  :- theory_term_definition(TermType,TheoryOpDefs),
+		 member(theory_operator_definition(Name,Prio,"unary"),TheoryOpDefs).
 
 operator_table(TermType,(Name,2),(Prio,1))
-  :- theory_term_definitions(_,_,TermType,theory_operator_definitions(OD)),
-		 theory_operator_definitions(OD,_,Name,Prio,binary_left).
+  :- theory_term_definition(TermType,TheoryOpDefs),
+		 member(theory_operator_definition(Name,Prio,"binary_left"),TheoryOpDefs).
 
 operator_table(TermType,(Name,2),(Prio,0))
-  :- theory_term_definitions(_,_,TermType,theory_operator_definitions(OD)),
-		 theory_operator_definitions(OD,_,Name,Prio,binary_right).
+  :- theory_term_definition(TermType,TheoryOpDefs),
+		 member(theory_operator_definition(Name,Prio,"binary_right"),TheoryOpDefs).
 
-atom_table((Name,Arity),AtomType,ElementTermType,theory_guard_definition(GD))
-  :- theory_atom_definitions(_,_,AtomType,Name,Arity,
-														 ElementTermType,theory_guard_definition(GD)).
+atom_table((Name,Arity),AtomType,ElementTermType,TheoryGuardDef)
+  :- theory_atom_definition(AtomType,Name,Arity,ElementTermType,TheoryGuardDef).
 
-theory_atom_occurrence(A,body) :- body_literal(_,_,theory_atom(A)).
+theory_atom_occurrence(R,A,body)
+  :- node(R), R=Rule(_,B), body_literal(_,_,A), A=theory_atom(_,_,_).
 
-theory_atom_occurrence(A,head)  
-  :- rule(_,theory_atom(A),body_literals(B)), body_literals(B,_,_).
+theory_atom_occurrence(R,A,head)  
+  :- node(R),  R=rule(A,(First,Rest)), A=theory_atom(_,_,_).
 
-theory_atom_occurrence(A,directive)  
-  :- rule(_,theory_atom(A),body_literals(B)), not body_literals(B,_,_).
+theory_atom_occurrence(R,A,directive)
+  :- node(R),  R=rule(A,()), A=theory_atom(_,_,_).
 
-theory_atom_occurrence(A,any) :- theory_atom_occurrence(A,_).
+theory_atom_occurrence(R,A,any) :- theory_atom_occurrence(R,A,_).
 
 log("error", "{}: No theory atom definition of name '{}' and arity '{}'.",
 		@loc2str(location(theory_atom(A),Begin,End)),AtomName,Arity)
-  :- theory_atom(A,function(F),_,_), function(F,AtomName,_), 
-  	 func_arity(F,Arity), not atom_table((AtomName,Arity),_,_,_),
-		 location(theory_atom(A),Begin,End).
+  :- node(A), A=theory_atom(function(Arity,AtomName),_,_),
+		 not atom_table((AtomName,Arity),_,_,_), L=location(A,_,_).
 
-log("error", "{}: Theory atom found in unexpected context, allowed context: '{}'.",
-					@loc2str(location(theory_atom(A),Begin,End)),AtomType)
-  :- theory_atom(A,function(F),_,_), function(F,AtomName,_), 
-     func_arity(F,Arity), atom_table((AtomName,Arity),AtomType,_,_),
-     not theory_atom_occurrence(A,AtomType), location(theory_atom(A),Begin,End).
-
+log("error", "{}: Theory atom found in unallowed context.",
+					LA)
+  :- theory_atom_occurrence(R,A,AtomType), 
+		 A=theory_atom(F,_,_), F=function(Arity,AtomName,_),
+		 not atom_table((AtomName,Arity),AtomType,_,_),
+		 child(LR,LA), LR=location(R,_,_), LA=location(R,_,_).
 
 descendant(theory_atom_elements(X),Y):- child(theory_atom_elements(X),Y).
 descendant(theory_guard(X),Y):- child(theory_guard(X),Y).
@@ -57,14 +54,12 @@ descendant(X,Z) :- descendant(X,Y), child(Y,Z).
 
 root_term_type(theory_atom_elements(E),ElementTermType)
   :- theory_atom(A,function(F),theory_atom_elements(E),_), 
-		 function(F,AtomName,_), 
-		 func_arity(F,Arity), theory_atom_occurrence(A,AtomType),
+		 function(Arity,AtomName,_) theory_atom_occurrence(A,AtomType),
 		 atom_table((Name,Arity),AtomType,ElementTermType,_).
 
 root_term_type(theory_guard(TG),GuardTermType)
   :- theory_atom(A,function(F),_,theory_guard(TG)), 
- 		 function(F,AtomName,_), 
-		 func_arity(F,Arity), theory_atom_occurrence(A,Type),
+ 		 function(Arity,F,AtomName,_), theory_atom_occurrence(A,Type),
 		 theory_guard(TG,Opname,_),
 		 atom_table((Name,Arity),Type,_,theory_guard_definition(GD)),
 		 theory_guard_definition(GD,theory_operators(TOS),GuardTermType),
@@ -82,9 +77,8 @@ theory_term_type(TU,Type)
 % grammar
 
 undefined_operator(Type,N,Arity,location(theory_function(TF),Begin,End))
-:- theory_function(TF,N,theory_terms(TT)),
+:- theory_function(TF,Arity,N,theory_terms(TT)),
 	 theory_term_type(TF,Type),
-   Arity = #count{ P: theory_terms(TT,P,T) },
    @is_operator_name(N)=1, 
 	 not operator_table(Type,(N,Arity),_),
    location(theory_function(TF),Begin,End).

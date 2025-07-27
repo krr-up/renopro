@@ -1,16 +1,15 @@
 # nocoverage
-from pathlib import Path
-from typing import Any, List
 import json
+from pathlib import Path
+from typing import List
 
 import renopro.predicates as preds
-
 
 pred_name2child_idx: dict[str, List[int]] = {}
 
 
 def build_pred_name2child_idx() -> None:
-    for predicate in preds.AstPreds:
+    for predicate in preds.Asts:
         idx_list: List[int] = []
         for idx, key in enumerate(predicate.meta.keys()):
             if key == "id":
@@ -31,7 +30,7 @@ def generate_replace() -> None:
         "% with child predicate identifier B in each AST fact where A\n"
         "% occurs as a term.\n\n#program always.\n"
     )
-    for predicate in preds.AstPreds:
+    for predicate in preds.Asts:
         if predicate in [preds.Location, preds.Child]:
             continue
         name = predicate.meta.name
@@ -59,7 +58,7 @@ def generate_add_child() -> None:
     add_child_program = (
         "% Add child relations for facts added via ast add.\n\n#program always.\n"
     )
-    for predicate in preds.AstPreds:
+    for predicate in preds.Asts:
         if predicate is preds.Location or predicate is preds.Child:
             continue
         name = predicate.meta.name
@@ -80,7 +79,7 @@ def generate_add_child() -> None:
 def generate_wrap_ast() -> None:
     "Generate rules to tag AST facts."
     program = "% Rules to tag AST facts.\n\n#program always.\n"
-    for predicate in preds.AstPreds:
+    for predicate in preds.Asts:
         name = predicate.meta.name
         arity = predicate.meta.arity
         args = ",".join(["X" + str(i) for i in range(arity)])
@@ -90,9 +89,9 @@ def generate_wrap_ast() -> None:
     Path("src", "renopro", "asp", "wrap_ast.lp").write_text(program, encoding="utf-8")
 
 
-def generate_unwrap_ast()  -> None:
+def generate_unwrap_ast() -> None:
     program = "% Rules to unwrap tagged AST facts for next step of transformation.\n\n#program always.\n"
-    for predicate in preds.AstPreds:
+    for predicate in preds.Asts:
         name = predicate.meta.name
         arity = predicate.meta.arity
         args = ",".join(["X" + str(i) for i in range(arity)])
@@ -105,7 +104,7 @@ def generate_unwrap_ast()  -> None:
 def generate_defined() -> None:
     "Generate defined statements for AST facts."
     program = "% Defined statements for AST facts.\n\n"
-    for predicate in preds.AstPreds:
+    for predicate in preds.Asts:
         name = predicate.meta.name
         arity = predicate.meta.arity
         statement = f"#defined {name}/{arity}.\n"

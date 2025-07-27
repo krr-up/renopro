@@ -16,18 +16,8 @@
 % auxiliary predicate to get maximal index within a tuple of rule body literals
 #program step(not_bad).
 #const not_bad=0.
-max_lit_index(LT,Idx)
-:- Idx = #max{ P : body_literals(LT,P,_); -1 }, rule(_,_,body_literals(LT)).
 
-
-%% the transformation itself
-ast(
-		add((body_literals(LT,N+1,body_literal(new_id(LT,0)));
-				 body_literal(new_id(LT,0),"not",symbolic_atom(new_id(LT,1)));
-				 symbolic_atom(new_id(LT,1),function(new_id(LT,2)));
-				 function(new_id(LT,2),bad,Fargs))))
-:- rule(_,literal(L),body_literals(LT)),
-	 literal(L,"pos",symbolic_atom(A)),
-	 symbolic_atom(A,function(F)),
-	 function(F,good,Fargs),
-	 max_lit_index(LT,N).
+ast(replace(R,
+					  rule(H,(body_literal("not",(symbolic_atom(function("bad",Terms)))),B))
+))
+  :- node(R), R=rule(H,B) H=literal("",symbolic_atom(function(Arity,"good",Terms))).
