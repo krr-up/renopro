@@ -8,6 +8,7 @@ from contextlib import redirect_stdout
 import subprocess
 import tempfile
 from collections import defaultdict
+from importlib.resources import files
 
 from clingo import Control
 import clingo.ast as ast
@@ -18,7 +19,11 @@ from clingo.symbol import SymbolType, Function, Symbol
 from clingo.core import MessageCode
 from clingo.script import enable_python
 
-from renopro.utils.logger import get_clingo_logger_callback, setup_logger, log_string2level
+from renopro.utils.logger import (
+    get_clingo_logger_callback,
+    setup_logger,
+    log_string2level,
+)
 import renopro.rast
 
 Trace = dict[int, List[Symbol]]
@@ -154,9 +159,12 @@ class MetaTransformerApp(Application):  # type: ignore
 
     def register_options(self, options: ApplicationOptions):
         group = "Meta-Transformer Options"
-        options.add(group, "log,l", 
-                    "Set log level. Valid values are error, warning, info, debug.",
-                    self._parse_log_levels)
+        options.add(
+            group,
+            "log,l",
+            "Set log level. Valid values are error, warning, info, debug.",
+            self._parse_log_levels,
+        )
         options.add(
             group,
             "meta-encoding,m",
@@ -251,22 +259,24 @@ class MetaTransformerApp(Application):  # type: ignore
         meta_enc_tf = MetaEncodingTransformer()
         if len(self._meta_encodings) > 0:
             ast.parse_files(
-                self._meta_encodings, lambda stm: transformed_stms.append(meta_enc_tf(stm))
+                self._meta_encodings,
+                lambda stm: transformed_stms.append(meta_enc_tf(stm)),
             )
         transformed_prog_str = "\n".join([str(stm) for stm in transformed_stms])
         # print(transformed_prog_str)
         control.add(transformed_prog_str)
+        asp_path = Path("src", "renopro", "asp")
         transform_files = [
-            "./src/renopro/asp/transform.lp",
-            "./src/renopro/asp/wrap_ast.lp",
-            "./src/renopro/asp/unwrap_ast.lp",
-            "./src/renopro/asp/defined.lp",
-            "./src/renopro/asp/replace_id.lp",
-            "./src/renopro/asp/scripts.lp",
-            "./src/renopro/asp/ast_fact2id.lp",
+            "transform.lp",
+            "wrap_ast.lp",
+            "unwrap_ast.lp",
+            "defined.lp",
+            "replace_id.lp",
+            "scripts.lp",
+            "ast_fact2id.lp",
         ]
         for f in transform_files:
-            control.load(f)
+            control.load(str(asp_path / f))
         control.add(f"#const transform_steps={self._transform_steps}.")
         control.ground()
         control.solve(on_model=self._on_model)
