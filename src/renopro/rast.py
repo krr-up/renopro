@@ -54,7 +54,7 @@ import renopro.enum_fields as enums
 import renopro.predicates as preds
 from renopro.enum_fields import convert_enum
 from renopro.utils import assert_never
-from renopro.transformer import MetaTransformerApp
+
 
 logger = logging.getLogger(__name__)
 
