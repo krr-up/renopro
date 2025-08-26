@@ -19,6 +19,7 @@ from clingo.symbol import SymbolType, Function, Symbol
 from clingo.core import MessageCode
 from clingo.script import enable_python
 
+import renopro
 from renopro.utils.logger import (
     get_clingo_logger_callback,
     setup_logger,
@@ -265,7 +266,8 @@ class MetaTransformerApp(Application):  # type: ignore
         transformed_prog_str = "\n".join([str(stm) for stm in transformed_stms])
         # print(transformed_prog_str)
         control.add(transformed_prog_str)
-        asp_path = Path("src", "renopro", "asp")
+        renopro_init_path = Path(renopro.__file__)
+        asp_path = (renopro_init_path / ".." / "asp").resolve()
         transform_files = [
             "transform.lp",
             "wrap_ast.lp",
